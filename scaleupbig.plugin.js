@@ -17,7 +17,7 @@
 /* EDIT THIS to put in the maximum resolutions your video card can handle. 
   These values work for the Nvidia 2060 Super with 8GB VRAM. */
 var maxTotalResolution = 1280 * 1280;  //put max resolution (without turbo mode) here
-var maxTurboResolution = 1024 * 1024;  //put max turbo resolution here
+var maxTurboResolution = 960 * 960;   //put max resolution (other than 'low' mode) here
 var MaxSquareResolution = 1280;
 
 //Note that the table entries go in pairs, if not 1:1 square ratio.
