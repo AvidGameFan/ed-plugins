@@ -17,7 +17,7 @@
    If you go too large, you'll see "Error: CUDA out of memory". 
  */
 var maxTotalResolution = 1280 * 1280; //put max 'low' mode resolution here, max possible size when low mode is on
-var maxTurboResolution = 960 * 960;   //put max resolution (other than 'low' mode) here
+var maxTurboResolution = 1536	* 896;   //put max resolution (other than 'low' mode) here
 
 //NOTE: it is possible that it could choose resolution values that exceed maxTotalResolution.  Adjustment may be necessary, but this should be an unlikely occurrence.
 

@@ -139,6 +139,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     //Each person needs to test with different resolutions to find the limit of their card when using turbo mode.
     if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //put max normal resolution here
       newTaskRequest.reqBody.vram_usage_level = 'low';
+      //delete newTaskRequest.reqBody.hypernetwork_strength;
     }
     delete newTaskRequest.reqBody.mask
     createTask(newTaskRequest)

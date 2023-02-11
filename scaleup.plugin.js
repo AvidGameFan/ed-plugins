@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.1.10, last updated: 2/5/2023
+ * v.1.11, last updated: 2/11/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -16,8 +16,8 @@
 These values work (usually) for the Nvidia 2060 Super with 8GB VRAM. 
 If you go too large, you'll see "Error: CUDA out of memory". 
 */
-var maxTurboResolution = 960 * 960;   //put max resolution (other than 'low' mode) here
-var MaxSquareResolution=1024;
+var maxTurboResolution = 1536	* 896;   //put max resolution (other than 'low' mode) here
+var MaxSquareResolution = 1280;
 
 //Note that the table entries go in pairs, if not 1:1 square ratio.
 //Ratios that don't match exactly may slightly stretch or squish the image, but should be slight enough to not be noticeable.
