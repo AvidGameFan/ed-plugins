@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.1.09, last updated: 12/29/2022
+ * v.1.10, last updated: 2/5/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -90,32 +90,33 @@ var resTable = [
     [896,960,960],  //1.071 -> 1.067
 ]
 
+function scaleUp(height,width) {
+  var result=height;
+
+  resTable.forEach(function(item){
+      if (item[0]==height && 
+          item[1]==width)
+          {
+          result=item[2]
+          return;
+          }
+  })
+  if (result==height /*no match found in table*/
+      && height==width) /* and if square */
+      {
+          if (height>=768 && height<MaxSquareResolution) {
+              result=MaxSquareResolution; //arbitrary
+          }
+          else if (height<768) {
+              result=896; //arbitrary
+          }
+      }
+  return result;
+}
+
 PLUGINS['IMAGE_INFO_BUTTONS'].push({
   text: 'Scale Up',
   on_click: function(origRequest, image) {
-      function scaleUp(height,width) {
-          var result=height;
-
-          resTable.forEach(function(item){
-              if (item[0]==height && 
-                  item[1]==width)
-                  {
-                  result=item[2]
-                  return;
-                  }
-          })
-          if (result==height /*no match found in table*/
-              && height==width) /* and if square */
-              {
-                  if (height>=768 && height<MaxSquareResolution) {
-                      result=MaxSquareResolution; //arbitrary
-                  }
-                  else if (height<768) {
-                      result=896; //arbitrary
-                  }
-              }
-          return result;
-        }
   
       let newTaskRequest = getCurrentUserRequest()
     newTaskRequest.reqBody = Object.assign({}, origRequest, {
@@ -135,10 +136,13 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
     newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
     newTaskRequest.numOutputsTotal = 1 // "
-    //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
-    //Each person needs to test with different resolutions to find the limit of their card when using turbo mode.
-    if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //put max normal resolution here
+    //If you have a lower-end graphics card, the below will automatically disable memory-intensive options for larger images.
+    //Each person needs to test with different resolutions to find the limit of their card when using balanced (formerly, "turbo") mode.
+    if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //max normal resolution
+      //Disable anything that takes up VRAM here
       newTaskRequest.reqBody.vram_usage_level = 'low';
+      //delete newTaskRequest.reqBody.hypernetwork_strength;
+      //delete newTaskRequest.reqBody.use_hypernetwork_model;
     }
     delete newTaskRequest.reqBody.mask
     createTask(newTaskRequest)
@@ -151,8 +155,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
   if (origRequest.height==origRequest.width && origRequest.height<MaxSquareResolution) {
           result=true;
   }
-  else {
-      //check table for valid entries, otherwise disable button
+  else {      //check table for valid entries, otherwise disable button
       resTable.forEach(function(item){
       if (item[0]==origRequest.height && 
           item[1]==origRequest.width)
@@ -161,6 +164,11 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
           return;
           }
       })
+  }
+  //Optional display of resolution
+  if (result==true) {
+    this.text = 'Scale Up to ' + scaleUp(origRequest.width, origRequest.height) + ' x ' +
+      scaleUp(origRequest.height, origRequest.width);
   }
   return result;
   }
