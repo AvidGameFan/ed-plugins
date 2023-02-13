@@ -1,6 +1,6 @@
 /**
  * Scale Up MAX
- * v.1.02, last updated: 12/29/2022
+ * v.1.03, last updated: 2/12/2023
  * By Gary W.
  * 
  * Scaling up in size, to the maximum resolution of your video card, while maintaining 
@@ -67,6 +67,11 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
   var ratio=Math.sqrt(maxTotalResolution/(origRequest.height*origRequest.width));
   if (ScaleUpMax(origRequest.height, ratio) > origRequest.height) {  //if we already matched the max resolution, we're done.
     result=true;
+  }
+  //Optional display of resolution
+  if (result==true) {
+    this.text = 'Scale Up MAX to ' + ScaleUpMax(origRequest.width, ratio) + ' x ' +
+      ScaleUpMax(origRequest.height, ratio);
   }
   return result;
   }

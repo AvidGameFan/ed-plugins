@@ -1,12 +1,15 @@
 /**
  * Scale Up
- * v.1.11, last updated: 2/11/2023
+ * v.1.12, last updated: 2/12/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
  * Maximum output is 1280 (except for a couple of wide-ratio entries at 1536 that should still 
- * work on many video cards), but generally, things are kept at 1024x1024 and below. Values
- * are restricted to those available in the UI dropdown.
+ * work on many video cards), but most entries are kept at 1024x1024 and below. Values
+ * are generally restricted to those available in the UI dropdown, with a couple of exceptions.
+ * As time goes by, I am adding additional entries at higher resolutions, although at some point,
+ * it just makes sense to use the related Scale Up MAX plugin script to jump to the highest 
+ * resolution supported by your video card.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
  *  
@@ -16,7 +19,7 @@
 These values work (usually) for the Nvidia 2060 Super with 8GB VRAM. 
 If you go too large, you'll see "Error: CUDA out of memory". 
 */
-var maxTurboResolution = 1536	* 896;   //put max resolution (other than 'low' mode) here
+var maxTurboResolution = 1536	* 896;   //put max 'balanced' resolution here - larger output will enter 'low' mode, automatically.
 var MaxSquareResolution = 1280;
 
 //Note that the table entries go in pairs, if not 1:1 square ratio.
@@ -57,6 +60,10 @@ var resTable = [
     [512,832,640],  //1.625 -> 1.6
     [896,512,1024],  //1.75 -> 1.78
     [512,896,576],  //1.75 -> 1.78
+    [576,1024,768],  //1.78 -> 1.75 (non-ED-standard resolution choice)
+    [1024,576,1344],  //1.78 -> 1.75 
+    [768,1344,832],  //1.75 -> 1.77 (non-ED-standard resolution choice)
+    [1344,768,1472],  //1.75 -> 1.77 
     [960,512,1536],  //1.875 -> 1.846
     [512,960,832],  //1.875 -> 1.846
     [576,512,1024],  //1.125 -> 1.143
