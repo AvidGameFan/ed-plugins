@@ -1,6 +1,6 @@
 /**
  * OutpaintUp
- * v.1.00, last updated: 2/28/2023
+ * v.1.01, last updated: 3/01/2023
  * By Gary W.
  * 
  * A simple outpatining approach.
@@ -23,6 +23,9 @@ var maxTurboResolution = 1536	* 896;   //put max resolution (other than 'low' mo
 function ScaleUpMax(dimension, ratio) {
   return Math.round(((dimension*ratio)+32)/64)*64-64;
 }
+
+const outpaintSizeIncrease = 128;
+
 
 PLUGINS['IMAGE_INFO_BUTTONS'].push({
   text: 'OutpaintUp',
@@ -49,12 +52,11 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
       //  -- copy new result into top
       // -- copy original source onto bottom
       
-
     newTaskRequest.reqBody = Object.assign({}, origRequest, {
       init_image: image.src,
-      prompt_strength: 0.98,
+      prompt_strength: 0.97,
       width: origRequest.width,
-      height: origRequest.height,
+      height: origRequest.height + outpaintSizeIncrease,
       guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
       num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 25, 100),  //large resolutions combined with large steps can cause an error
       num_outputs: 1,
@@ -72,6 +74,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
       newTaskRequest.reqBody.vram_usage_level = 'low';
     }
 
+    
     //create working canvas
     let canvas = document.createElement("canvas");
     canvas.width = newTaskRequest.reqBody.width;
@@ -80,10 +83,10 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     ctx.fillStyle = 'grey';
     ///ctx.fill();
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
+
     //really need to fill with noise here
-    // get the image data of the canvas
-    var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    // get the image data of the canvas  -- we only need the part we're going to outpaint
+    var imageData = ctx.getImageData(0, 0, canvas.width, Math.max(canvas.height,outpaintSizeIncrease));
 
     // get the pixel data array
     var pixels = imageData.data;
@@ -111,23 +114,25 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     }
 
     // put the modified image data back to the context
-    ctx.putImageData(imageData,0 ,0);
-    document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
+    ctx.putImageData(imageData,0 ,0); //put it at the top
+ //   document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
 
     ctx.drawImage( image,
-      0, 0,origRequest.width, origRequest.height-origRequest.height/4, //source crop
-      0, origRequest.height/4,origRequest.width, origRequest.height-origRequest.height/4, //destination crop
+// Only for cropped-source:      0, 0,origRequest.width, origRequest.height-origRequest.height/4, //source crop
+      0, 0, origRequest.width, origRequest.height, //source 
+      0, outpaintSizeIncrease,origRequest.width, origRequest.height //destination
+//only for cropped-destination      0, origRequest.height/4,origRequest.width, origRequest.height-origRequest.height/4, //destination crop
     );
 
-    document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
+ //   document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
 
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
     maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(0, 0,origRequest.width, origRequest.height/4+24);  //Need some overlap on the mask (minimum of 8px)
-    document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have
+    maskctx.fillRect(0, 0,origRequest.width, outpaintSizeIncrease+24);  //Need some overlap on the mask (minimum of 8px)
+ //   document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have
     
    newTaskRequest.reqBody.mask = maskcanvas.toDataURL('image/png');
    newTaskRequest.reqBody.init_image = canvas.toDataURL('image/png');
@@ -143,11 +148,12 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
 
-//  result = false
+  result = false
 //  var ratio=Math.sqrt(maxTotalResolution/(origRequest.height*origRequest.width));
+  if ((origRequest.height+outpaintSizeIncrease)*origRequest.width<=maxTotalResolution)  {
 //  if (ScaleUpMax(origRequest.height, ratio) > origRequest.height) {  //if we already matched the max resolution, we're done.
     result=true;
-//  }
+  }
 //  //Optional display of resolution
 //  if (result==true) {
 //    this.text = 'Scale Up MAX to ' + ScaleUpMax(origRequest.width, ratio) + ' x ' +
