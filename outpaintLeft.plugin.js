@@ -54,7 +54,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
       
     newTaskRequest.reqBody = Object.assign({}, origRequest, {
       init_image: image.src,
-      prompt_strength: 0.97,
+      prompt_strength: 0.99,
       width: origRequest.width + outpaintLeftSizeIncrease,
       height: origRequest.height,
       guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
@@ -124,7 +124,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
 //only for cropped-destination      0, origRequest.height/4,origRequest.width, origRequest.height-origRequest.height/4, //destination crop
     );
 
-    document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
+  //  document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
 
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
@@ -132,7 +132,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, 0, outpaintLeftSizeIncrease+24, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
-    document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have
+    //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have
     
    newTaskRequest.reqBody.mask = maskcanvas.toDataURL('image/png');
    newTaskRequest.reqBody.init_image = canvas.toDataURL('image/png');

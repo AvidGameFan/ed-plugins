@@ -1,6 +1,6 @@
 /**
- * OutpaintUp
- * v.1.01, last updated: 3/01/2023
+ * OutpaintRight
+ * v.1.01, last updated: 3/02/2023
  * By Gary W.
  * 
  * A simple outpatining approach.
@@ -20,15 +20,15 @@ var maxTurboResolution = 1536	* 896;   //put max resolution (other than 'low' mo
 
 //NOTE: it is possible that it could choose resolution values that exceed maxTotalResolution.  Adjustment may be necessary, but this should be an unlikely occurrence.
 
-function ScaleUpMax(dimension, ratio) {
-  return Math.round(((dimension*ratio)+32)/64)*64-64;
-}
+//function ScaleUpMax(dimension, ratio) {
+//  return Math.round(((dimension*ratio)+32)/64)*64-64;
+//}
 
-const outpaintSizeIncrease = 128;
+const outpaintRightSizeIncrease = 128;
 
 
 PLUGINS['IMAGE_INFO_BUTTONS'].push({
-  text: 'OutpaintUp',
+  text: 'OutpaintRight',
   on_click: function(origRequest, image) {
 
     function randomPixel() {
@@ -55,8 +55,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     newTaskRequest.reqBody = Object.assign({}, origRequest, {
       init_image: image.src,
       prompt_strength: 0.99,
-      width: origRequest.width,
-      height: origRequest.height + outpaintSizeIncrease,
+      width: origRequest.width + outpaintRightSizeIncrease,
+      height: origRequest.height,
       guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
       num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 25, 100),  //large resolutions combined with large steps can cause an error
       num_outputs: 1,
@@ -81,12 +81,12 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     canvas.height = newTaskRequest.reqBody.height;
     ctx = canvas.getContext("2d");
     //ctx.fillStyle = 'grey';
-    ///ctx.fill();
+    /////ctx.fill();
     //ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     //really need to fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
-    var imageData = ctx.getImageData(0, 0, canvas.width, outpaintSizeIncrease);
+    var imageData = ctx.getImageData(canvas.width-outpaintRightSizeIncrease, 0, outpaintRightSizeIncrease, canvas.height);
 
     // get the pixel data array
     var pixels = imageData.data;
@@ -114,24 +114,24 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     }
 
     // put the modified image data back to the context
-    ctx.putImageData(imageData, 0, 0); //put it at the top
+    ctx.putImageData(imageData, origRequest.width, 0); //put it at the top-left of our context, which will be the right-side
  //   document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
 
     ctx.drawImage( image,
 // Only for cropped-source:      0, 0,origRequest.width, origRequest.height-origRequest.height/4, //source crop
       0, 0, origRequest.width, origRequest.height, //source 
-      0, outpaintSizeIncrease,origRequest.width, origRequest.height //destination
+      0, 0, origRequest.width, origRequest.height //destination
 //only for cropped-destination      0, origRequest.height/4,origRequest.width, origRequest.height-origRequest.height/4, //destination crop
     );
 
  //   document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
-
+    const maskOverlap = 24; //Need some overlap on the mask (minimum of 8px)
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
     maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(0, 0,origRequest.width, outpaintSizeIncrease+24);  //Need some overlap on the mask (minimum of 8px)
+    maskctx.fillRect(origRequest.width-maskOverlap, 0, outpaintRightSizeIncrease+maskOverlap, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
  //   document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have
     
    newTaskRequest.reqBody.mask = maskcanvas.toDataURL('image/png');
@@ -150,7 +150,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
 
   result = false
 //  var ratio=Math.sqrt(maxTotalResolution/(origRequest.height*origRequest.width));
-  if ((origRequest.height+outpaintSizeIncrease)*origRequest.width<=maxTotalResolution)  {
+  if ((origRequest.width+outpaintRightSizeIncrease)*origRequest.height<=maxTotalResolution)  {
 //  if (ScaleUpMax(origRequest.height, ratio) > origRequest.height) {  //if we already matched the max resolution, we're done.
     result=true;
   }
