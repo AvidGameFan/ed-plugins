@@ -33,6 +33,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
 
     function randomPixel() {
       return Math.floor(Math.random() * 256); //0 to 255
+      //Math.random() doesn't seem too random.
       //return Math.floor(1-Math.pow(Math.random(),2) * 256);
     }
       var ratio=Math.sqrt(maxTotalResolution/(origRequest.height*origRequest.width));
@@ -54,14 +55,13 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
       
     newTaskRequest.reqBody = Object.assign({}, origRequest, {
       init_image: image.src,
-      prompt_strength: 0.98,
+      prompt_strength: 0.95,
       width: origRequest.width,
       height: origRequest.height + outpaintDownSizeIncrease,
       guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
-      num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 25, 100),  //large resolutions combined with large steps can cause an error
+      num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps), 50),  //DDIM may require more steps for better results
       num_outputs: 1,
-      //Using a new seed will allow some variation as it up-sizes; if results are not ideal, rerunning will give different results.
-      seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
+      seed: Math.floor(Math.random() * 10000000),
     })
     newTaskRequest.seed = newTaskRequest.reqBody.seed
     newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
@@ -115,7 +115,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
 
     // put the modified image data back to the context
     ctx.putImageData(imageData, 0 , origRequest.height); //put it at the top
- //   document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
+   // document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
 
     ctx.drawImage( image,
 // Only for cropped-source:      0, 0,origRequest.width, origRequest.height-origRequest.height/4, //source crop
@@ -125,15 +125,21 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     );
 
    //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
-    const maskOverlap = 24; //Need some overlap on the mask (minimum of 8px)
+    const maskOverlap = 36; //Need some overlap on the mask (minimum of 8px)
 
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
     maskctx = maskcanvas.getContext("2d");
+    //First, ensure the entire mask is black ("off")
+    maskctx.fillStyle = 'black';
+    maskctx.fillRect(0, 0, origRequest.width, origRequest.height-maskOverlap);
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, origRequest.height-maskOverlap, origRequest.width, outpaintDownSizeIncrease+maskOverlap);  //Need some overlap on the mask (minimum of 8px)
- //  document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have
+    //let's feather the mask on the transition. Still need 8 hard pixels, though.
+    maskctx.fillStyle = 'grey'; 
+    maskctx.fillRect(0, origRequest.height-maskOverlap, origRequest.width, maskOverlap-8); 
+//   document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have
     
    newTaskRequest.reqBody.mask = maskcanvas.toDataURL('image/png');
    newTaskRequest.reqBody.init_image = canvas.toDataURL('image/png');
