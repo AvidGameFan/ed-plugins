@@ -16,8 +16,8 @@
    These values work (usually) for the Nvidia 2060 Super with 8GB VRAM. 
    If you go too large, you'll see "Error: CUDA out of memory". 
  */
-var maxTotalResolution = 1280 * 1280; //put max 'low' mode resolution here, max possible size when low mode is on
-var maxTurboResolution = 1536	* 896;   //put max resolution (other than 'low' mode) here
+var outpaintMaxTotalResolution = 1280 * 1280; //put max 'low' mode resolution here, max possible size when low mode is on
+var outpaintMaxTurboResolution = 1536	* 896;   //put max resolution (other than 'low' mode) here
 
 const outpaintSizeIncrease = 128;  //This can be modified by increments/decrements of 64, as desired
 const outpaintMaskOverlap = 36; //Need some overlap on the mask (minimum of 8px)
@@ -72,7 +72,7 @@ function outpaintGetTaskRequest(origRequest, image, widen) {
   newTaskRequest.numOutputsTotal = 1 // "
   //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
   //Each person needs to test with different resolutions to find the limit of their card when using Balanced or modes other than 'low'.
-  if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //put max normal resolution here
+  if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height >outpaintMaxTurboResolution) {  //put max normal resolution here
     //newTaskRequest.reqBody.turbo = false;
     newTaskRequest.reqBody.vram_usage_level = 'low';
   }
@@ -133,7 +133,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
   result = false
-  if ((origRequest.height+outpaintSizeIncrease)*origRequest.width<=maxTotalResolution)  {
+  if ((origRequest.height+outpaintSizeIncrease)*origRequest.width<=outpaintMaxTotalResolution)  {
     result=true;
   }
   return result;
@@ -195,7 +195,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
   result = false
-  if ((origRequest.height+outpaintSizeIncrease)*origRequest.width<=maxTotalResolution)  {
+  if ((origRequest.height+outpaintSizeIncrease)*origRequest.width<=outpaintMaxTotalResolution)  {
     result=true;
   }
   return result;
@@ -259,7 +259,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     // if this function isn't set, the button will always be visible
 
   result = false
-  if ((origRequest.width+outpaintSizeIncrease)*origRequest.height<=maxTotalResolution)  {
+  if ((origRequest.width+outpaintSizeIncrease)*origRequest.height<=outpaintMaxTotalResolution)  {
     result=true;
   }
   return result;
@@ -322,7 +322,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     // if this function isn't set, the button will always be visible
 
   result = false
-  if ((origRequest.width+outpaintSizeIncrease)*origRequest.height<=maxTotalResolution)  {
+  if ((origRequest.width+outpaintSizeIncrease)*origRequest.height<=outpaintMaxTotalResolution)  {
     result=true;
   }
   return result;
