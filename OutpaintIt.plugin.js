@@ -21,10 +21,18 @@ var outpaintMaxTurboResolution = 1536	* 896;   //put max resolution (other than 
 
 const outpaintSizeIncrease = 128;  //This can be modified by increments/decrements of 64, as desired
 const outpaintMaskOverlap = 36; //Need some overlap on the mask (minimum of 8px)
-
+const outpaintPercentToKeep = .2; //Amount of random pixels to retain, to bias effect
 function outpaintSetPixels(imageData) {
+  function guassianRand() {  //approximation of Gaussian, from Stackoverflow
+    var rand =0;
+    for (var i=0; i<6; i+=1) {
+      rand += Math.random();
+    }
+    return rand/6;
+  }
   function randomPixel() {
     return Math.floor(Math.random() * 256); //0 to 255
+    //return Math.floor(guassianRand() * 256); //0 to 255
     //Math.random() doesn't seem too random.
     //return Math.floor(1-Math.pow(Math.random(),2) * 256);
   }
@@ -33,6 +41,7 @@ function outpaintSetPixels(imageData) {
 
   // loop through each pixel
   for (var i = 0; i < pixels.length; i += 4) {
+    //if (Math.random()<outpaintPercentToKeep) continue; -- if you pre-fill the space, you can vary how much is randomized, to encourage a bias
     // get the red, green, blue (but not alpha) values
     var r = pixels[i];
     var g = pixels[i + 1];
@@ -58,7 +67,7 @@ function outpaintGetTaskRequest(origRequest, image, widen) {
       
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: 0.95,
+    prompt_strength: 0.9+Math.random()/10,
     width: origRequest.width + ((widen)?outpaintSizeIncrease:0),
     height: origRequest.height + ((!widen)?outpaintSizeIncrease:0),
     guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
@@ -115,7 +124,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, 0, origRequest.width, outpaintSizeIncrease+outpaintMaskOverlap);  //Need some overlap on the mask (minimum of 8px)
     //let's feather the mask on the transition. Still need 8 hard pixels, though.
-    maskctx.fillStyle = 'grey'; 
+    maskctx.fillStyle = 'lightgrey'; 
     maskctx.fillRect(0, outpaintSizeIncrease+8, origRequest.width, outpaintMaskOverlap-8); 
     
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
@@ -152,6 +161,28 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     canvas.height = newTaskRequest.reqBody.height;
     ctx = canvas.getContext("2d");
 
+    ctx.drawImage( image,
+      0, 0, origRequest.width, origRequest.height, //source 
+      0, 0, origRequest.width, origRequest.height //destination
+    );
+
+    ////Fill in with duplicate/invert
+    //ctx.save();
+    //ctx.translate(0, canvas.height);
+    //ctx.scale(1, -1);
+    //ctx.drawImage( image,
+    //  0, origRequest.height-outpaintSizeIncrease, origRequest.width, outpaintSizeIncrease, //source 
+    //  0, 0, origRequest.width, outpaintSizeIncrease //destination -- inverted
+    //);
+    //ctx.restore();
+
+    ////Fill in with a copy of the bottom
+    //ctx.drawImage( image,
+    //  0, origRequest.height-outpaintSizeIncrease, origRequest.width, outpaintSizeIncrease, //source 
+    //  0, origRequest.height, origRequest.width, outpaintSizeIncrease //destination  -- normal
+    //);
+
+
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
     var imageData = ctx.getImageData(0, canvas.height-outpaintSizeIncrease, canvas.width, outpaintSizeIncrease);
@@ -159,12 +190,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     outpaintSetPixels(imageData);
 
     // put the modified image data back to the context
-    ctx.putImageData(imageData, 0 , origRequest.height); //put it at the top
-
-    ctx.drawImage( image,
-      0, 0, origRequest.width, origRequest.height, //source 
-      0, 0, origRequest.width, origRequest.height //destination
-    );
+    ctx.putImageData(imageData, 0 , origRequest.height); //put it at the bottom
 
     //Create the mask for img2img
     
@@ -178,7 +204,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, origRequest.height-outpaintMaskOverlap, origRequest.width, outpaintSizeIncrease+outpaintMaskOverlap);  //Need some overlap on the mask (minimum of 8px)
     //let's feather the mask on the transition. Still need 8 hard pixels, though.
-    maskctx.fillStyle = 'grey'; 
+    maskctx.fillStyle = 'lightgrey'; 
     maskctx.fillRect(0, origRequest.height-outpaintMaskOverlap, origRequest.width, outpaintMaskOverlap-8); 
     
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
@@ -240,7 +266,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, 0, outpaintSizeIncrease+outpaintMaskOverlap, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
     //let's feather the mask on the transition. Still need 8 hard pixels, though.
-    maskctx.fillStyle = 'grey'; 
+    maskctx.fillStyle = 'lightgrey'; 
     maskctx.fillRect(outpaintSizeIncrease+8, 0, outpaintMaskOverlap-8, origRequest.height); 
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
@@ -302,7 +328,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskctx.fillStyle = 'white';
     maskctx.fillRect(origRequest.width-outpaintMaskOverlap, 0, outpaintSizeIncrease+outpaintMaskOverlap, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
     //let's feather the mask on the transition. Still need 8 hard pixels, though.
-    maskctx.fillStyle = 'grey'; 
+    maskctx.fillStyle = 'lightgrey'; 
     maskctx.fillRect(origRequest.width-outpaintMaskOverlap, 0, outpaintMaskOverlap-8, origRequest.height); 
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
