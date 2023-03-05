@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.01, last updated: 3/03/2023
+ * v.1.02, last updated: 3/04/2023
  * By Gary W.
  * 
  * A simple outpatining approach.  4 buttons are added with this one file.
