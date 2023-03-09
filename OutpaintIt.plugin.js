@@ -70,7 +70,7 @@ function outpaintGetTaskRequest(origRequest, image, widen) {
     prompt_strength: 0.9+Math.random()/10,
     width: origRequest.width + ((widen)?outpaintSizeIncrease:0),
     height: origRequest.height + ((!widen)?outpaintSizeIncrease:0),
-    guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
+    //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
     num_inference_steps: Math.max(parseInt(origRequest.num_inference_steps), 50),  //DDIM may require more steps for better results
     num_outputs: 1,
     seed: Math.floor(Math.random() * 10000000),
