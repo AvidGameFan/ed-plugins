@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.02, last updated: 3/04/2023
+ * v.1.03, last updated: 3/10/2023
  * By Gary W.
  * 
  * A simple outpatining approach.  4 buttons are added with this one file.
@@ -62,14 +62,14 @@ function outpaintSetPixels(imageData) {
   }
 }
 
-function outpaintGetTaskRequest(origRequest, image, widen) {
+function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   let newTaskRequest = getCurrentUserRequest();
       
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: 0.9+Math.random()/10,
-    width: origRequest.width + ((widen)?outpaintSizeIncrease:0),
-    height: origRequest.height + ((!widen)?outpaintSizeIncrease:0),
+    prompt_strength: 0.96+Math.random()*.04,
+    width: origRequest.width + ((widen || all)?outpaintSizeIncrease:0),
+    height: origRequest.height + ((!widen || all)?outpaintSizeIncrease:0),
     //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
     num_inference_steps: Math.max(parseInt(origRequest.num_inference_steps), 50),  //DDIM may require more steps for better results
     num_outputs: 1,
@@ -84,6 +84,13 @@ function outpaintGetTaskRequest(origRequest, image, widen) {
   if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height >outpaintMaxTurboResolution) {  //put max normal resolution here
     //newTaskRequest.reqBody.turbo = false;
     newTaskRequest.reqBody.vram_usage_level = 'low';
+  }
+  //The comparison needs trimming, because the request box includes modifiers.  If the first part of the prompts match, we assume nothing's changed, and move on.
+  //If prompt has changed, ask if we should pick up the new value.  Note that the new prompt will NOT include modifiers, only the text-box.
+  if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
+    if (confirm('OK to use new prompt?\n\n'+$("textarea#prompt").val())) {
+      newTaskRequest.reqBody.prompt=$("textarea#prompt").val();
+    }
   }
   return newTaskRequest;
 }
@@ -355,3 +362,62 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
   }
 })
 
+PLUGINS['IMAGE_INFO_BUTTONS'].push({
+  text: 'OutpaintALL',
+  on_click: function(origRequest, image) {
+
+    let newTaskRequest = outpaintGetTaskRequest(origRequest, image, true, true);
+    
+    //create working canvas
+    let canvas = document.createElement("canvas");
+    canvas.width = newTaskRequest.reqBody.width;
+    canvas.height = newTaskRequest.reqBody.height;
+    ctx = canvas.getContext("2d");
+
+    //fill with noise here
+    // get the image data of the canvas  -- we only need the part we're going to outpaint
+    var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    outpaintSetPixels(imageData);
+
+    // put the modified image data back to the context
+    ctx.putImageData(imageData, 0, 0); //put it at the top-left of our context, which will be the right-side
+
+    ctx.drawImage( image,
+      0, 0, origRequest.width, origRequest.height, //source 
+      outpaintSizeIncrease/2, outpaintSizeIncrease/2, origRequest.width, origRequest.height //destination
+    );
+
+    let maskcanvas = document.createElement("canvas");
+    maskcanvas.width = newTaskRequest.reqBody.width;
+    maskcanvas.height = newTaskRequest.reqBody.height;
+    maskctx = maskcanvas.getContext("2d");
+    maskctx.fillStyle = 'white';
+    maskctx.fillRect(0, 0, maskcanvas.width, maskcanvas.height);
+    //let's feather the mask on the transition. Still need 8 hard pixels, though.
+    maskctx.fillStyle = 'lightgrey';  //"rgba(192,192,192,.5)"; //
+    maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8); 
+    //ensure the mask over the original image is black ("off")
+    maskctx.fillStyle = 'black'; //"rgba(0,0,0,1)";
+    maskctx.fillRect(outpaintSizeIncrease/2+outpaintMaskOverlap/2, outpaintSizeIncrease/2+outpaintMaskOverlap/2, origRequest.width-outpaintMaskOverlap, origRequest.height-outpaintMaskOverlap);
+
+    //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
+    //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have   
+
+    newTaskRequest.reqBody.mask = maskcanvas.toDataURL('image/png');
+    newTaskRequest.reqBody.init_image = canvas.toDataURL('image/png');
+
+    var id=createTask(newTaskRequest)  //task ID - can be used to find location in document
+
+  },
+  filter: function(origRequest, image) {
+    // this is an optional function. return true/false to show/hide the button
+    // if this function isn't set, the button will always be visible
+
+  result = false
+  if ((origRequest.width+outpaintSizeIncrease)*(origRequest.height+outpaintSizeIncrease)<=outpaintMaxTotalResolution)  {
+    result=true;
+  }
+  return result;
+  }
+})
