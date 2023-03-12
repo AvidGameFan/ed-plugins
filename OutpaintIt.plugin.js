@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.03, last updated: 3/10/2023
+ * v.1.04, last updated: 3/11/2023
  * By Gary W.
  * 
  * A simple outpatining approach.  4 buttons are added with this one file.
@@ -67,7 +67,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
       
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: 0.96+Math.random()*.04,
+    prompt_strength: 0.93+Math.random()*.07,
     width: origRequest.width + ((widen || all)?outpaintSizeIncrease:0),
     height: origRequest.height + ((!widen || all)?outpaintSizeIncrease:0),
     //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
@@ -85,6 +85,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
     //newTaskRequest.reqBody.turbo = false;
     newTaskRequest.reqBody.vram_usage_level = 'low';
   }
+  //newTaskRequest.reqBody.preserve_init_image_color_profile=true; //shouldn't be necessary, working from txt2img, and distorts colors
   //The comparison needs trimming, because the request box includes modifiers.  If the first part of the prompts match, we assume nothing's changed, and move on.
   //If prompt has changed, ask if we should pick up the new value.  Note that the new prompt will NOT include modifiers, only the text-box.
   if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
@@ -125,15 +126,25 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
     maskctx = maskcanvas.getContext("2d");
-    //First, ensure the mask over the original image is black ("off")
-    maskctx.fillStyle = 'black';
-    maskctx.fillRect(0, outpaintSizeIncrease, origRequest.width, origRequest.height);
+//    //First, ensure the mask over the original image is black ("off")
+//    maskctx.fillStyle = 'black';
+//    maskctx.fillRect(0, outpaintSizeIncrease, origRequest.width, origRequest.height);
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(0, 0, origRequest.width, outpaintSizeIncrease+outpaintMaskOverlap);  //Need some overlap on the mask (minimum of 8px)
-    //let's feather the mask on the transition. Still need 8 hard pixels, though.
-    maskctx.fillStyle = 'lightgrey'; 
-    maskctx.fillRect(0, outpaintSizeIncrease+8, origRequest.width, outpaintMaskOverlap-8); 
+    maskctx.fillRect(0, 0, origRequest.width, outpaintSizeIncrease+8 /*outpaintMaskOverlap*/);  //Need some overlap on the mask (minimum of 8px)
+//    //let's feather the mask on the transition. Still need 8 hard pixels, though.
+//    maskctx.fillStyle = 'lightgrey'; 
+//    maskctx.fillRect(0, outpaintSizeIncrease+8, origRequest.width, outpaintMaskOverlap-8); 
     
+//    const gradient = ctx.createLinearGradient(0, 0, maskcanvas.width, 0); //horizontal line
+    const gradient = ctx.createLinearGradient(0, outpaintSizeIncrease+8, 0, maskcanvas.height); //vertical line
+
+    // Add three color stops
+    gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
+    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    maskctx.fillStyle = gradient; 
+    maskctx.fillRect(0, outpaintSizeIncrease+8, origRequest.width,  origRequest.height); 
+
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have
 
@@ -205,15 +216,25 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
     maskctx = maskcanvas.getContext("2d");
-    //First, ensure the mask over the original image is black ("off")
-    maskctx.fillStyle = 'black';
-    maskctx.fillRect(0, 0, origRequest.width, origRequest.height-outpaintMaskOverlap);
+    ////First, ensure the mask over the original image is black ("off")
+    //maskctx.fillStyle = 'black';
+    //maskctx.fillRect(0, 0, origRequest.width, origRequest.height-outpaintMaskOverlap);
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(0, origRequest.height-outpaintMaskOverlap, origRequest.width, outpaintSizeIncrease+outpaintMaskOverlap);  //Need some overlap on the mask (minimum of 8px)
-    //let's feather the mask on the transition. Still need 8 hard pixels, though.
-    maskctx.fillStyle = 'lightgrey'; 
-    maskctx.fillRect(0, origRequest.height-outpaintMaskOverlap, origRequest.width, outpaintMaskOverlap-8); 
+    //maskctx.fillRect(0, origRequest.height-outpaintMaskOverlap, origRequest.width, outpaintSizeIncrease+outpaintMaskOverlap);  //Need some overlap on the mask (minimum of 8px)
+    maskctx.fillRect(0, origRequest.height-8, origRequest.width, outpaintSizeIncrease+8);  //Need some overlap on the mask (minimum of 8px)
+    ////let's feather the mask on the transition. Still need 8 hard pixels, though.
+    //maskctx.fillStyle = 'lightgrey'; 
+    //maskctx.fillRect(0, origRequest.height-outpaintMaskOverlap, origRequest.width, outpaintMaskOverlap-8); 
     
+    const gradient = ctx.createLinearGradient(0, maskcanvas.height-outpaintSizeIncrease-8, 0, 0); //vertical line
+    // Add three color stops
+    gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
+    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    maskctx.fillStyle = gradient; 
+//    maskctx.fillRect(0, origRequest.height-outpaintSizeIncrease-8, origRequest.width,  origRequest.height); 
+    maskctx.fillRect(0, 0, origRequest.width, maskcanvas.height-outpaintSizeIncrease-8); 
+
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have
 
@@ -267,14 +288,23 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
     maskctx = maskcanvas.getContext("2d");
-    //First, ensure the mask over the original image is black ("off")
-    maskctx.fillStyle = 'black';
-    maskctx.fillRect(outpaintSizeIncrease, 0, origRequest.width, origRequest.height);
+    ////First, ensure the mask over the original image is black ("off")
+    //maskctx.fillStyle = 'black';
+    //maskctx.fillRect(outpaintSizeIncrease, 0, origRequest.width, origRequest.height);
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(0, 0, outpaintSizeIncrease+outpaintMaskOverlap, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
+    //maskctx.fillRect(0, 0, outpaintSizeIncrease+outpaintMaskOverlap, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
+    maskctx.fillRect(0, 0, outpaintSizeIncrease+8, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
     //let's feather the mask on the transition. Still need 8 hard pixels, though.
-    maskctx.fillStyle = 'lightgrey'; 
-    maskctx.fillRect(outpaintSizeIncrease+8, 0, outpaintMaskOverlap-8, origRequest.height); 
+    //maskctx.fillStyle = 'lightgrey'; 
+    //maskctx.fillRect(outpaintSizeIncrease+8, 0, outpaintMaskOverlap-8, origRequest.height); 
+
+    const gradient = ctx.createLinearGradient(outpaintSizeIncrease+8, 0, maskcanvas.width-outpaintSizeIncrease-8, 0); //horizontal line
+    // Add three color stops
+    gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
+    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    maskctx.fillStyle = gradient; 
+    maskctx.fillRect(outpaintSizeIncrease+8, 0, origRequest.width-8,  origRequest.height); 
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have    
@@ -329,14 +359,24 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
     maskctx = maskcanvas.getContext("2d");
-    //First, ensure the mask over the original image is black ("off")
-    maskctx.fillStyle = 'black';
-    maskctx.fillRect(0, 0, origRequest.width-outpaintMaskOverlap, origRequest.height);
+    ////First, ensure the mask over the original image is black ("off")
+    //maskctx.fillStyle = 'black';
+    //maskctx.fillRect(0, 0, origRequest.width-outpaintMaskOverlap, origRequest.height);
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(origRequest.width-outpaintMaskOverlap, 0, outpaintSizeIncrease+outpaintMaskOverlap, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
-    //let's feather the mask on the transition. Still need 8 hard pixels, though.
-    maskctx.fillStyle = 'lightgrey'; 
-    maskctx.fillRect(origRequest.width-outpaintMaskOverlap, 0, outpaintMaskOverlap-8, origRequest.height); 
+    //maskctx.fillRect(origRequest.width-outpaintMaskOverlap, 0, outpaintSizeIncrease+outpaintMaskOverlap, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
+    maskctx.fillRect(origRequest.width-8, 0, outpaintSizeIncrease+8, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
+    ////let's feather the mask on the transition. Still need 8 hard pixels, though.
+    //maskctx.fillStyle = 'lightgrey'; 
+    //maskctx.fillRect(origRequest.width-outpaintMaskOverlap, 0, outpaintMaskOverlap-8, origRequest.height); 
+
+    const gradient = ctx.createLinearGradient(origRequest.width-8 /*maskcanvas.width-outpaintSizeIncrease-8*/, 0, 0, 0); //horizontal line
+    // Add three color stops
+    gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
+    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    maskctx.fillStyle = gradient; 
+//    maskctx.fillRect(maskcanvas.width-outpaintSizeIncrease-8, 0, origRequest.width-8,  origRequest.height); 
+    maskctx.fillRect(0,0,origRequest.width-8, origRequest.height); 
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have   
@@ -395,10 +435,10 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, 0, maskcanvas.width, maskcanvas.height);
     //let's feather the mask on the transition. Still need 8 hard pixels, though.
-    maskctx.fillStyle = 'lightgrey';  //"rgba(192,192,192,.5)"; //
+    maskctx.fillStyle = 'lightgrey'; //'rgba(255,255,255,0.5)'; 
     maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8); 
     //ensure the mask over the original image is black ("off")
-    maskctx.fillStyle = 'black'; //"rgba(0,0,0,1)";
+    maskctx.fillStyle = 'black'; //'rgba(255,255,255,0)'; 
     maskctx.fillRect(outpaintSizeIncrease/2+outpaintMaskOverlap/2, outpaintSizeIncrease/2+outpaintMaskOverlap/2, origRequest.width-outpaintMaskOverlap, origRequest.height-outpaintMaskOverlap);
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
