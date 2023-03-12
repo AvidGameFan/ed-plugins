@@ -432,14 +432,55 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
     maskctx = maskcanvas.getContext("2d");
+
+    //Paint a white frame to cover the outpaint area
+
+    // Save the current state of the context
+    maskctx.save();
+    // Start a new path
+    maskctx.beginPath();
+    // Define an outer rectangle that covers the whole canvas
+    maskctx.rect(0, 0,  maskcanvas.width, maskcanvas.height);
+    // Define an inner rectangle that you want to mask out
+    // Use a negative value for anticlockwise parameter
+    maskctx.rect(maskcanvas.width-(outpaintSizeIncrease/2+4), outpaintSizeIncrease/2+4, -(origRequest.width-8), origRequest.height-8, true);
+    // Create a clipping region from the current path
+    maskctx.clip();
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, 0, maskcanvas.width, maskcanvas.height);
+    // Restore the previous state of the context
+    maskctx.restore();
+
     //let's feather the mask on the transition. Still need 8 hard pixels, though.
-    maskctx.fillStyle = 'lightgrey'; //'rgba(255,255,255,0.5)'; 
+
+    // Save the current state of the context
+    maskctx.save();
+    // Start a new path
+    maskctx.beginPath();
+    // Define an outer rectangle that covers the outer area
+    maskctx.rect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8); 
+    // Define an inner rectangle that you want to mask out
+    // Use a negative value for anticlockwise parameter
+    maskctx.rect(maskcanvas.width-(outpaintSizeIncrease/2+4+outpaintMaskOverlap/2), outpaintSizeIncrease/2+4+outpaintMaskOverlap/2, -(origRequest.width-8-outpaintMaskOverlap), origRequest.height-8-outpaintMaskOverlap, true);
+    // Create a clipping region from the current path
+    maskctx.clip();
+    //maskctx.fillStyle = 'rgba(255,255,255,0.5)'; //'lightgrey'; 
+
+    //Rather than use a constant grey, trying a radial gradient.  It still isn't ideal, as it doesn't provide enough gradation in the narrow box.
+    const gradient = ctx.createRadialGradient(maskcanvas.width/2,maskcanvas.height/2,((maskcanvas.width+maskcanvas.height)/8), maskcanvas.width/2,maskcanvas.height/2,((maskcanvas.width+maskcanvas.height)/3.2));
+    // Add three color stops
+    gradient.addColorStop(0, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(0.15, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(1, 'rgba(255,255,255,1)'); //"white");
+    maskctx.fillStyle = gradient; 
+
     maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8); 
-    //ensure the mask over the original image is black ("off")
-    maskctx.fillStyle = 'black'; //'rgba(255,255,255,0)'; 
-    maskctx.fillRect(outpaintSizeIncrease/2+outpaintMaskOverlap/2, outpaintSizeIncrease/2+outpaintMaskOverlap/2, origRequest.width-outpaintMaskOverlap, origRequest.height-outpaintMaskOverlap);
+    // Restore the previous state of the context
+    maskctx.restore();
+        
+    ////ensure the mask over the original image is black ("off")
+    //maskctx.fillStyle = 'black'; //'rgba(255,255,255,0)'; 
+    //maskctx.fillRect(outpaintSizeIncrease/2+outpaintMaskOverlap/2, outpaintSizeIncrease/2+outpaintMaskOverlap/2, origRequest.width-outpaintMaskOverlap, origRequest.height-outpaintMaskOverlap);
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have   
