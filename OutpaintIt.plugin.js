@@ -1,11 +1,12 @@
 /**
  * OutpaintIt
- * v.1.04, last updated: 3/11/2023
+ * v.1.05, last updated: 3/12/2023
  * By Gary W.
  * 
- * A simple outpatining approach.  4 buttons are added with this one file.
+ * A simple outpatining approach.  5 buttons are added with this one file.
+ * One click to outpaint in one of the 4 directions, or OutpaintAll to outpaint all 4 directions at once.
  * 
- * Maximum output depends on the resolution set below. Resolution values may or may not not conform 
+ * Maximum output depends on the resolution set below. Resolution values in the output may or may not not conform 
  * to those available in the UI dropdown.
  *
  * Free to use with the CMDR2 Stable Diffusion UI, Easy Diffusion.
@@ -135,7 +136,6 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
 //    maskctx.fillStyle = 'lightgrey'; 
 //    maskctx.fillRect(0, outpaintSizeIncrease+8, origRequest.width, outpaintMaskOverlap-8); 
     
-//    const gradient = ctx.createLinearGradient(0, 0, maskcanvas.width, 0); //horizontal line
     const gradient = ctx.createLinearGradient(0, outpaintSizeIncrease+8, 0, maskcanvas.height); //vertical line
 
     // Add three color stops
