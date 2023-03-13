@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.05, last updated: 3/12/2023
+ * v.1.06, last updated: 3/13/2023
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -433,8 +433,6 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskcanvas.height = newTaskRequest.reqBody.height;
     maskctx = maskcanvas.getContext("2d");
 
-    //Paint a white frame to cover the outpaint area
-
     // Save the current state of the context
     maskctx.save();
     // Start a new path
@@ -453,6 +451,40 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
 
     //let's feather the mask on the transition. Still need 8 hard pixels, though.
 
+    //Draw 4 thin, grey rectangles, with gradient
+    //Top box
+    var gradient = ctx.createLinearGradient(0, outpaintSizeIncrease/2+4, 0, origRequest.height-8);
+    // Add three color stops
+    gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
+    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    maskctx.fillStyle = gradient; 
+    //maskctx.fillStyle = 'rgba(255,255,255,0.5)'; //'lightgrey'; 
+    maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8); 
+    //bottom
+    gradient = ctx.createLinearGradient(0, maskcanvas.height-(outpaintSizeIncrease/2+4), 0, outpaintSizeIncrease/2+4);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
+    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    maskctx.fillStyle = gradient; 
+    maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8);
+    //left box
+    gradient = ctx.createLinearGradient(outpaintSizeIncrease/2+4, 0, origRequest.width-8, 0);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
+    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    maskctx.fillStyle = gradient; 
+    maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8);
+    //right box
+    gradient = ctx.createLinearGradient(maskcanvas.width-(outpaintSizeIncrease/2+4), 0, outpaintSizeIncrease/2+4, 0);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
+    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    maskctx.fillStyle = gradient; 
+    maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8);
+
+
+    /**** * clipped radial gradient ***********
     // Save the current state of the context
     maskctx.save();
     // Start a new path
@@ -477,7 +509,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8); 
     // Restore the previous state of the context
     maskctx.restore();
-        
+ ******************/        
+
     ////ensure the mask over the original image is black ("off")
     //maskctx.fillStyle = 'black'; //'rgba(255,255,255,0)'; 
     //maskctx.fillRect(outpaintSizeIncrease/2+outpaintMaskOverlap/2, outpaintSizeIncrease/2+outpaintMaskOverlap/2, origRequest.width-outpaintMaskOverlap, origRequest.height-outpaintMaskOverlap);
