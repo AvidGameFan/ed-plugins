@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.06, last updated: 3/13/2023
+ * v.1.1, last updated: 3/17/2023
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -21,16 +21,16 @@ var outpaintMaxTotalResolution = 1280 * 1280; //put max 'low' mode resolution he
 var outpaintMaxTurboResolution = 1536	* 896;   //put max resolution (other than 'low' mode) here
 
 const outpaintSizeIncrease = 128;  //This can be modified by increments/decrements of 64, as desired
-const outpaintMaskOverlap = 36; //Need some overlap on the mask (minimum of 8px)
-const outpaintPercentToKeep = .2; //Amount of random pixels to retain, to bias effect
+//const outpaintMaskOverlap = 36; //Need some overlap on the mask (minimum of 8px)
+//const outpaintPercentToKeep = .2; //Amount of random pixels to retain, to bias effect
 function outpaintSetPixels(imageData) {
-  function guassianRand() {  //approximation of Gaussian, from Stackoverflow
-    var rand =0;
-    for (var i=0; i<6; i+=1) {
-      rand += Math.random();
-    }
-    return rand/6;
-  }
+  //function guassianRand() {  //approximation of Gaussian, from Stackoverflow
+  //  var rand =0;
+  //  for (var i=0; i<6; i+=1) {
+  //    rand += Math.random();
+  //  }
+  //  return rand/6;
+  //}
   function randomPixel() {
     return Math.floor(Math.random() * 256); //0 to 255
     //return Math.floor(guassianRand() * 256); //0 to 255
@@ -57,9 +57,9 @@ function outpaintSetPixels(imageData) {
 
     // set the new pixel values back to the array
     pixels[i] = r;
-    pixels[i +1] = g;
-    pixels[i +2] = b;
-    pixels[i +3] = 255;
+    pixels[i + 1] = g;
+    pixels[i + 2] = b;
+    pixels[i + 3] = 255;
   }
 }
 
@@ -83,7 +83,6 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
   //Each person needs to test with different resolutions to find the limit of their card when using Balanced or modes other than 'low'.
   if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height >outpaintMaxTurboResolution) {  //put max normal resolution here
-    //newTaskRequest.reqBody.turbo = false;
     newTaskRequest.reqBody.vram_usage_level = 'low';
   }
   //newTaskRequest.reqBody.preserve_init_image_color_profile=true; //shouldn't be necessary, working from txt2img, and distorts colors
@@ -97,10 +96,16 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   return newTaskRequest;
 }
 
-PLUGINS['IMAGE_INFO_BUTTONS'].push({
-  text: 'OutpaintUp',
-  on_click: function(origRequest, image) {
+PLUGINS['IMAGE_INFO_BUTTONS'].push([
+  { html: '<span style="background-color:transparent;background: rgba(0,0,0,0.5)">OutpaintIt:</span>', type: 'label', filter: onOutpaintLabelFilter},
+  { html: '<i class="fa-solid fa-arrow-up"></i>', on_click: onOutpaintUpClick, filter: onOutpaintUpFilter },
+  { html: '<i class="fa-solid fa-arrow-down"></i>', on_click: onOutpaintDownClick, filter: onOutpaintDownFilter  },
+  { html: '<i class="fa-solid fa-arrow-left"></i>', on_click: onOutpaintLeftClick, filter: onOutpaintLeftFilter  },
+  { html: '<i class="fa-solid fa-arrow-right"></i>', on_click: onOutpaintRightClick, filter: onOutpaintRightFilter  },
+  { html: '<i class="fa-solid fa-arrows"></i>', on_click: onOutpaintAllClick, filter: onOutpaintAllFilter  }
+])
 
+function  onOutpaintUpClick(origRequest, image) {
     let newTaskRequest = outpaintGetTaskRequest(origRequest, image, false);
    
     //create working canvas
@@ -127,14 +132,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
     maskctx = maskcanvas.getContext("2d");
-//    //First, ensure the mask over the original image is black ("off")
-//    maskctx.fillStyle = 'black';
-//    maskctx.fillRect(0, outpaintSizeIncrease, origRequest.width, origRequest.height);
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, 0, origRequest.width, outpaintSizeIncrease+8 /*outpaintMaskOverlap*/);  //Need some overlap on the mask (minimum of 8px)
-//    //let's feather the mask on the transition. Still need 8 hard pixels, though.
-//    maskctx.fillStyle = 'lightgrey'; 
-//    maskctx.fillRect(0, outpaintSizeIncrease+8, origRequest.width, outpaintMaskOverlap-8); 
     
     const gradient = ctx.createLinearGradient(0, outpaintSizeIncrease+8, 0, maskcanvas.height); //vertical line
 
@@ -155,8 +154,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
 
 //    Now reassemble old and new
 
-  },
-  filter: function(origRequest, image) {
+  }
+function onOutpaintUpFilter(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
   result = false
@@ -165,12 +164,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
   }
   return result;
   }
-})
 
-PLUGINS['IMAGE_INFO_BUTTONS'].push({
-  text: 'OutpaintDown',
-  on_click: function(origRequest, image) {
-
+function  onOutpaintDownClick(origRequest, image) {
     let newTaskRequest = outpaintGetTaskRequest(origRequest, image, false);
 
     //create working canvas
@@ -216,15 +211,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
     maskctx = maskcanvas.getContext("2d");
-    ////First, ensure the mask over the original image is black ("off")
-    //maskctx.fillStyle = 'black';
-    //maskctx.fillRect(0, 0, origRequest.width, origRequest.height-outpaintMaskOverlap);
     maskctx.fillStyle = 'white';
-    //maskctx.fillRect(0, origRequest.height-outpaintMaskOverlap, origRequest.width, outpaintSizeIncrease+outpaintMaskOverlap);  //Need some overlap on the mask (minimum of 8px)
     maskctx.fillRect(0, origRequest.height-8, origRequest.width, outpaintSizeIncrease+8);  //Need some overlap on the mask (minimum of 8px)
-    ////let's feather the mask on the transition. Still need 8 hard pixels, though.
-    //maskctx.fillStyle = 'lightgrey'; 
-    //maskctx.fillRect(0, origRequest.height-outpaintMaskOverlap, origRequest.width, outpaintMaskOverlap-8); 
     
     const gradient = ctx.createLinearGradient(0, maskcanvas.height-outpaintSizeIncrease-8, 0, 0); //vertical line
     // Add three color stops
@@ -244,8 +232,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     var id=createTask(newTaskRequest)  //task ID - can be used to find location in document
 
     //  TODO: reassemble old and new, to create a larger final image
-  },
-  filter: function(origRequest, image) {
+  }
+function onOutpaintDownFilter(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
   result = false
@@ -254,13 +242,9 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
   }
   return result;
   }
-})
 
 
-PLUGINS['IMAGE_INFO_BUTTONS'].push({
-  text: 'OutpaintLeft',
-  on_click: function(origRequest, image) {
-
+  function  onOutpaintLeftClick(origRequest, image) {
     let newTaskRequest = outpaintGetTaskRequest(origRequest, image, true);
     
     //create working canvas
@@ -288,15 +272,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
     maskctx = maskcanvas.getContext("2d");
-    ////First, ensure the mask over the original image is black ("off")
-    //maskctx.fillStyle = 'black';
-    //maskctx.fillRect(outpaintSizeIncrease, 0, origRequest.width, origRequest.height);
     maskctx.fillStyle = 'white';
-    //maskctx.fillRect(0, 0, outpaintSizeIncrease+outpaintMaskOverlap, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
     maskctx.fillRect(0, 0, outpaintSizeIncrease+8, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
-    //let's feather the mask on the transition. Still need 8 hard pixels, though.
-    //maskctx.fillStyle = 'lightgrey'; 
-    //maskctx.fillRect(outpaintSizeIncrease+8, 0, outpaintMaskOverlap-8, origRequest.height); 
 
     const gradient = ctx.createLinearGradient(outpaintSizeIncrease+8, 0, maskcanvas.width-outpaintSizeIncrease-8, 0); //horizontal line
     // Add three color stops
@@ -316,8 +293,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
 
 //    Now reassemble old and new
 
-  },
-  filter: function(origRequest, image) {
+  }
+function onOutpaintLeftFilter(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
 
@@ -327,12 +304,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
   }
   return result;
   }
-})
 
-PLUGINS['IMAGE_INFO_BUTTONS'].push({
-  text: 'OutpaintRight',
-  on_click: function(origRequest, image) {
-
+  function  onOutpaintRightClick(origRequest, image) {
     let newTaskRequest = outpaintGetTaskRequest(origRequest, image, true);
     
     //create working canvas
@@ -359,15 +332,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
     maskctx = maskcanvas.getContext("2d");
-    ////First, ensure the mask over the original image is black ("off")
-    //maskctx.fillStyle = 'black';
-    //maskctx.fillRect(0, 0, origRequest.width-outpaintMaskOverlap, origRequest.height);
     maskctx.fillStyle = 'white';
-    //maskctx.fillRect(origRequest.width-outpaintMaskOverlap, 0, outpaintSizeIncrease+outpaintMaskOverlap, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
     maskctx.fillRect(origRequest.width-8, 0, outpaintSizeIncrease+8, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
-    ////let's feather the mask on the transition. Still need 8 hard pixels, though.
-    //maskctx.fillStyle = 'lightgrey'; 
-    //maskctx.fillRect(origRequest.width-outpaintMaskOverlap, 0, outpaintMaskOverlap-8, origRequest.height); 
 
     const gradient = ctx.createLinearGradient(origRequest.width-8 /*maskcanvas.width-outpaintSizeIncrease-8*/, 0, 0, 0); //horizontal line
     // Add three color stops
@@ -375,7 +341,6 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
     gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
     maskctx.fillStyle = gradient; 
-//    maskctx.fillRect(maskcanvas.width-outpaintSizeIncrease-8, 0, origRequest.width-8,  origRequest.height); 
     maskctx.fillRect(0,0,origRequest.width-8, origRequest.height); 
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
@@ -389,23 +354,19 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
 //    Now reassemble old and new
 
 
-  },
-  filter: function(origRequest, image) {
+  }
+function onOutpaintRightFilter(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
 
-  result = false
-  if ((origRequest.width+outpaintSizeIncrease)*origRequest.height<=outpaintMaxTotalResolution)  {
-    result=true;
+    result = false
+    if ((origRequest.width+outpaintSizeIncrease)*origRequest.height<=outpaintMaxTotalResolution)  {
+      result=true;
+    }
+    return result;
   }
-  return result;
-  }
-})
 
-PLUGINS['IMAGE_INFO_BUTTONS'].push({
-  text: 'OutpaintALL',
-  on_click: function(origRequest, image) {
-
+function  onOutpaintAllClick(origRequest, image) {
     let newTaskRequest = outpaintGetTaskRequest(origRequest, image, true, true);
     
     //create working canvas
@@ -483,38 +444,6 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
     maskctx.fillStyle = gradient; 
     maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8);
 
-
-    /**** * clipped radial gradient ***********
-    // Save the current state of the context
-    maskctx.save();
-    // Start a new path
-    maskctx.beginPath();
-    // Define an outer rectangle that covers the outer area
-    maskctx.rect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8); 
-    // Define an inner rectangle that you want to mask out
-    // Use a negative value for anticlockwise parameter
-    maskctx.rect(maskcanvas.width-(outpaintSizeIncrease/2+4+outpaintMaskOverlap/2), outpaintSizeIncrease/2+4+outpaintMaskOverlap/2, -(origRequest.width-8-outpaintMaskOverlap), origRequest.height-8-outpaintMaskOverlap, true);
-    // Create a clipping region from the current path
-    maskctx.clip();
-    //maskctx.fillStyle = 'rgba(255,255,255,0.5)'; //'lightgrey'; 
-
-    //Rather than use a constant grey, trying a radial gradient.  It still isn't ideal, as it doesn't provide enough gradation in the narrow box.
-    const gradient = ctx.createRadialGradient(maskcanvas.width/2,maskcanvas.height/2,((maskcanvas.width+maskcanvas.height)/8), maskcanvas.width/2,maskcanvas.height/2,((maskcanvas.width+maskcanvas.height)/3.2));
-    // Add three color stops
-    gradient.addColorStop(0, 'rgba(255,255,255,0)'); //"black");
-    gradient.addColorStop(0.15, 'rgba(255,255,255,0)'); //"black");
-    gradient.addColorStop(1, 'rgba(255,255,255,1)'); //"white");
-    maskctx.fillStyle = gradient; 
-
-    maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8); 
-    // Restore the previous state of the context
-    maskctx.restore();
- ******************/        
-
-    ////ensure the mask over the original image is black ("off")
-    //maskctx.fillStyle = 'black'; //'rgba(255,255,255,0)'; 
-    //maskctx.fillRect(outpaintSizeIncrease/2+outpaintMaskOverlap/2, outpaintSizeIncrease/2+outpaintMaskOverlap/2, origRequest.width-outpaintMaskOverlap, origRequest.height-outpaintMaskOverlap);
-
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have   
 
@@ -523,8 +452,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
 
     var id=createTask(newTaskRequest)  //task ID - can be used to find location in document
 
-  },
-  filter: function(origRequest, image) {
+  }
+  function onOutpaintAllFilter(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
 
@@ -534,4 +463,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
   }
   return result;
   }
-})
+
+  //It is possible for some of the directions (skinny edges) to still appear, while the other options disappear.
+  function onOutpaintLabelFilter(origRequest, image) {
+    return onOutpaintRightFilter(origRequest, image) || onOutpaintUpFilter(origRequest, image) 
+  } 
