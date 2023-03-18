@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.1, last updated: 3/17/2023
+ * v.1.1.1, last updated: 3/18/2023
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -17,6 +17,7 @@
    These values work (usually) for the Nvidia 2060 Super with 8GB VRAM. 
    If you go too large, you'll see "Error: CUDA out of memory". 
  */
+(function() { "use strict"
 var outpaintMaxTotalResolution = 1280 * 1280; //put max 'low' mode resolution here, max possible size when low mode is on
 var outpaintMaxTurboResolution = 1536	* 896;   //put max resolution (other than 'low' mode) here
 
@@ -112,7 +113,7 @@ function  onOutpaintUpClick(origRequest, image) {
     let canvas = document.createElement("canvas");
     canvas.width = newTaskRequest.reqBody.width;
     canvas.height = newTaskRequest.reqBody.height;
-    ctx = canvas.getContext("2d");
+    let ctx = canvas.getContext("2d");
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
@@ -131,7 +132,7 @@ function  onOutpaintUpClick(origRequest, image) {
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
-    maskctx = maskcanvas.getContext("2d");
+    let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, 0, origRequest.width, outpaintSizeIncrease+8 /*outpaintMaskOverlap*/);  //Need some overlap on the mask (minimum of 8px)
     
@@ -158,7 +159,7 @@ function  onOutpaintUpClick(origRequest, image) {
 function onOutpaintUpFilter(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
-  result = false
+  let result = false
   if ((origRequest.height+outpaintSizeIncrease)*origRequest.width<=outpaintMaxTotalResolution)  {
     result=true;
   }
@@ -172,7 +173,7 @@ function  onOutpaintDownClick(origRequest, image) {
     let canvas = document.createElement("canvas");
     canvas.width = newTaskRequest.reqBody.width;
     canvas.height = newTaskRequest.reqBody.height;
-    ctx = canvas.getContext("2d");
+    let ctx = canvas.getContext("2d");
 
     ctx.drawImage( image,
       0, 0, origRequest.width, origRequest.height, //source 
@@ -210,7 +211,7 @@ function  onOutpaintDownClick(origRequest, image) {
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
-    maskctx = maskcanvas.getContext("2d");
+    let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, origRequest.height-8, origRequest.width, outpaintSizeIncrease+8);  //Need some overlap on the mask (minimum of 8px)
     
@@ -236,7 +237,7 @@ function  onOutpaintDownClick(origRequest, image) {
 function onOutpaintDownFilter(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
-  result = false
+  let result = false
   if ((origRequest.height+outpaintSizeIncrease)*origRequest.width<=outpaintMaxTotalResolution)  {
     result=true;
   }
@@ -251,7 +252,7 @@ function onOutpaintDownFilter(origRequest, image) {
     let canvas = document.createElement("canvas");
     canvas.width = newTaskRequest.reqBody.width;
     canvas.height = newTaskRequest.reqBody.height;
-    ctx = canvas.getContext("2d");
+    let ctx = canvas.getContext("2d");
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
@@ -271,7 +272,7 @@ function onOutpaintDownFilter(origRequest, image) {
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
-    maskctx = maskcanvas.getContext("2d");
+    let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, 0, outpaintSizeIncrease+8, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
 
@@ -298,7 +299,7 @@ function onOutpaintLeftFilter(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
 
-  result = false
+  let result = false
   if ((origRequest.width+outpaintSizeIncrease)*origRequest.height<=outpaintMaxTotalResolution)  {
     result=true;
   }
@@ -312,7 +313,7 @@ function onOutpaintLeftFilter(origRequest, image) {
     let canvas = document.createElement("canvas");
     canvas.width = newTaskRequest.reqBody.width;
     canvas.height = newTaskRequest.reqBody.height;
-    ctx = canvas.getContext("2d");
+    let ctx = canvas.getContext("2d");
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
@@ -331,7 +332,7 @@ function onOutpaintLeftFilter(origRequest, image) {
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
-    maskctx = maskcanvas.getContext("2d");
+    let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
     maskctx.fillRect(origRequest.width-8, 0, outpaintSizeIncrease+8, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
 
@@ -359,7 +360,7 @@ function onOutpaintRightFilter(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
 
-    result = false
+    let result = false
     if ((origRequest.width+outpaintSizeIncrease)*origRequest.height<=outpaintMaxTotalResolution)  {
       result=true;
     }
@@ -373,7 +374,7 @@ function  onOutpaintAllClick(origRequest, image) {
     let canvas = document.createElement("canvas");
     canvas.width = newTaskRequest.reqBody.width;
     canvas.height = newTaskRequest.reqBody.height;
-    ctx = canvas.getContext("2d");
+    let ctx = canvas.getContext("2d");
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
@@ -392,7 +393,7 @@ function  onOutpaintAllClick(origRequest, image) {
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
-    maskctx = maskcanvas.getContext("2d");
+    let maskctx = maskcanvas.getContext("2d");
 
     // Save the current state of the context
     maskctx.save();
@@ -457,7 +458,7 @@ function  onOutpaintAllClick(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
 
-  result = false
+  let result = false
   if ((origRequest.width+outpaintSizeIncrease)*(origRequest.height+outpaintSizeIncrease)<=outpaintMaxTotalResolution)  {
     result=true;
   }
@@ -468,3 +469,4 @@ function  onOutpaintAllClick(origRequest, image) {
   function onOutpaintLabelFilter(origRequest, image) {
     return onOutpaintRightFilter(origRequest, image) || onOutpaintUpFilter(origRequest, image) 
   } 
+})();
