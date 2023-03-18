@@ -113,7 +113,7 @@ function  onOutpaintUpClick(origRequest, image) {
     let canvas = document.createElement("canvas");
     canvas.width = newTaskRequest.reqBody.width;
     canvas.height = newTaskRequest.reqBody.height;
-    ctx = canvas.getContext("2d");
+    let ctx = canvas.getContext("2d");
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
@@ -132,7 +132,7 @@ function  onOutpaintUpClick(origRequest, image) {
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
-    maskctx = maskcanvas.getContext("2d");
+    let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, 0, origRequest.width, outpaintSizeIncrease+8 /*outpaintMaskOverlap*/);  //Need some overlap on the mask (minimum of 8px)
     
@@ -173,7 +173,7 @@ function  onOutpaintDownClick(origRequest, image) {
     let canvas = document.createElement("canvas");
     canvas.width = newTaskRequest.reqBody.width;
     canvas.height = newTaskRequest.reqBody.height;
-    ctx = canvas.getContext("2d");
+    let ctx = canvas.getContext("2d");
 
     ctx.drawImage( image,
       0, 0, origRequest.width, origRequest.height, //source 
@@ -211,7 +211,7 @@ function  onOutpaintDownClick(origRequest, image) {
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
-    maskctx = maskcanvas.getContext("2d");
+    let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, origRequest.height-8, origRequest.width, outpaintSizeIncrease+8);  //Need some overlap on the mask (minimum of 8px)
     
@@ -252,7 +252,7 @@ function onOutpaintDownFilter(origRequest, image) {
     let canvas = document.createElement("canvas");
     canvas.width = newTaskRequest.reqBody.width;
     canvas.height = newTaskRequest.reqBody.height;
-    ctx = canvas.getContext("2d");
+    let ctx = canvas.getContext("2d");
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
@@ -272,7 +272,7 @@ function onOutpaintDownFilter(origRequest, image) {
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
-    maskctx = maskcanvas.getContext("2d");
+    let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
     maskctx.fillRect(0, 0, outpaintSizeIncrease+8, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
 
@@ -313,7 +313,7 @@ function onOutpaintLeftFilter(origRequest, image) {
     let canvas = document.createElement("canvas");
     canvas.width = newTaskRequest.reqBody.width;
     canvas.height = newTaskRequest.reqBody.height;
-    ctx = canvas.getContext("2d");
+    let ctx = canvas.getContext("2d");
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
@@ -332,7 +332,7 @@ function onOutpaintLeftFilter(origRequest, image) {
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
-    maskctx = maskcanvas.getContext("2d");
+    let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
     maskctx.fillRect(origRequest.width-8, 0, outpaintSizeIncrease+8, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
 
@@ -374,7 +374,7 @@ function  onOutpaintAllClick(origRequest, image) {
     let canvas = document.createElement("canvas");
     canvas.width = newTaskRequest.reqBody.width;
     canvas.height = newTaskRequest.reqBody.height;
-    ctx = canvas.getContext("2d");
+    let ctx = canvas.getContext("2d");
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
@@ -393,7 +393,7 @@ function  onOutpaintAllClick(origRequest, image) {
     let maskcanvas = document.createElement("canvas");
     maskcanvas.width = newTaskRequest.reqBody.width;
     maskcanvas.height = newTaskRequest.reqBody.height;
-    maskctx = maskcanvas.getContext("2d");
+    let maskctx = maskcanvas.getContext("2d");
 
     // Save the current state of the context
     maskctx.save();
