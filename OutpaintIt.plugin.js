@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.1.1, last updated: 3/18/2023
+ * v.1.2, last updated: 3/20/2023
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -77,10 +77,10 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
     num_outputs: 1,
     seed: Math.floor(Math.random() * 10000000),
   })
-  newTaskRequest.seed = newTaskRequest.reqBody.seed
-  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
-  newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
-  newTaskRequest.numOutputsTotal = 1 // "
+  newTaskRequest.seed = newTaskRequest.reqBody.seed;
+  newTaskRequest.reqBody.sampler_name = 'ddim';  //ensure img2img sampler change is properly reflected in log file
+  newTaskRequest.batchCount = outpaintNumRuns;  // assume user only wants one at a time to evaluate, if selecting one out of a batch
+  newTaskRequest.numOutputsTotal = outpaintNumRuns; // "
   //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
   //Each person needs to test with different resolutions to find the limit of their card when using Balanced or modes other than 'low'.
   if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height >outpaintMaxTurboResolution) {  //put max normal resolution here
@@ -98,13 +98,26 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
 }
 
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
-  { html: '<span style="background-color:transparent;background: rgba(0,0,0,0.5)">OutpaintIt:</span>', type: 'label', filter: onOutpaintLabelFilter},
+  { html: '<span class="outpaint-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">OutpaintIt:</span>', type: 'label', on_click: onOutpaintLabelClick, filter: onOutpaintLabelFilter},
   { html: '<i class="fa-solid fa-arrow-up"></i>', on_click: onOutpaintUpClick, filter: onOutpaintUpFilter },
   { html: '<i class="fa-solid fa-arrow-down"></i>', on_click: onOutpaintDownClick, filter: onOutpaintDownFilter  },
   { html: '<i class="fa-solid fa-arrow-left"></i>', on_click: onOutpaintLeftClick, filter: onOutpaintLeftFilter  },
   { html: '<i class="fa-solid fa-arrow-right"></i>', on_click: onOutpaintRightClick, filter: onOutpaintRightFilter  },
   { html: '<i class="fa-solid fa-arrows"></i>', on_click: onOutpaintAllClick, filter: onOutpaintAllFilter  }
 ])
+
+var outpaintNumRuns = 1;
+
+function onOutpaintLabelClick(origRequest, image) {
+  outpaintNumRuns++;
+  if (outpaintNumRuns>5) {
+    outpaintNumRuns=1;
+  }
+  //update current labels
+  for (var index=0; index<document.getElementsByClassName("outpaint-label").length;index++) {
+    document.getElementsByClassName("outpaint-label")[index].innerText=outpaintLabel();
+  }
+};
 
 function  onOutpaintUpClick(origRequest, image) {
     let newTaskRequest = outpaintGetTaskRequest(origRequest, image, false);
@@ -467,6 +480,23 @@ function  onOutpaintAllClick(origRequest, image) {
 
   //It is possible for some of the directions (skinny edges) to still appear, while the other options disappear.
   function onOutpaintLabelFilter(origRequest, image) {
-    return onOutpaintRightFilter(origRequest, image) || onOutpaintUpFilter(origRequest, image) 
-  } 
+    let result=onOutpaintRightFilter(origRequest, image) || onOutpaintUpFilter(origRequest, image);
+
+    if (result==true) {
+      var text = outpaintLabel();
+      this.html = this.html.replace(/OutpaintIt.*:/,text);
+    }
+    return result;
+  }
+  function outpaintLabel() 
+  {
+    var text;
+    if (outpaintNumRuns==1) {
+      text = 'OutpaintIt:';
+    }
+    else {
+      text = 'OutpaintIt (batch of ' + outpaintNumRuns + '):';
+    }
+    return text;
+  }
 })();
