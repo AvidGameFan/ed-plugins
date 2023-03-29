@@ -19,6 +19,7 @@
 These values work (usually) for the Nvidia 2060 Super with 8GB VRAM. 
 If you go too large, you'll see "Error: CUDA out of memory". 
 */
+(function() { "use strict"
 var maxTurboResolution = 1536	* 896;   //put max 'balanced' resolution here - larger output will enter 'low' mode, automatically.
 var MaxSquareResolution = 1280;
 
@@ -121,40 +122,55 @@ function scaleUp(height,width) {
   return result;
 }
 
-PLUGINS['IMAGE_INFO_BUTTONS'].push({
-  text: 'Scale Up',
-  on_click: function(origRequest, image) {
-  
-      let newTaskRequest = getCurrentUserRequest()
-    newTaskRequest.reqBody = Object.assign({}, origRequest, {
-      init_image: image.src,
-      prompt_strength: 0.35,  //Lower this number to make results closer to the original
-      // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
-      // - 0.15 sticks pretty close to the original, adding detail
-      width: scaleUp(origRequest.width, origRequest.height),
-      height: scaleUp(origRequest.height, origRequest.width),
-      guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
-      num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 25, 100),  //large resolutions combined with large steps can cause an error
-      num_outputs: 1,
-      //Using a new seed will allow some variation as it up-sizes.
-      seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
-    })
-    newTaskRequest.seed = newTaskRequest.reqBody.seed
-    newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
-    newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
-    newTaskRequest.numOutputsTotal = 1 // "
-    //If you have a lower-end graphics card, the below will automatically disable memory-intensive options for larger images.
-    //Each person needs to test with different resolutions to find the limit of their card when using balanced (formerly, "turbo") mode.
-    if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //max normal resolution
-      //Disable anything that takes up VRAM here
-      newTaskRequest.reqBody.vram_usage_level = 'low';
-      //delete newTaskRequest.reqBody.hypernetwork_strength;
-      //delete newTaskRequest.reqBody.use_hypernetwork_model;
-    }
-    delete newTaskRequest.reqBody.mask
-    createTask(newTaskRequest)
-  },
-  filter: function(origRequest, image) {
+PLUGINS['IMAGE_INFO_BUTTONS'].push([
+  { html: '<span class="scaleup-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">Scale Up:</span>', type: 'label', on_click: onScaleUpLabelClick, filter: onScaleUpFilter},
+  { text: 'Scale Up', on_click: onScaleUpClick, filter: onScaleUpFilter }
+//  { text: 'Scale Up', on_click: onScaleUpClick, filter: onScaleUpFilter }
+//  { html: '<i class="fa-solid fa-arrow-up"></i>', on_click: onScaleUpClick, filter: onScaleUpFilter },
+])
+
+var scaleUpPreserve = false;
+function onScaleUpLabelClick(origRequest, image) {
+  scaleUpPreserve = !scaleUpPreserve;
+  //update current labels
+  for (var index=0; index<document.getElementsByClassName("scaleup-label").length;index++) {
+    document.getElementsByClassName("scaleup-label")[index].innerText=scaleupLabel();
+  }
+};
+
+function onScaleUpClick(origRequest, image) {
+  let newTaskRequest = getCurrentUserRequest();
+  newTaskRequest.reqBody = Object.assign({}, origRequest, {
+    init_image: image.src,
+    prompt_strength: scaleUpPreserve ? 0.15 : 0.35,  //Lower this number to make results closer to the original
+    // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
+    // - 0.15 sticks pretty close to the original, adding detail
+    width: scaleUp(origRequest.width, origRequest.height),
+    height: scaleUp(origRequest.height, origRequest.width),
+    guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
+    num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 25, 100),  //large resolutions combined with large steps can cause an error
+    num_outputs: 1,
+    //Using a new seed will allow some variation as it up-sizes.
+    seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
+  })
+  newTaskRequest.seed = newTaskRequest.reqBody.seed
+//   newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
+  newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
+  newTaskRequest.numOutputsTotal = 1 // "
+  //If you have a lower-end graphics card, the below will automatically disable memory-intensive options for larger images.
+  //Each person needs to test with different resolutions to find the limit of their card when using balanced (formerly, "turbo") mode.
+  if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //max normal resolution
+    //Disable anything that takes up VRAM here
+    newTaskRequest.reqBody.vram_usage_level = 'low';
+    //delete newTaskRequest.reqBody.hypernetwork_strength;
+    //delete newTaskRequest.reqBody.use_hypernetwork_model;
+  }
+
+  delete newTaskRequest.reqBody.mask
+  createTask(newTaskRequest)
+}
+
+  function onScaleUpFilter(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
 
@@ -174,9 +190,30 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push({
   }
   //Optional display of resolution
   if (result==true) {
-    this.text = 'Scale Up to ' + scaleUp(origRequest.width, origRequest.height) + ' x ' +
+    this.text = scaleUp(origRequest.width, origRequest.height) + ' x ' +
       scaleUp(origRequest.height, origRequest.width);
   }
   return result;
   }
-})
+
+  function onScaleUpLabelFilter(origRequest, image) {
+    let result=onScaleUpFilter(origRequest, image);
+
+    if (result==true) {
+      var text = scaleupLabel();
+      this.html = this.html.replace(/Scale Up.*:/,text);
+    }
+    return result;
+  }
+  function scaleupLabel() 
+  {
+    var text;
+    if (!scaleUpPreserve) {
+      text = 'Scale Up:';
+    }
+    else {
+      text = 'Scale Up (preserve):';
+    }
+    return text;
+  }
+})();
