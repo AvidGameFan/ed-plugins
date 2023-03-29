@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.1.12, last updated: 2/12/2023
+ * v.1.2.1, last updated: 3/29/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -123,10 +123,9 @@ function scaleUp(height,width) {
 }
 
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
-  { html: '<span class="scaleup-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">Scale Up:</span>', type: 'label', on_click: onScaleUpLabelClick, filter: onScaleUpFilter},
-  { text: 'Scale Up', on_click: onScaleUpClick, filter: onScaleUpFilter }
-//  { text: 'Scale Up', on_click: onScaleUpClick, filter: onScaleUpFilter }
-//  { html: '<i class="fa-solid fa-arrow-up"></i>', on_click: onScaleUpClick, filter: onScaleUpFilter },
+  { html: '<span class="scaleup-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">Scale Up:</span>', type: 'label', on_click: onScaleUpLabelClick, filter: onScaleUpLabelFilter},
+  { text: 'Scale Up', on_click: onScaleUpClick, filter: onScaleUpFilter },
+  { text: 'Scale Up MAX', on_click: onScaleUpMAXClick, filter: onScaleUpMAXFilter }
 ])
 
 var scaleUpPreserve = false;
@@ -154,7 +153,7 @@ function onScaleUpClick(origRequest, image) {
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
   newTaskRequest.seed = newTaskRequest.reqBody.seed
-//   newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
+  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
   newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
   newTaskRequest.numOutputsTotal = 1 // "
   //If you have a lower-end graphics card, the below will automatically disable memory-intensive options for larger images.
@@ -170,11 +169,8 @@ function onScaleUpClick(origRequest, image) {
   createTask(newTaskRequest)
 }
 
-  function onScaleUpFilter(origRequest, image) {
-    // this is an optional function. return true/false to show/hide the button
-    // if this function isn't set, the button will always be visible
-
-  result = false
+function scaleUpFilter(origRequest, image) {
+  let result = false
   if (origRequest.height==origRequest.width && origRequest.height<MaxSquareResolution) {
           result=true;
   }
@@ -188,32 +184,98 @@ function onScaleUpClick(origRequest, image) {
           }
       })
   }
-  //Optional display of resolution
+  return result;
+}
+function onScaleUpFilter(origRequest) {
+  // this is an optional function. return true/false to show/hide the button
+  // if this function isn't set, the button will always be visible
+  let result = scaleUpFilter(origRequest);
+
+   //Optional display of resolution
   if (result==true) {
     this.text = scaleUp(origRequest.width, origRequest.height) + ' x ' +
       scaleUp(origRequest.height, origRequest.width);
   }
   return result;
-  }
+}
 
-  function onScaleUpLabelFilter(origRequest, image) {
-    let result=onScaleUpFilter(origRequest, image);
+function onScaleUpLabelFilter(origRequest, image) {
+  let result=scaleUpFilter(origRequest) || scaleUpMAXFilter(origRequest);
 
-    if (result==true) {
-      var text = scaleupLabel();
-      this.html = this.html.replace(/Scale Up.*:/,text);
-    }
-    return result;
+  if (result==true) {
+    var text = scaleupLabel();
+    this.html = this.html.replace(/Scale Up.*:/,text);
   }
-  function scaleupLabel() 
-  {
-    var text;
-    if (!scaleUpPreserve) {
-      text = 'Scale Up:';
-    }
-    else {
-      text = 'Scale Up (preserve):';
-    }
-    return text;
+  return result;
+}
+function scaleupLabel() 
+{
+  var text;
+  if (!scaleUpPreserve) {
+    text = 'Scale Up:';
   }
+  else {
+    text = 'Scale Up (preserve):';
+  }
+  return text;
+}
+
+function ScaleUpMax(dimension, ratio) {
+  return Math.round(((dimension*ratio)+32)/64)*64-64;
+}
+  
+function onScaleUpMAXClick(origRequest, image) {
+  var ratio=Math.sqrt(maxTotalResolution/(origRequest.height*origRequest.width));
+  let newTaskRequest = getCurrentUserRequest();
+  newTaskRequest.reqBody = Object.assign({}, origRequest, {
+    init_image: image.src,
+    prompt_strength: scaleUpPreserve ? 0.15 : 0.3,  //Lower this number to make results closer to the original
+    // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
+    // - 0.15 sticks pretty close to the original, adding detail
+
+    //The rounding takes it to the nearest 64, which defines the resolutions available.  This will choose values that are not in the UI.
+    width: ScaleUpMax(origRequest.width,ratio),
+    height: ScaleUpMax(origRequest.height,ratio),
+    //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
+    num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 50, 100),  //large resolutions combined with large steps can cause an error
+    num_outputs: 1,
+    //Using a new seed will allow some variation as it up-sizes; if results are not ideal, rerunning will give different results.
+    seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
+  })
+  newTaskRequest.seed = newTaskRequest.reqBody.seed
+  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
+  newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
+  newTaskRequest.numOutputsTotal = 1 // "
+  //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
+  //Each person needs to test with different resolutions to find the limit of their card when using Balanced or modes other than 'low'.
+  if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //put max normal resolution here
+    //newTaskRequest.reqBody.turbo = false;
+    newTaskRequest.reqBody.vram_usage_level = 'low';
+  }
+  delete newTaskRequest.reqBody.mask
+  createTask(newTaskRequest)
+}
+
+var scaleUpMaxRatio;
+function scaleUpMAXFilter(origRequest) {
+  let result = false;
+  scaleUpMaxRatio=Math.sqrt(maxTotalResolution/(origRequest.height*origRequest.width));
+  if (ScaleUpMax(origRequest.height, scaleUpMaxRatio) > origRequest.height) {  //if we already matched the max resolution, we're done.
+    result=true;
+  }
+  return result;
+}
+function onScaleUpMAXFilter(origRequest, image) {
+  // this is an optional function. return true/false to show/hide the button
+  // if this function isn't set, the button will always be visible
+  let result = scaleUpMAXFilter(origRequest);
+  
+  //Optional display of resolution
+  if (result==true) {
+      this.text = ScaleUpMax(origRequest.width, scaleUpMaxRatio) + ' x ' +
+      ScaleUpMax(origRequest.height, scaleUpMaxRatio);
+  }
+  return result;
+}
+
 })();
