@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.1.2.1, last updated: 3/29/2023
+ * v.1.2.2, last updated: 4/12/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -20,6 +20,7 @@ These values work (usually) for the Nvidia 2060 Super with 8GB VRAM.
 If you go too large, you'll see "Error: CUDA out of memory". 
 */
 (function() { "use strict"
+var maxTotalResolution = 1280 * 1280; //put max 'low' mode resolution here, max possible size when low mode is on
 var maxTurboResolution = 1536	* 896;   //put max 'balanced' resolution here - larger output will enter 'low' mode, automatically.
 var MaxSquareResolution = 1280;
 
