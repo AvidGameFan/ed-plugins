@@ -1,14 +1,14 @@
 /**
  * Scale Up
- * v.1.2.2, last updated: 4/12/2023
+ * v.1.3.0, last updated: 7/25/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
  * Maximum output is 1280 (except for a couple of wide-ratio entries at 1536 that should still 
  * work on many video cards), but most entries are kept at 1024x1024 and below. Values
  * are generally restricted to those available in the UI dropdown, with a couple of exceptions.
- * As time goes by, I am adding additional entries at higher resolutions, although at some point,
- * it just makes sense to use the related Scale Up MAX plugin script to jump to the highest 
+ * I later added a few additional entries at higher resolutions, although at some point,
+ * it just makes sense to use the Scale Up MAX button to jump to the highest 
  * resolution supported by your video card.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -126,7 +126,8 @@ function scaleUp(height,width) {
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { html: '<span class="scaleup-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">Scale Up:</span>', type: 'label', on_click: onScaleUpLabelClick, filter: onScaleUpLabelFilter},
   { text: 'Scale Up', on_click: onScaleUpClick, filter: onScaleUpFilter },
-  { text: 'Scale Up MAX', on_click: onScaleUpMAXClick, filter: onScaleUpMAXFilter }
+  { text: 'Scale Up MAX', on_click: onScaleUpMAXClick, filter: onScaleUpMAXFilter },
+  { html: '<i class="fa-solid fa-th-large"></i>', on_click: onScaleUpSplitClick, filter: onScaleUpSplitFilter  }
 ])
 
 var scaleUpPreserve = false;
@@ -137,6 +138,8 @@ function onScaleUpLabelClick(origRequest, image) {
     document.getElementsByClassName("scaleup-label")[index].innerText=scaleupLabel();
   }
 };
+
+//________________________________________________________________________________________________________________________________________
 
 function onScaleUpClick(origRequest, image) {
   let newTaskRequest = getCurrentUserRequest();
@@ -220,6 +223,7 @@ function scaleupLabel()
   }
   return text;
 }
+//________________________________________________________________________________________________________________________________________
 
 function ScaleUpMax(dimension, ratio) {
   return Math.round(((dimension*ratio)+32)/64)*64-64;
@@ -277,6 +281,83 @@ function onScaleUpMAXFilter(origRequest, image) {
       ScaleUpMax(origRequest.height, scaleUpMaxRatio);
   }
   return result;
+}
+//________________________________________________________________________________________________________________________________________
+
+const splitOverlap = 64;  //This can be modified by increments/decrements of 64, as desired
+
+function  onScaleUpSplitClick(origRequest, image) {
+
+//split original image into 4 overlapping pieces
+//For each split piece, run ScaleUp MAX
+//In a perfect world, merge together and display locally -- for now, leave it as an external process?
+
+//create working canvas
+let canvas = document.createElement("canvas");
+canvas.width = origRequest.width/2+splitOverlap;
+canvas.height = origRequest.height/2+splitOverlap;
+
+origRequest.width=canvas.width;
+origRequest.height = canvas.height;
+
+let ctx = canvas.getContext("2d");
+
+// get the image data of the canvas  -- we only need the part we're going to resize
+//x,y -- upper-left, width & height
+ctx.drawImage( image,
+  0, 0, canvas.width, canvas.height, //source 
+  0, 0, canvas.width, canvas.height //destination
+);
+//var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);  
+var newImage = new Image;
+newImage.src = canvas.toDataURL('image/png');
+onScaleUpMAXClick(origRequest, newImage);
+
+//lower left
+ctx.drawImage( image,
+  0, canvas.height-splitOverlap*2, canvas.width, canvas.height, //source 
+  0, 0, canvas.width, canvas.height //destination
+);
+//imageData = ctx.getImageData(0,canvas.width-splitOverlap*2, canvas.width, canvas.height); //upper-right
+newImage = new Image;
+newImage.src = canvas.toDataURL('image/png');
+onScaleUpMAXClick(origRequest, newImage);
+
+//upper-right
+ctx.drawImage( image,
+  canvas.width-splitOverlap*2, 0, canvas.width, canvas.height, //source 
+  0, 0, canvas.width, canvas.height //destination
+);
+//imageData = ctx.getImageData(canvas.height-splitOverlap*2, 0, canvas.width, canvas.height);  //x,y -- lower-r, width & height
+newImage = new Image;
+newImage.src = canvas.toDataURL('image/png');
+onScaleUpMAXClick(origRequest, newImage);
+
+//lower right
+ctx.drawImage( image,
+  canvas.width-splitOverlap*2,  canvas.height-splitOverlap*2, canvas.width, canvas.height, //source 
+  0, 0, canvas.width, canvas.height //destination
+);
+//imageData = ctx.getImageData(canvas.height-splitOverlap*2, 0, canvas.width, canvas.height);  //x,y -- lower-r, width & height
+newImage = new Image;
+newImage.src = canvas.toDataURL('image/png');
+onScaleUpMAXClick(origRequest, newImage);
+
+}
+
+function  onScaleUpSplitFilter(origRequest, image) {
+
+  if (Math.min(origRequest.width,origRequest.height)>=448)
+  {
+    let result = scaleUpMAXFilter(origRequest);
+    if (!result)
+    {
+      this.text = "Split it 4x!"
+    }
+    return true;
+  }
+  else
+    return false;
 }
 
 })();
