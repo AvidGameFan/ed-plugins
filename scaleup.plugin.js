@@ -129,13 +129,13 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { text: 'Scale Up MAX', on_click: onScaleUpMAXClick, filter: onScaleUpMAXFilter },
   { html: '<i class="fa-solid fa-th-large"></i>', on_click: onScaleUpSplitClick, filter: onScaleUpSplitFilter  }
 ])
-
+//font-size:20px 
 var scaleUpPreserve = false;
 function onScaleUpLabelClick(origRequest, image) {
   scaleUpPreserve = !scaleUpPreserve;
   //update current labels
   for (var index=0; index<document.getElementsByClassName("scaleup-label").length;index++) {
-    document.getElementsByClassName("scaleup-label")[index].innerText=scaleupLabel();
+    document.getElementsByClassName("scaleup-label")[index].innerText=scaleupLabel(!scaleUpMAXFilter(origRequest));
   }
 };
 
@@ -206,21 +206,25 @@ function onScaleUpFilter(origRequest) {
 function onScaleUpLabelFilter(origRequest, image) {
   let result=scaleUpFilter(origRequest) || scaleUpMAXFilter(origRequest);
 
-  if (result==true) {
-    var text = scaleupLabel();
-    this.html = this.html.replace(/Scale Up.*:/,text);
-  }
-  return result;
+  var text = scaleupLabel(!result);
+  this.html = this.html.replace(/Scale Up.*:/,text);
+
+  return true;
 }
-function scaleupLabel() 
+function scaleupLabel(atMaxRes) 
 {
   var text;
   if (!scaleUpPreserve) {
-    text = 'Scale Up:';
+    text = 'Scale Up';
   }
   else {
-    text = 'Scale Up (preserve):';
+    text = 'Scale Up (preserve)';
   }
+  //At max resolution, we can no longer do the normal scaleup, but we can still split -- offer a reminder
+  if (atMaxRes) {
+    text += ' - Split 4x'
+  }
+  text += ':'; //Always end with a colon, as we search on that
   return text;
 }
 //________________________________________________________________________________________________________________________________________
@@ -234,7 +238,7 @@ function onScaleUpMAXClick(origRequest, image) {
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: scaleUpPreserve ? 0.15 : 0.3,  //Lower this number to make results closer to the original
+    prompt_strength: origRequest.scaleUpSplit? (scaleUpPreserve ? 0.10 : 0.2):(scaleUpPreserve ? 0.15 : 0.3),  //Lower this number to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
 
@@ -290,15 +294,20 @@ function  onScaleUpSplitClick(origRequest, image) {
 
 //split original image into 4 overlapping pieces
 //For each split piece, run ScaleUp MAX
-//In a perfect world, merge together and display locally -- for now, leave it as an external process?
+//In a perfect world, merge together and display locally -- for now, leave it as an external process
+
+let newTaskRequest = getCurrentUserRequest();
+newTaskRequest.reqBody = Object.assign({}, origRequest, {})
 
 //create working canvas
 let canvas = document.createElement("canvas");
 canvas.width = origRequest.width/2+splitOverlap;
 canvas.height = origRequest.height/2+splitOverlap;
 
-origRequest.width=canvas.width;
-origRequest.height = canvas.height;
+newTaskRequest.reqBody.width=canvas.width;
+newTaskRequest.reqBody.height = canvas.height;
+
+newTaskRequest.reqBody.scaleUpSplit=true;
 
 let ctx = canvas.getContext("2d");
 
@@ -311,7 +320,7 @@ ctx.drawImage( image,
 //var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);  
 var newImage = new Image;
 newImage.src = canvas.toDataURL('image/png');
-onScaleUpMAXClick(origRequest, newImage);
+onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
 
 //lower left
 ctx.drawImage( image,
@@ -321,7 +330,7 @@ ctx.drawImage( image,
 //imageData = ctx.getImageData(0,canvas.width-splitOverlap*2, canvas.width, canvas.height); //upper-right
 newImage = new Image;
 newImage.src = canvas.toDataURL('image/png');
-onScaleUpMAXClick(origRequest, newImage);
+onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
 
 //upper-right
 ctx.drawImage( image,
@@ -331,7 +340,7 @@ ctx.drawImage( image,
 //imageData = ctx.getImageData(canvas.height-splitOverlap*2, 0, canvas.width, canvas.height);  //x,y -- lower-r, width & height
 newImage = new Image;
 newImage.src = canvas.toDataURL('image/png');
-onScaleUpMAXClick(origRequest, newImage);
+onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
 
 //lower right
 ctx.drawImage( image,
@@ -341,7 +350,7 @@ ctx.drawImage( image,
 //imageData = ctx.getImageData(canvas.height-splitOverlap*2, 0, canvas.width, canvas.height);  //x,y -- lower-r, width & height
 newImage = new Image;
 newImage.src = canvas.toDataURL('image/png');
-onScaleUpMAXClick(origRequest, newImage);
+onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
 
 }
 
@@ -349,11 +358,6 @@ function  onScaleUpSplitFilter(origRequest, image) {
 
   if (Math.min(origRequest.width,origRequest.height)>=448)
   {
-    let result = scaleUpMAXFilter(origRequest);
-    if (!result)
-    {
-      this.text = "Split it 4x!"
-    }
     return true;
   }
   else
