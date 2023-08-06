@@ -198,7 +198,7 @@ function onScaleUpClick(origRequest, image) {
   newTaskRequest.reqBody.use_stable_diffusion_model=$("#editor-settings #stable_diffusion_model").val();
   
   //Grab the prompt from the user-input area instead of the original image.
-  newTaskRequest.reqBody.prompt=$("textarea#prompt").val();
+  //newTaskRequest.reqBody.prompt=$("textarea#prompt").val();
   
   delete newTaskRequest.reqBody.mask
   createTask(newTaskRequest)
