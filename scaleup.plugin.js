@@ -1,28 +1,44 @@
 /**
  * Scale Up
- * v.1.3.0, last updated: 7/25/2023
+ * v.1.3.2, last updated: 8/1/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
- * Maximum output is 1280 (except for a couple of wide-ratio entries at 1536 that should still 
- * work on many video cards), but most entries are kept at 1024x1024 and below. Values
- * are generally restricted to those available in the UI dropdown, with a couple of exceptions.
- * I later added a few additional entries at higher resolutions, although at some point,
- * it just makes sense to use the Scale Up MAX button to jump to the highest 
- * resolution supported by your video card.
+ * 
+ * Updated to support newer "diffusors" version of Easy Diffusion and SDXL, which can make use
+ * of much higher resolutions than before.
+ *  
+ * The expected workflow is to use ScaleUp to gradually increase resolution, while allowing 
+ * Stable Diffusion to add detail.  At some point, when you're satisfied with the results,
+ * you may want to use the Scale Up MAX button to jump to the highest resolution supported 
+ * by your video card. 
+ * 
+ * Additionally, there is a "split" icon at the end -- this will divide the image into quarters,
+ * and upscale each one.  You'll need to use an external program to merge the pieces.
  *
+ * Another big change is that ScaleUp will grab the prompt AND the model name from the input
+ * area, not from the source image. This allows you to easily swap from "base" to "refiner".
+ * 
+ * Now uses the original sampler from the original image, not "ddim".
+ * 
  * Free to use with the CMDR2 Stable Diffusion UI.
  *  
  */
 
-/* EDIT THIS to put in the maximum resolutions your video card can handle. 
+/**********************************************************************
+EDIT THIS to put in the maximum resolutions your video card can handle. 
 These values work (usually) for the Nvidia 2060 Super with 8GB VRAM. 
 If you go too large, you'll see "Error: CUDA out of memory". 
-*/
+***********************************************************************/
 (function() { "use strict"
-var maxTotalResolution = 1280 * 1280; //put max 'low' mode resolution here, max possible size when low mode is on
-var maxTurboResolution = 1536	* 896;   //put max 'balanced' resolution here - larger output will enter 'low' mode, automatically.
-var MaxSquareResolution = 1280;
+//SDXL limits:2048*2048 or better
+//Original 1.5 limits: 1280 * 1536 ( 1536	* 896 balanced?)
+var maxTotalResolution = 2048	* 1088; //put max 'low' mode resolution here, max possible size when low mode is on
+var maxTurboResolution = 1088	* 1664; //put max 'balanced' resolution here - larger output will enter 'low' mode, automatically.
+var MaxSquareResolution = 1344;
+
+var maxTotalResolutionXL = 3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
+
 
 //Note that the table entries go in pairs, if not 1:1 square ratio.
 //Ratios that don't match exactly may slightly stretch or squish the image, but should be slight enough to not be noticeable.
@@ -99,6 +115,8 @@ var resTable = [
     [896,960,960],  //1.071 -> 1.067
 ]
 
+var scalingIncrease=1.25; //arbitrary amount to increase scaling, when beyond lookup table
+
 function scaleUp(height,width) {
   var result=height;
 
@@ -110,9 +128,8 @@ function scaleUp(height,width) {
           return;
           }
   })
-  if (result==height /*no match found in table*/
-      && height==width) /* and if square */
-      {
+  if (result==height) { /*no match found in table*/
+      if (height==width) { /* and if square */
           if (height>=768 && height<MaxSquareResolution) {
               result=MaxSquareResolution; //arbitrary
           }
@@ -120,11 +137,15 @@ function scaleUp(height,width) {
               result=896; //arbitrary
           }
       }
+      else {  //we don't have any match, but let's just make up something, until we run out of resolution
+          result = ScaleUpMax(height,scalingIncrease); //arbitrarily go 1.25 times larger
+      }
+  }
   return result;
 }
 
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
-  { html: '<span class="scaleup-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">Scale Up:</span>', type: 'label', on_click: onScaleUpLabelClick, filter: onScaleUpLabelFilter},
+  { html: '<span class="scaleup-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">Scale Up BETA:</span>', type: 'label', on_click: onScaleUpLabelClick, filter: onScaleUpLabelFilter},
   { text: 'Scale Up', on_click: onScaleUpClick, filter: onScaleUpFilter },
   { text: 'Scale Up MAX', on_click: onScaleUpMAXClick, filter: onScaleUpMAXFilter },
   { html: '<i class="fa-solid fa-th-large"></i>', on_click: onScaleUpSplitClick, filter: onScaleUpSplitFilter  }
@@ -142,12 +163,17 @@ function onScaleUpLabelClick(origRequest, image) {
 //________________________________________________________________________________________________________________________________________
 
 function onScaleUpClick(origRequest, image) {
+  var isXl=false;
+  if (origRequest.use_stable_diffusion_model.search(/xl/i)>=0) {
+    isXl=true;
+  }
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: scaleUpPreserve ? 0.15 : 0.35,  //Lower this number to make results closer to the original
+    prompt_strength: (isXl)? (scaleUpPreserve ? 0.10 : 0.25):(scaleUpPreserve ? 0.15 : 0.35),  //Lower this number to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
+    // Lower amounts used for SDXL, as it seems more sensitive to changes, especially the refiner model.
     width: scaleUp(origRequest.width, origRequest.height),
     height: scaleUp(origRequest.height, origRequest.width),
     guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
@@ -157,7 +183,7 @@ function onScaleUpClick(origRequest, image) {
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
   newTaskRequest.seed = newTaskRequest.reqBody.seed
-  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
+  //newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
   newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
   newTaskRequest.numOutputsTotal = 1 // "
   //If you have a lower-end graphics card, the below will automatically disable memory-intensive options for larger images.
@@ -168,7 +194,12 @@ function onScaleUpClick(origRequest, image) {
     //delete newTaskRequest.reqBody.hypernetwork_strength;
     //delete newTaskRequest.reqBody.use_hypernetwork_model;
   }
-
+  //Grab the model name from the user-input area instead of the original image.
+  newTaskRequest.reqBody.use_stable_diffusion_model=$("#editor-settings #stable_diffusion_model").val();
+  
+  //Grab the prompt from the user-input area instead of the original image.
+  newTaskRequest.reqBody.prompt=$("textarea#prompt").val();
+  
   delete newTaskRequest.reqBody.mask
   createTask(newTaskRequest)
 }
@@ -176,17 +207,21 @@ function onScaleUpClick(origRequest, image) {
 function scaleUpFilter(origRequest, image) {
   let result = false
   if (origRequest.height==origRequest.width && origRequest.height<MaxSquareResolution) {
-          result=true;
+      result=true;
   }
   else {      //check table for valid entries, otherwise disable button
       resTable.forEach(function(item){
       if (item[0]==origRequest.height && 
           item[1]==origRequest.width)
           {
-          result=true
+          result=true;
           return;
           }
       })
+  }
+  //Additionally, allow additional scaling
+  if (scaleUpMAXFilter(origRequest) && origRequest.height!=ScaleUpMax(width,scalingIncrease)) {
+      result=true;
   }
   return result;
 }
@@ -215,10 +250,10 @@ function scaleupLabel(atMaxRes)
 {
   var text;
   if (!scaleUpPreserve) {
-    text = 'Scale Up';
+    text = 'Scale Up BETA';
   }
   else {
-    text = 'Scale Up (preserve)';
+    text = 'Scale Up BETA (preserve)';
   }
   //At max resolution, we can no longer do the normal scaleup, but we can still split -- offer a reminder
   if (atMaxRes) {
@@ -234,11 +269,17 @@ function ScaleUpMax(dimension, ratio) {
 }
   
 function onScaleUpMAXClick(origRequest, image) {
-  var ratio=Math.sqrt(maxTotalResolution/(origRequest.height*origRequest.width));
+  var isXl=false;
+  var maxRes=maxTotalResolution;
+  if (origRequest.use_stable_diffusion_model.search(/xl/i)>=0) {
+    maxRes=maxTotalResolutionXL;
+    isXl=true;
+  }
+  var ratio=Math.sqrt(maxRes/(origRequest.height*origRequest.width));
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: origRequest.scaleUpSplit? (scaleUpPreserve ? 0.10 : 0.2):(scaleUpPreserve ? 0.15 : 0.3),  //Lower this number to make results closer to the original
+    prompt_strength: (origRequest.scaleUpSplit || isXl)? (scaleUpPreserve ? 0.10 : 0.2):(scaleUpPreserve ? 0.15 : 0.3),  //Lower this number to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
 
@@ -252,7 +293,7 @@ function onScaleUpMAXClick(origRequest, image) {
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
   newTaskRequest.seed = newTaskRequest.reqBody.seed
-  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
+//  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
   newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
   newTaskRequest.numOutputsTotal = 1 // "
   //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
@@ -268,7 +309,12 @@ function onScaleUpMAXClick(origRequest, image) {
 var scaleUpMaxRatio;
 function scaleUpMAXFilter(origRequest) {
   let result = false;
-  scaleUpMaxRatio=Math.sqrt(maxTotalResolution/(origRequest.height*origRequest.width));
+  var maxRes=maxTotalResolution;
+  if (origRequest.use_stable_diffusion_model.search(/xl/i)>=0) {
+    maxRes=maxTotalResolutionXL;
+  }
+
+  scaleUpMaxRatio=Math.sqrt(maxRes/(origRequest.height*origRequest.width));
   if (ScaleUpMax(origRequest.height, scaleUpMaxRatio) > origRequest.height) {  //if we already matched the max resolution, we're done.
     result=true;
   }
@@ -356,7 +402,7 @@ onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
 
 function  onScaleUpSplitFilter(origRequest, image) {
 
-  if (Math.min(origRequest.width,origRequest.height)>=448)
+  if (Math.min(origRequest.width,origRequest.height)>=768)
   {
     return true;
   }
