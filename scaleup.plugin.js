@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.1.3.2, last updated: 8/1/2023
+ * v.1.3.3, last updated: 8/25/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -143,13 +143,120 @@ function scaleUp(height,width) {
   }
   return result;
 }
-
+const suLabel = 'Scale Up BETA';  //base label prefix
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
-  { html: '<span class="scaleup-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">Scale Up BETA:</span>', type: 'label', on_click: onScaleUpLabelClick, filter: onScaleUpLabelFilter},
+  { html: '<span class="scaleup-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">'+
+    '<span class="scaleup-tooltiptext">Click to toggle "preserve" mode, for fewer changes to the image. \n'+
+    'Clicking on a resolution will generate a new image at that resolution. \n'+
+    'Click on the grid icon to generate 4 tiled images, for more resolution once stitched.</span>'
+    +suLabel+':</span>', type: 'label', 
+    on_click: onScaleUpLabelClick, filter: onScaleUpLabelFilter},
   { text: 'Scale Up', on_click: onScaleUpClick, filter: onScaleUpFilter },
   { text: 'Scale Up MAX', on_click: onScaleUpMAXClick, filter: onScaleUpMAXFilter },
   { html: '<i class="fa-solid fa-th-large"></i>', on_click: onScaleUpSplitClick, filter: onScaleUpSplitFilter  }
 ])
+/* Note: Tooltip will be removed once the label is clicked. */
+
+const style = document.createElement('style');
+style.textContent = `
+
+/* Show the tooltip text when you mouse over the tooltip container */
+.scaleup-label:hover .scaleup-tooltiptext {
+  visibility: visible;
+}
+
+/* See: https://stackoverflow.com/questions/13811538/how-to-delay-basic-html-tooltip */
+
+
+.scaleup-label .scaleup-tooltiptext {
+  visibility: hidden;
+  width: 400px;
+  background-color: #444;
+  color: #fff;
+  text-align: center;
+  border-radius: 6px;
+  padding: 5px 0;
+  /* Position the tooltip */
+  position: absolute;
+  z-index: 1;
+  top: 100%;
+  right: 50%;
+  opacity: 1;
+  transition: opacity 1s;
+}
+
+.scaleup-label .tooltiptext::after {
+  content: " ";
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  /* To the left of the tooltip */
+  margin-top: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent #545 transparent transparent;
+}
+
+
+/*hover with animation*/
+
+.scaleup-label:hover .scaleup-tooltiptext {
+  visibility: visible;
+  animation: tooltipkeys 1s 1; //delay time
+  opacity: 1;
+}
+
+@-webkit-keyframes tooltipkeys {
+  0% {
+    opacity: 0;
+  }
+  75% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@-moz-keyframes tooltipkeys {
+  0% {
+    opacity: 0;
+  }
+  75% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@-o-keyframes tooltipkeys {
+  0% {
+    opacity: 0;
+  }
+  75% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes tooltipkeys {
+  0% {
+    opacity: 0;
+  }
+  75% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+`;
+document.head.append(style);
+
 //font-size:20px 
 var scaleUpPreserve = false;
 function onScaleUpLabelClick(origRequest, image) {
@@ -250,10 +357,10 @@ function scaleupLabel(atMaxRes)
 {
   var text;
   if (!scaleUpPreserve) {
-    text = 'Scale Up BETA';
+    text = suLabel;
   }
   else {
-    text = 'Scale Up BETA (preserve)';
+    text = suLabel+' (preserve)';
   }
   //At max resolution, we can no longer do the normal scaleup, but we can still split -- offer a reminder
   if (atMaxRes) {
