@@ -305,7 +305,7 @@ function onScaleUpClick(origRequest, image) {
   {
     newTaskRequest.reqBody.control_image = image.src;
     newTaskRequest.reqBody.use_controlnet_model = "control_v11f1e_sd15_tile";
-    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.4 : 0.7;
+    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
   }
 
   newTaskRequest.seed = newTaskRequest.reqBody.seed
@@ -427,7 +427,7 @@ function onScaleUpMAXClick(origRequest, image) {
   {
     newTaskRequest.reqBody.control_image = image.src;
     newTaskRequest.reqBody.use_controlnet_model = "control_v11f1e_sd15_tile";
-    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.4 : 0.7;
+    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
   }
 
   newTaskRequest.seed = newTaskRequest.reqBody.seed
