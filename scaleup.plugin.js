@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.1.3.3, last updated: 8/25/2023
+ * v.1.3.4, last updated: 8/27/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -156,7 +156,8 @@ function isModelXl(modelName) {
 const suLabel = 'Scale Up BETA';  //base label prefix
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { html: '<span class="scaleup-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">'+
-    '<span class="scaleup-tooltiptext">Click to toggle "preserve" mode, for fewer changes to the image. \n'+
+    '<span class="scaleup-tooltiptext">Click to cycle through modes - "preserve", for fewer changes to the image, '+
+    ' and "Controlnet", to allow more detail. ' +
     'Clicking on a resolution will generate a new image at that resolution. \n'+
     'Click on the grid icon to generate 4 tiled images, for more resolution once stitched.</span>'
     +suLabel+':</span>', type: 'label', 
@@ -267,10 +268,21 @@ style.textContent = `
 `;
 document.head.append(style);
 
-//font-size:20px 
+//Javascript doesn't have enums
+const SCALEUP_NORMAL = 0;
+const SCALEUP_PRESERVE = 1;
+const SCALEUP_CONTROLNET = 2;
+const SCALEUP_PRESERVE_CONTROLNET = 3;
+
 var scaleUpPreserve = false;
+var scaleUpControlNet = false;
+var scaleUpSelection = SCALEUP_NORMAL;
+
 function onScaleUpLabelClick(origRequest, image) {
-  scaleUpPreserve = !scaleUpPreserve;
+  scaleUpSelection = (scaleUpSelection+1) % 4;
+  scaleUpPreserve = scaleUpSelection==SCALEUP_PRESERVE || scaleUpSelection==SCALEUP_PRESERVE_CONTROLNET;
+  scaleUpControlNet = scaleUpSelection==SCALEUP_CONTROLNET || scaleUpSelection==SCALEUP_PRESERVE_CONTROLNET;
+
   //update current labels
   for (var index=0; index<document.getElementsByClassName("scaleup-label").length;index++) {
     document.getElementsByClassName("scaleup-label")[index].innerText=scaleupLabel(!scaleUpMAXFilter(origRequest));
@@ -280,8 +292,11 @@ function onScaleUpLabelClick(origRequest, image) {
 //________________________________________________________________________________________________________________________________________
 
 function onScaleUpClick(origRequest, image) {
+  //Grab the model name from the user-input area instead of the original image.
+  var desiredModel=$("#editor-settings #stable_diffusion_model").val(); //origRequest.use_stable_diffusion_model for the original model
+
   var isXl=false;
-  if (isModelXl(origRequest.use_stable_diffusion_model)) {
+  if (isModelXl(desiredModel)) {
     isXl=true;
   }
   let newTaskRequest = getCurrentUserRequest();
@@ -301,7 +316,7 @@ function onScaleUpClick(origRequest, image) {
   })
 
   //if using controlnet
-  if (!isXl)
+  if (scaleUpControlNet && !isXl)
   {
     newTaskRequest.reqBody.control_image = image.src;
     newTaskRequest.reqBody.use_controlnet_model = "control_v11f1e_sd15_tile";
@@ -321,7 +336,7 @@ function onScaleUpClick(origRequest, image) {
     //delete newTaskRequest.reqBody.use_hypernetwork_model;
   }
   //Grab the model name from the user-input area instead of the original image.
-  newTaskRequest.reqBody.use_stable_diffusion_model=$("#editor-settings #stable_diffusion_model").val();
+  newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
   
   //Grab the prompt from the user-input area instead of the original image.
   //newTaskRequest.reqBody.prompt=$("textarea#prompt").val();
@@ -381,6 +396,9 @@ function scaleupLabel(atMaxRes)
   else {
     text = suLabel+' (preserve)';
   }
+  if (scaleUpControlNet) {
+    text = text+' (Controlnet)';
+  }
   //At max resolution, we can no longer do the normal scaleup, but we can still split -- offer a reminder
   if (atMaxRes) {
     text += ' - Split 4x'
@@ -423,7 +441,7 @@ function onScaleUpMAXClick(origRequest, image) {
   //If using controlnet, and not SDXL,
   //    control_image: image.src
   //    use_controlnet_model: "control_v11f1e_sd15_tile"
-  if (!isXl)
+  if (scaleUpControlNet && !isXl)
   {
     newTaskRequest.reqBody.control_image = image.src;
     newTaskRequest.reqBody.use_controlnet_model = "control_v11f1e_sd15_tile";
