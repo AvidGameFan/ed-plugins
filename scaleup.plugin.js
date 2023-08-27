@@ -143,6 +143,16 @@ function scaleUp(height,width) {
   }
   return result;
 }
+
+function isModelXl(modelName) {
+  let result = false;
+  if (modelName.search(/xl/i)>=0) {
+    result = true;
+  }  
+  return result;
+}
+
+
 const suLabel = 'Scale Up BETA';  //base label prefix
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { html: '<span class="scaleup-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">'+
@@ -271,7 +281,7 @@ function onScaleUpLabelClick(origRequest, image) {
 
 function onScaleUpClick(origRequest, image) {
   var isXl=false;
-  if (origRequest.use_stable_diffusion_model.search(/xl/i)>=0) {
+  if (isModelXl(origRequest.use_stable_diffusion_model)) {
     isXl=true;
   }
   let newTaskRequest = getCurrentUserRequest();
@@ -289,6 +299,15 @@ function onScaleUpClick(origRequest, image) {
     //Using a new seed will allow some variation as it up-sizes.
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
+
+  //if using controlnet
+  if (!isXl)
+  {
+    newTaskRequest.reqBody.control_image = image.src;
+    newTaskRequest.reqBody.use_controlnet_model = "control_v11f1e_sd15_tile";
+    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.4 : 0.7;
+  }
+
   newTaskRequest.seed = newTaskRequest.reqBody.seed
   //newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
   newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
@@ -378,7 +397,7 @@ function ScaleUpMax(dimension, ratio) {
 function onScaleUpMAXClick(origRequest, image) {
   var isXl=false;
   var maxRes=maxTotalResolution;
-  if (origRequest.use_stable_diffusion_model.search(/xl/i)>=0) {
+  if (isModelXl(origRequest.use_stable_diffusion_model)) {
     maxRes=maxTotalResolutionXL;
     isXl=true;
   }
@@ -396,9 +415,21 @@ function onScaleUpMAXClick(origRequest, image) {
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
     num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 50, 100),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
+    //tiling: "none", //if doing scaleUpSplit, don't want to double-tile.
     //Using a new seed will allow some variation as it up-sizes; if results are not ideal, rerunning will give different results.
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
+
+  //If using controlnet, and not SDXL,
+  //    control_image: image.src
+  //    use_controlnet_model: "control_v11f1e_sd15_tile"
+  if (!isXl)
+  {
+    newTaskRequest.reqBody.control_image = image.src;
+    newTaskRequest.reqBody.use_controlnet_model = "control_v11f1e_sd15_tile";
+    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.4 : 0.7;
+  }
+
   newTaskRequest.seed = newTaskRequest.reqBody.seed
 //  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
   newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
@@ -417,7 +448,7 @@ var scaleUpMaxRatio;
 function scaleUpMAXFilter(origRequest) {
   let result = false;
   var maxRes=maxTotalResolution;
-  if (origRequest.use_stable_diffusion_model.search(/xl/i)>=0) {
+  if (isModelXl(origRequest.use_stable_diffusion_model)) {
     maxRes=maxTotalResolutionXL;
   }
 
