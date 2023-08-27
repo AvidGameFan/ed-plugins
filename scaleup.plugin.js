@@ -335,7 +335,7 @@ function onScaleUpClick(origRequest, image) {
     //delete newTaskRequest.reqBody.hypernetwork_strength;
     //delete newTaskRequest.reqBody.use_hypernetwork_model;
   }
-  //Grab the model name from the user-input area instead of the original image.
+  
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
   
   //Grab the prompt from the user-input area instead of the original image.
@@ -413,9 +413,12 @@ function ScaleUpMax(dimension, ratio) {
 }
   
 function onScaleUpMAXClick(origRequest, image) {
+  //Grab the model name from the user-input area instead of the original image.
+  var desiredModel=$("#editor-settings #stable_diffusion_model").val(); //origRequest.use_stable_diffusion_model for the original model
+
   var isXl=false;
   var maxRes=maxTotalResolution;
-  if (isModelXl(origRequest.use_stable_diffusion_model)) {
+  if (isModelXl(desiredModel)) {
     maxRes=maxTotalResolutionXL;
     isXl=true;
   }
@@ -458,6 +461,9 @@ function onScaleUpMAXClick(origRequest, image) {
     //newTaskRequest.reqBody.turbo = false;
     newTaskRequest.reqBody.vram_usage_level = 'low';
   }
+
+  newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
+
   delete newTaskRequest.reqBody.mask
   createTask(newTaskRequest)
 }
@@ -466,7 +472,7 @@ var scaleUpMaxRatio;
 function scaleUpMAXFilter(origRequest) {
   let result = false;
   var maxRes=maxTotalResolution;
-  if (isModelXl(origRequest.use_stable_diffusion_model)) {
+  if (isModelXl($("#editor-settings #stable_diffusion_model").val())) {  //origRequest.use_stable_diffusion_model
     maxRes=maxTotalResolutionXL;
   }
 
