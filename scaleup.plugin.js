@@ -1,12 +1,13 @@
 /**
  * Scale Up
- * v.1.3.4, last updated: 8/27/2023
+ * v.1.3.5, last updated: 9/3/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
  * 
  * Updated to support newer "diffusors" version of Easy Diffusion and SDXL, which can make use
- * of much higher resolutions than before.
+ * of much higher resolutions than before.  (Note that new Nvidia drivers [since version 532]
+ * and installing xformers will allow even further higher resolution limits.)
  *  
  * The expected workflow is to use ScaleUp to gradually increase resolution, while allowing 
  * Stable Diffusion to add detail.  At some point, when you're satisfied with the results,
@@ -19,14 +20,18 @@
  * Another big change is that ScaleUp will grab the prompt AND the model name from the input
  * area, not from the source image. This allows you to easily swap from "base" to "refiner".
  * 
- * Now uses the original sampler from the original image, not "ddim".
+ * Now uses the original sampler from the original image, not "ddim".  Uses the model specified
+ * in the UI, not in the original image, so that you may change models as you scale-up.
+ * Added support for controlnet, to allow more detail without as much severe modifications
+ * to the original image.
+ * 
  * 
  * Free to use with the CMDR2 Stable Diffusion UI.
- *  
+ * 
  */
 
 /**********************************************************************
-EDIT THIS to put in the maximum resolutions your video card can handle. 
+EDIT THE BELOW to put in the maximum resolutions your video card can handle. 
 These values work (usually) for the Nvidia 2060 Super with 8GB VRAM. 
 If you go too large, you'll see "Error: CUDA out of memory". 
 
@@ -39,6 +44,7 @@ Installing xformers will also greatly reduce the RAM impact, and allow
 for much greater sizes.
 ***********************************************************************/
 (function() { "use strict"
+
 //Original 1.5 limits: 1280 * 1536 ( 1536	* 896 balanced?)
 //For 8GB VRAM and xformers, try 2592 * 2016 or more.
 var maxTotalResolution = 2048	* 1088; //put max 'low' mode resolution here, max possible size when low mode is on
