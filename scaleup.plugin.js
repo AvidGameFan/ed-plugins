@@ -29,14 +29,23 @@
 EDIT THIS to put in the maximum resolutions your video card can handle. 
 These values work (usually) for the Nvidia 2060 Super with 8GB VRAM. 
 If you go too large, you'll see "Error: CUDA out of memory". 
+
+The ideal maximum amount may vary depending upon not just the amount of
+installed VRAM, but if using Nvidia driver v532 or greater, half of your
+system RAM is also available for use (if slower).  Edit these values
+to find the right balance; you may want a higher size if your memory
+allows, or you may want to keep values lower, for faster run-times.
+Installing xformers will also greatly reduce the RAM impact, and allow
+for much greater sizes.
 ***********************************************************************/
 (function() { "use strict"
-//SDXL limits:2048*2048 or better
 //Original 1.5 limits: 1280 * 1536 ( 1536	* 896 balanced?)
+//For 8GB VRAM and xformers, try 2592 * 2016 or more.
 var maxTotalResolution = 2048	* 1088; //put max 'low' mode resolution here, max possible size when low mode is on
 var maxTurboResolution = 1088	* 1664; //put max 'balanced' resolution here - larger output will enter 'low' mode, automatically.
 var MaxSquareResolution = 1344;
 
+//SDXL limits:2048*2048 or better
 var maxTotalResolutionXL = 3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
 
 
@@ -153,7 +162,7 @@ function isModelXl(modelName) {
 }
 
 
-const suLabel = 'Scale Up BETA';  //base label prefix
+const suLabel = 'Scale Up';  //base label prefix
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { html: '<span class="scaleup-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">'+
     '<span class="scaleup-tooltiptext">Click to cycle through modes - "preserve", for fewer changes to the image, '+
@@ -319,7 +328,7 @@ function onScaleUpClick(origRequest, image) {
   if (scaleUpControlNet && !isXl)
   {
     newTaskRequest.reqBody.control_image = image.src;
-    newTaskRequest.reqBody.use_controlnet_model = "control_v11f1e_sd15_tile";
+    newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
     newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
   }
 
@@ -447,7 +456,7 @@ function onScaleUpMAXClick(origRequest, image) {
   if (scaleUpControlNet && !isXl)
   {
     newTaskRequest.reqBody.control_image = image.src;
-    newTaskRequest.reqBody.use_controlnet_model = "control_v11f1e_sd15_tile";
+    newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
     newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
   }
 
