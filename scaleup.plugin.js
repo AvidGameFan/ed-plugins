@@ -1,28 +1,59 @@
 /**
  * Scale Up
- * v.1.2.2, last updated: 4/12/2023
+ * v.1.3.5, last updated: 9/3/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
- * Maximum output is 1280 (except for a couple of wide-ratio entries at 1536 that should still 
- * work on many video cards), but most entries are kept at 1024x1024 and below. Values
- * are generally restricted to those available in the UI dropdown, with a couple of exceptions.
- * As time goes by, I am adding additional entries at higher resolutions, although at some point,
- * it just makes sense to use the related Scale Up MAX plugin script to jump to the highest 
- * resolution supported by your video card.
- *
- * Free to use with the CMDR2 Stable Diffusion UI.
+ * 
+ * Updated to support newer "diffusors" version of Easy Diffusion and SDXL, which can make use
+ * of much higher resolutions than before.  (Note that new Nvidia drivers [since version 532]
+ * and installing xformers will allow even further higher resolution limits.)
  *  
+ * The expected workflow is to use ScaleUp to gradually increase resolution, while allowing 
+ * Stable Diffusion to add detail.  At some point, when you're satisfied with the results,
+ * you may want to use the Scale Up MAX button to jump to the highest resolution supported 
+ * by your video card. 
+ * 
+ * Additionally, there is a "split" icon at the end -- this will divide the image into quarters,
+ * and upscale each one.  You'll need to use an external program to merge the pieces.
+ *
+ * Another big change is that ScaleUp will grab the prompt AND the model name from the input
+ * area, not from the source image. This allows you to easily swap from "base" to "refiner".
+ * 
+ * Now uses the original sampler from the original image, not "ddim".  Uses the model specified
+ * in the UI, not in the original image, so that you may change models as you scale-up.
+ * Added support for controlnet, to allow more detail without as much severe modifications
+ * to the original image.
+ * 
+ * 
+ * Free to use with the CMDR2 Stable Diffusion UI.
+ * 
  */
 
-/* EDIT THIS to put in the maximum resolutions your video card can handle. 
+/**********************************************************************
+EDIT THE BELOW to put in the maximum resolutions your video card can handle. 
 These values work (usually) for the Nvidia 2060 Super with 8GB VRAM. 
 If you go too large, you'll see "Error: CUDA out of memory". 
-*/
+
+The ideal maximum amount may vary depending upon not just the amount of
+installed VRAM, but if using Nvidia driver v532 or greater, half of your
+system RAM is also available for use (if slower).  Edit these values
+to find the right balance; you may want a higher size if your memory
+allows, or you may want to keep values lower, for faster run-times.
+Installing xformers will also greatly reduce the RAM impact, and allow
+for much greater sizes.
+***********************************************************************/
 (function() { "use strict"
-var maxTotalResolution = 1280 * 1280; //put max 'low' mode resolution here, max possible size when low mode is on
-var maxTurboResolution = 1536	* 896;   //put max 'balanced' resolution here - larger output will enter 'low' mode, automatically.
-var MaxSquareResolution = 1280;
+
+//Original 1.5 limits: 1280 * 1536 ( 1536	* 896 balanced?)
+//For 8GB VRAM and xformers, try 2592 * 2016 or more.
+var maxTotalResolution = 2048	* 1088; //put max 'low' mode resolution here, max possible size when low mode is on
+var maxTurboResolution = 1088	* 1664; //put max 'balanced' resolution here - larger output will enter 'low' mode, automatically.
+var MaxSquareResolution = 1344;
+
+//SDXL limits:2048*2048 or better
+var maxTotalResolutionXL = 3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
+
 
 //Note that the table entries go in pairs, if not 1:1 square ratio.
 //Ratios that don't match exactly may slightly stretch or squish the image, but should be slight enough to not be noticeable.
@@ -99,6 +130,8 @@ var resTable = [
     [896,960,960],  //1.071 -> 1.067
 ]
 
+var scalingIncrease=1.25; //arbitrary amount to increase scaling, when beyond lookup table
+
 function scaleUp(height,width) {
   var result=height;
 
@@ -110,9 +143,8 @@ function scaleUp(height,width) {
           return;
           }
   })
-  if (result==height /*no match found in table*/
-      && height==width) /* and if square */
-      {
+  if (result==height) { /*no match found in table*/
+      if (height==width) { /* and if square */
           if (height>=768 && height<MaxSquareResolution) {
               result=MaxSquareResolution; //arbitrary
           }
@@ -120,31 +152,175 @@ function scaleUp(height,width) {
               result=896; //arbitrary
           }
       }
+      else {  //we don't have any match, but let's just make up something, until we run out of resolution
+          result = ScaleUpMax(height,scalingIncrease); //arbitrarily go 1.25 times larger
+      }
+  }
   return result;
 }
 
+function isModelXl(modelName) {
+  let result = false;
+  if (modelName.search(/xl/i)>=0) {
+    result = true;
+  }  
+  return result;
+}
+
+
+const suLabel = 'Scale Up';  //base label prefix
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
-  { html: '<span class="scaleup-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">Scale Up:</span>', type: 'label', on_click: onScaleUpLabelClick, filter: onScaleUpLabelFilter},
+  { html: '<span class="scaleup-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">'+
+    '<span class="scaleup-tooltiptext">Click to cycle through modes - "preserve", for fewer changes to the image, '+
+    ' and "Controlnet", to allow more detail. ' +
+    'Clicking on a resolution will generate a new image at that resolution. \n'+
+    'Click on the grid icon to generate 4 tiled images, for more resolution once stitched.</span>'
+    +suLabel+':</span>', type: 'label', 
+    on_click: onScaleUpLabelClick, filter: onScaleUpLabelFilter},
   { text: 'Scale Up', on_click: onScaleUpClick, filter: onScaleUpFilter },
-  { text: 'Scale Up MAX', on_click: onScaleUpMAXClick, filter: onScaleUpMAXFilter }
+  { text: 'Scale Up MAX', on_click: onScaleUpMAXClick, filter: onScaleUpMAXFilter },
+  { html: '<i class="fa-solid fa-th-large"></i>', on_click: onScaleUpSplitClick, filter: onScaleUpSplitFilter  }
 ])
+/* Note: Tooltip will be removed once the label is clicked. */
+
+const style = document.createElement('style');
+style.textContent = `
+
+/* Show the tooltip text when you mouse over the tooltip container */
+.scaleup-label:hover .scaleup-tooltiptext {
+  visibility: visible;
+}
+
+/* See: https://stackoverflow.com/questions/13811538/how-to-delay-basic-html-tooltip */
+
+
+.scaleup-label .scaleup-tooltiptext {
+  visibility: hidden;
+  width: 400px;
+  background-color: #444;
+  color: #fff;
+  text-align: center;
+  border-radius: 6px;
+  padding: 5px 0;
+  /* Position the tooltip */
+  position: absolute;
+  z-index: 1;
+  top: 100%;
+  right: 50%;
+  opacity: 1;
+  transition: opacity 1s;
+}
+
+.scaleup-label .tooltiptext::after {
+  content: " ";
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  /* To the left of the tooltip */
+  margin-top: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent #545 transparent transparent;
+}
+
+
+/*hover with animation*/
+
+.scaleup-label:hover .scaleup-tooltiptext {
+  visibility: visible;
+  animation: tooltipkeys 1s 1; //delay time
+  opacity: 1;
+}
+
+@-webkit-keyframes tooltipkeys {
+  0% {
+    opacity: 0;
+  }
+  75% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@-moz-keyframes tooltipkeys {
+  0% {
+    opacity: 0;
+  }
+  75% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@-o-keyframes tooltipkeys {
+  0% {
+    opacity: 0;
+  }
+  75% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes tooltipkeys {
+  0% {
+    opacity: 0;
+  }
+  75% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+`;
+document.head.append(style);
+
+//Javascript doesn't have enums
+const SCALEUP_NORMAL = 0;
+const SCALEUP_PRESERVE = 1;
+const SCALEUP_CONTROLNET = 2;
+const SCALEUP_PRESERVE_CONTROLNET = 3;
 
 var scaleUpPreserve = false;
+var scaleUpControlNet = false;
+var scaleUpSelection = SCALEUP_NORMAL;
+
 function onScaleUpLabelClick(origRequest, image) {
-  scaleUpPreserve = !scaleUpPreserve;
+  scaleUpSelection = (scaleUpSelection+1) % 4;
+  scaleUpPreserve = scaleUpSelection==SCALEUP_PRESERVE || scaleUpSelection==SCALEUP_PRESERVE_CONTROLNET;
+  scaleUpControlNet = scaleUpSelection==SCALEUP_CONTROLNET || scaleUpSelection==SCALEUP_PRESERVE_CONTROLNET;
+
   //update current labels
   for (var index=0; index<document.getElementsByClassName("scaleup-label").length;index++) {
-    document.getElementsByClassName("scaleup-label")[index].innerText=scaleupLabel();
+    document.getElementsByClassName("scaleup-label")[index].innerText=scaleupLabel(!scaleUpMAXFilter(origRequest));
   }
 };
 
+//________________________________________________________________________________________________________________________________________
+
 function onScaleUpClick(origRequest, image) {
+  //Grab the model name from the user-input area instead of the original image.
+  var desiredModel=$("#editor-settings #stable_diffusion_model").val(); //origRequest.use_stable_diffusion_model for the original model
+
+  var isXl=false;
+  if (isModelXl(desiredModel)) {
+    isXl=true;
+  }
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: scaleUpPreserve ? 0.15 : 0.35,  //Lower this number to make results closer to the original
+    prompt_strength: (isXl)? (scaleUpPreserve ? 0.10 : 0.25):(scaleUpPreserve ? 0.15 : 0.35),  //Lower this number to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
+    // Lower amounts used for SDXL, as it seems more sensitive to changes, especially the refiner model.
     width: scaleUp(origRequest.width, origRequest.height),
     height: scaleUp(origRequest.height, origRequest.width),
     guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
@@ -153,8 +329,17 @@ function onScaleUpClick(origRequest, image) {
     //Using a new seed will allow some variation as it up-sizes.
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
+
+  //if using controlnet
+  if (scaleUpControlNet && !isXl)
+  {
+    newTaskRequest.reqBody.control_image = image.src;
+    newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
+    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
+  }
+
   newTaskRequest.seed = newTaskRequest.reqBody.seed
-  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
+  //newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
   newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
   newTaskRequest.numOutputsTotal = 1 // "
   //If you have a lower-end graphics card, the below will automatically disable memory-intensive options for larger images.
@@ -165,7 +350,12 @@ function onScaleUpClick(origRequest, image) {
     //delete newTaskRequest.reqBody.hypernetwork_strength;
     //delete newTaskRequest.reqBody.use_hypernetwork_model;
   }
-
+  
+  newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
+  
+  //Grab the prompt from the user-input area instead of the original image.
+  //newTaskRequest.reqBody.prompt=$("textarea#prompt").val();
+  
   delete newTaskRequest.reqBody.mask
   createTask(newTaskRequest)
 }
@@ -173,17 +363,21 @@ function onScaleUpClick(origRequest, image) {
 function scaleUpFilter(origRequest, image) {
   let result = false
   if (origRequest.height==origRequest.width && origRequest.height<MaxSquareResolution) {
-          result=true;
+      result=true;
   }
   else {      //check table for valid entries, otherwise disable button
       resTable.forEach(function(item){
       if (item[0]==origRequest.height && 
           item[1]==origRequest.width)
           {
-          result=true
+          result=true;
           return;
           }
       })
+  }
+  //Additionally, allow additional scaling
+  if (scaleUpMAXFilter(origRequest) && origRequest.height!=ScaleUpMax(width,scalingIncrease)) {
+      result=true;
   }
   return result;
 }
@@ -203,34 +397,51 @@ function onScaleUpFilter(origRequest) {
 function onScaleUpLabelFilter(origRequest, image) {
   let result=scaleUpFilter(origRequest) || scaleUpMAXFilter(origRequest);
 
-  if (result==true) {
-    var text = scaleupLabel();
-    this.html = this.html.replace(/Scale Up.*:/,text);
-  }
-  return result;
+  var text = scaleupLabel(!result);
+  this.html = this.html.replace(/Scale Up.*:/,text);
+
+  return true;
 }
-function scaleupLabel() 
+function scaleupLabel(atMaxRes) 
 {
   var text;
   if (!scaleUpPreserve) {
-    text = 'Scale Up:';
+    text = suLabel;
   }
   else {
-    text = 'Scale Up (preserve):';
+    text = suLabel+' (preserve)';
   }
+  if (scaleUpControlNet) {
+    text = text+' (Controlnet)';
+  }
+  //At max resolution, we can no longer do the normal scaleup, but we can still split -- offer a reminder
+  if (atMaxRes) {
+    text += ' - Split 4x'
+  }
+  text += ':'; //Always end with a colon, as we search on that
   return text;
 }
+//________________________________________________________________________________________________________________________________________
 
 function ScaleUpMax(dimension, ratio) {
   return Math.round(((dimension*ratio)+32)/64)*64-64;
 }
   
 function onScaleUpMAXClick(origRequest, image) {
-  var ratio=Math.sqrt(maxTotalResolution/(origRequest.height*origRequest.width));
+  //Grab the model name from the user-input area instead of the original image.
+  var desiredModel=$("#editor-settings #stable_diffusion_model").val(); //origRequest.use_stable_diffusion_model for the original model
+
+  var isXl=false;
+  var maxRes=maxTotalResolution;
+  if (isModelXl(desiredModel)) {
+    maxRes=maxTotalResolutionXL;
+    isXl=true;
+  }
+  var ratio=Math.sqrt(maxRes/(origRequest.height*origRequest.width));
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: scaleUpPreserve ? 0.15 : 0.3,  //Lower this number to make results closer to the original
+    prompt_strength: (origRequest.scaleUpSplit || isXl)? (scaleUpPreserve ? 0.10 : 0.2):(scaleUpPreserve ? 0.15 : 0.3),  //Lower this number to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
 
@@ -240,11 +451,23 @@ function onScaleUpMAXClick(origRequest, image) {
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
     num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 50, 100),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
+    //tiling: "none", //if doing scaleUpSplit, don't want to double-tile.
     //Using a new seed will allow some variation as it up-sizes; if results are not ideal, rerunning will give different results.
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
+
+  //If using controlnet, and not SDXL,
+  //    control_image: image.src
+  //    use_controlnet_model: "control_v11f1e_sd15_tile"
+  if (scaleUpControlNet && !isXl)
+  {
+    newTaskRequest.reqBody.control_image = image.src;
+    newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
+    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
+  }
+
   newTaskRequest.seed = newTaskRequest.reqBody.seed
-  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
+//  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
   newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
   newTaskRequest.numOutputsTotal = 1 // "
   //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
@@ -253,6 +476,9 @@ function onScaleUpMAXClick(origRequest, image) {
     //newTaskRequest.reqBody.turbo = false;
     newTaskRequest.reqBody.vram_usage_level = 'low';
   }
+
+  newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
+
   delete newTaskRequest.reqBody.mask
   createTask(newTaskRequest)
 }
@@ -260,7 +486,12 @@ function onScaleUpMAXClick(origRequest, image) {
 var scaleUpMaxRatio;
 function scaleUpMAXFilter(origRequest) {
   let result = false;
-  scaleUpMaxRatio=Math.sqrt(maxTotalResolution/(origRequest.height*origRequest.width));
+  var maxRes=maxTotalResolution;
+  if (isModelXl($("#editor-settings #stable_diffusion_model").val())) {  //origRequest.use_stable_diffusion_model
+    maxRes=maxTotalResolutionXL;
+  }
+
+  scaleUpMaxRatio=Math.sqrt(maxRes/(origRequest.height*origRequest.width));
   if (ScaleUpMax(origRequest.height, scaleUpMaxRatio) > origRequest.height) {  //if we already matched the max resolution, we're done.
     result=true;
   }
@@ -277,6 +508,83 @@ function onScaleUpMAXFilter(origRequest, image) {
       ScaleUpMax(origRequest.height, scaleUpMaxRatio);
   }
   return result;
+}
+//________________________________________________________________________________________________________________________________________
+
+const splitOverlap = 64;  //This can be modified by increments/decrements of 64, as desired
+
+function  onScaleUpSplitClick(origRequest, image) {
+
+//split original image into 4 overlapping pieces
+//For each split piece, run ScaleUp MAX
+//In a perfect world, merge together and display locally -- for now, leave it as an external process
+
+let newTaskRequest = getCurrentUserRequest();
+newTaskRequest.reqBody = Object.assign({}, origRequest, {})
+
+//create working canvas
+let canvas = document.createElement("canvas");
+canvas.width = origRequest.width/2+splitOverlap;
+canvas.height = origRequest.height/2+splitOverlap;
+
+newTaskRequest.reqBody.width=canvas.width;
+newTaskRequest.reqBody.height = canvas.height;
+
+newTaskRequest.reqBody.scaleUpSplit=true;
+
+let ctx = canvas.getContext("2d");
+
+// get the image data of the canvas  -- we only need the part we're going to resize
+//x,y -- upper-left, width & height
+ctx.drawImage( image,
+  0, 0, canvas.width, canvas.height, //source 
+  0, 0, canvas.width, canvas.height //destination
+);
+//var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);  
+var newImage = new Image;
+newImage.src = canvas.toDataURL('image/png');
+onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
+
+//lower left
+ctx.drawImage( image,
+  0, canvas.height-splitOverlap*2, canvas.width, canvas.height, //source 
+  0, 0, canvas.width, canvas.height //destination
+);
+//imageData = ctx.getImageData(0,canvas.width-splitOverlap*2, canvas.width, canvas.height); //upper-right
+newImage = new Image;
+newImage.src = canvas.toDataURL('image/png');
+onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
+
+//upper-right
+ctx.drawImage( image,
+  canvas.width-splitOverlap*2, 0, canvas.width, canvas.height, //source 
+  0, 0, canvas.width, canvas.height //destination
+);
+//imageData = ctx.getImageData(canvas.height-splitOverlap*2, 0, canvas.width, canvas.height);  //x,y -- lower-r, width & height
+newImage = new Image;
+newImage.src = canvas.toDataURL('image/png');
+onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
+
+//lower right
+ctx.drawImage( image,
+  canvas.width-splitOverlap*2,  canvas.height-splitOverlap*2, canvas.width, canvas.height, //source 
+  0, 0, canvas.width, canvas.height //destination
+);
+//imageData = ctx.getImageData(canvas.height-splitOverlap*2, 0, canvas.width, canvas.height);  //x,y -- lower-r, width & height
+newImage = new Image;
+newImage.src = canvas.toDataURL('image/png');
+onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
+
+}
+
+function  onScaleUpSplitFilter(origRequest, image) {
+
+  if (Math.min(origRequest.width,origRequest.height)>=768)
+  {
+    return true;
+  }
+  else
+    return false;
 }
 
 })();
