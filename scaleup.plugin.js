@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.1.3.5, last updated: 9/3/2023
+ * v.1.3.6, last updated: 9/5/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -47,7 +47,7 @@ for much greater sizes.
 
 //Original 1.5 limits: 1280 * 1536 ( 1536	* 896 balanced?)
 //For 8GB VRAM and xformers, try 2592 * 2016 or more.
-var maxTotalResolution = 2048	* 1088; //put max 'low' mode resolution here, max possible size when low mode is on
+var maxTotalResolution = 6000000; //2048 * 1088; //put max 'low' mode resolution here, max possible size when low mode is on
 var maxTurboResolution = 1088	* 1664; //put max 'balanced' resolution here - larger output will enter 'low' mode, automatically.
 var MaxSquareResolution = 1344;
 
@@ -308,7 +308,7 @@ function onScaleUpLabelClick(origRequest, image) {
 
 function onScaleUpClick(origRequest, image) {
   //Grab the model name from the user-input area instead of the original image.
-  var desiredModel=$("#editor-settings #stable_diffusion_model").val(); //origRequest.use_stable_diffusion_model for the original model
+  var desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; //origRequest.use_stable_diffusion_model for the original model
 
   var isXl=false;
   if (isModelXl(desiredModel)) {
@@ -429,7 +429,7 @@ function ScaleUpMax(dimension, ratio) {
   
 function onScaleUpMAXClick(origRequest, image) {
   //Grab the model name from the user-input area instead of the original image.
-  var desiredModel=$("#editor-settings #stable_diffusion_model").val(); //origRequest.use_stable_diffusion_model for the original model
+  var desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; //origRequest.use_stable_diffusion_model for the original model
 
   var isXl=false;
   var maxRes=maxTotalResolution;
