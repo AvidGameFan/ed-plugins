@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.2, last updated: 3/20/2023
+ * v.1.2.2, last updated: 9/5/2023
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -18,8 +18,8 @@
    If you go too large, you'll see "Error: CUDA out of memory". 
  */
 (function() { "use strict"
-var outpaintMaxTotalResolution = 1280 * 1280; //put max 'low' mode resolution here, max possible size when low mode is on
-var outpaintMaxTurboResolution = 1536	* 896;   //put max resolution (other than 'low' mode) here
+var outpaintMaxTotalResolution = 6000000; //was: 1280 * 1280; //put max 'low' mode resolution here, max possible size when low mode is on
+var outpaintMaxTurboResolution = 1088	* 1664; //was: 1536	* 896;   //put max resolution (other than 'low' mode) here
 
 const outpaintSizeIncrease = 128;  //This can be modified by increments/decrements of 64, as desired
 //const outpaintMaskOverlap = 36; //Need some overlap on the mask (minimum of 8px)
@@ -78,7 +78,8 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
     seed: Math.floor(Math.random() * 10000000),
   })
   newTaskRequest.seed = newTaskRequest.reqBody.seed;
-  newTaskRequest.reqBody.sampler_name = 'ddim';  //ensure img2img sampler change is properly reflected in log file
+  //Now, we allow the use of the same sampler when outpainting
+  //  newTaskRequest.reqBody.sampler_name = 'ddim';  //ensure img2img sampler change is properly reflected in log file
   newTaskRequest.batchCount = outpaintNumRuns;  // assume user only wants one at a time to evaluate, if selecting one out of a batch
   newTaskRequest.numOutputsTotal = outpaintNumRuns; // "
   //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
@@ -94,6 +95,10 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
       newTaskRequest.reqBody.prompt=$("textarea#prompt").val();
     }
   }
+
+  //Use UI's prompt to allow changing to a different model, such as inpainting model, before outpainting.
+  newTaskRequest.reqBody.use_stable_diffusion_model=$("#editor-settings #stable_diffusion_model")[0].dataset.path;
+
   return newTaskRequest;
 }
 
