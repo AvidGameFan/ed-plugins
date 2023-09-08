@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.2.2, last updated: 9/5/2023
+ * v.1.3.0, last updated: 9/7/2023
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -24,6 +24,11 @@ var outpaintMaxTurboResolution = 1088	* 1664; //was: 1536	* 896;   //put max res
 const outpaintSizeIncrease = 128;  //This can be modified by increments/decrements of 64, as desired
 //const outpaintMaskOverlap = 36; //Need some overlap on the mask (minimum of 8px)
 //const outpaintPercentToKeep = .2; //Amount of random pixels to retain, to bias effect
+const maskFade = 0.07;
+const maskExtraOverlap = 0;
+const maskExtraOffset = -24;
+const blackColor = 'rgba(255,255,255,0)'; //'rgba(0,0,0,0)';
+
 function outpaintSetPixels(imageData) {
   //function guassianRand() {  //approximation of Gaussian, from Stackoverflow
   //  var rand =0;
@@ -69,7 +74,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
       
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: 0.93+Math.random()*.07,
+    prompt_strength: 0.95+Math.random()*.05, //be sure the values add up to 1 or less
     width: origRequest.width + ((widen || all)?outpaintSizeIncrease:0),
     height: origRequest.height + ((!widen || all)?outpaintSizeIncrease:0),
     //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
@@ -152,16 +157,16 @@ function  onOutpaintUpClick(origRequest, image) {
     maskcanvas.height = newTaskRequest.reqBody.height;
     let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(0, 0, origRequest.width, outpaintSizeIncrease+8 /*outpaintMaskOverlap*/);  //Need some overlap on the mask (minimum of 8px)
+    maskctx.fillRect(0, 0, origRequest.width, outpaintSizeIncrease+maskExtraOverlap /*outpaintMaskOverlap*/);  //Need some overlap on the mask (minimum of 8px)
     
-    const gradient = ctx.createLinearGradient(0, outpaintSizeIncrease+8, 0, maskcanvas.height); //vertical line
+    const gradient = ctx.createLinearGradient(0, outpaintSizeIncrease+maskExtraOverlap+maskExtraOffset, 0, maskcanvas.height); //vertical line
 
     // Add three color stops
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
-    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
-    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(maskFade, blackColor); //"black");
+    gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
-    maskctx.fillRect(0, outpaintSizeIncrease+8, origRequest.width,  origRequest.height); 
+    maskctx.fillRect(0, outpaintSizeIncrease+maskExtraOverlap+maskExtraOffset, origRequest.width,  origRequest.height); 
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have
@@ -231,16 +236,16 @@ function  onOutpaintDownClick(origRequest, image) {
     maskcanvas.height = newTaskRequest.reqBody.height;
     let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(0, origRequest.height-8, origRequest.width, outpaintSizeIncrease+8);  //Need some overlap on the mask (minimum of 8px)
+    maskctx.fillRect(0, origRequest.height-maskExtraOverlap, origRequest.width, outpaintSizeIncrease+maskExtraOverlap);  //Need some overlap on the mask (minimum of 8px)
     
-    const gradient = ctx.createLinearGradient(0, maskcanvas.height-outpaintSizeIncrease-8, 0, 0); //vertical line
+    const gradient = ctx.createLinearGradient(0, maskcanvas.height-outpaintSizeIncrease-maskExtraOverlap-maskExtraOffset, 0, 0); //vertical line
     // Add three color stops
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
-    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
-    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(maskFade, blackColor); //"black");
+    gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
 //    maskctx.fillRect(0, origRequest.height-outpaintSizeIncrease-8, origRequest.width,  origRequest.height); 
-    maskctx.fillRect(0, 0, origRequest.width, maskcanvas.height-outpaintSizeIncrease-8); 
+    maskctx.fillRect(0, 0, origRequest.width, maskcanvas.height-outpaintSizeIncrease-maskExtraOverlap-maskExtraOffset); 
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have
@@ -292,15 +297,15 @@ function onOutpaintDownFilter(origRequest, image) {
     maskcanvas.height = newTaskRequest.reqBody.height;
     let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(0, 0, outpaintSizeIncrease+8, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
+    maskctx.fillRect(0, 0, outpaintSizeIncrease+maskExtraOverlap, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
 
-    const gradient = ctx.createLinearGradient(outpaintSizeIncrease+8, 0, maskcanvas.width-outpaintSizeIncrease-8, 0); //horizontal line
+    const gradient = ctx.createLinearGradient(outpaintSizeIncrease+maskExtraOverlap+maskExtraOffset, 0, maskcanvas.width-outpaintSizeIncrease-maskExtraOverlap-maskExtraOffset, 0); //horizontal line
     // Add three color stops
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
-    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
-    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(maskFade, blackColor); //"black");
+    gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
-    maskctx.fillRect(outpaintSizeIncrease+8, 0, origRequest.width-8,  origRequest.height); 
+    maskctx.fillRect(outpaintSizeIncrease+maskExtraOverlap+maskExtraOffset, 0, origRequest.width-maskExtraOverlap-maskExtraOffset,  origRequest.height); 
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have    
@@ -352,15 +357,15 @@ function onOutpaintLeftFilter(origRequest, image) {
     maskcanvas.height = newTaskRequest.reqBody.height;
     let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(origRequest.width-8, 0, outpaintSizeIncrease+8, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
+    maskctx.fillRect(origRequest.width-maskExtraOverlap, 0, outpaintSizeIncrease+maskExtraOverlap, origRequest.height);  //Need some overlap on the mask (minimum of 8px)
 
-    const gradient = ctx.createLinearGradient(origRequest.width-8 /*maskcanvas.width-outpaintSizeIncrease-8*/, 0, 0, 0); //horizontal line
+    const gradient = ctx.createLinearGradient(origRequest.width-maskExtraOverlap-maskExtraOffset /*maskcanvas.width-outpaintSizeIncrease-8*/, 0, 0, 0); //horizontal line
     // Add three color stops
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
-    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
-    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(maskFade, blackColor); //"black");
+    gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
-    maskctx.fillRect(0,0,origRequest.width-8, origRequest.height); 
+    maskctx.fillRect(0,0,origRequest.width-maskExtraOverlap-maskExtraOffset, origRequest.height); 
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have   
@@ -421,7 +426,7 @@ function  onOutpaintAllClick(origRequest, image) {
     maskctx.rect(0, 0,  maskcanvas.width, maskcanvas.height);
     // Define an inner rectangle that you want to mask out
     // Use a negative value for anticlockwise parameter
-    maskctx.rect(maskcanvas.width-(outpaintSizeIncrease/2+4), outpaintSizeIncrease/2+4, -(origRequest.width-8), origRequest.height-8, true);
+    maskctx.rect(maskcanvas.width-(outpaintSizeIncrease/2+maskExtraOverlap/2), outpaintSizeIncrease/2+maskExtraOverlap/2, -(origRequest.width-maskExtraOverlap), origRequest.height-maskExtraOverlap, true);
     // Create a clipping region from the current path
     maskctx.clip();
     maskctx.fillStyle = 'white';
@@ -433,35 +438,35 @@ function  onOutpaintAllClick(origRequest, image) {
 
     //Draw 4 thin, grey rectangles, with gradient
     //Top box
-    var gradient = ctx.createLinearGradient(0, outpaintSizeIncrease/2+4, 0, origRequest.height-8);
+    var gradient = ctx.createLinearGradient(0, outpaintSizeIncrease/2+maskExtraOverlap/2+maskExtraOffset, 0, origRequest.height-maskExtraOverlap);
     // Add three color stops
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
-    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
-    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(maskFade, blackColor); //"black");
+    gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
     //maskctx.fillStyle = 'rgba(255,255,255,0.5)'; //'lightgrey'; 
-    maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8); 
+    maskctx.fillRect(outpaintSizeIncrease/2+maskExtraOverlap/2, outpaintSizeIncrease/2+maskExtraOverlap/2, origRequest.width-maskExtraOverlap, origRequest.height-maskExtraOverlap-maskExtraOffset); 
     //bottom
-    gradient = ctx.createLinearGradient(0, maskcanvas.height-(outpaintSizeIncrease/2+4), 0, outpaintSizeIncrease/2+4);
+    gradient = ctx.createLinearGradient(0, maskcanvas.height-(outpaintSizeIncrease/2+maskExtraOverlap/2)-maskExtraOffset, 0, outpaintSizeIncrease/2+maskExtraOverlap/2);
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
-    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
-    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(maskFade, blackColor); //"black");
+    gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
-    maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8);
+    maskctx.fillRect(outpaintSizeIncrease/2+maskExtraOverlap/2, outpaintSizeIncrease/2+maskExtraOverlap/2-maskExtraOffset, origRequest.width-maskExtraOverlap, origRequest.height-maskExtraOverlap+maskExtraOffset);
     //left box
-    gradient = ctx.createLinearGradient(outpaintSizeIncrease/2+4, 0, origRequest.width-8, 0);
+    gradient = ctx.createLinearGradient((outpaintSizeIncrease/2)+(maskExtraOverlap/2)+maskExtraOffset, 0, origRequest.width-maskExtraOverlap, 0);
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
-    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
-    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(maskFade, blackColor); //"black");
+    gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
-    maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8);
+    maskctx.fillRect(outpaintSizeIncrease/2+maskExtraOverlap/2, outpaintSizeIncrease/2+maskExtraOverlap/2, origRequest.width-maskExtraOverlap+maskExtraOffset, origRequest.height-maskExtraOverlap);
     //right box
-    gradient = ctx.createLinearGradient(maskcanvas.width-(outpaintSizeIncrease/2+4), 0, outpaintSizeIncrease/2+4, 0);
+    gradient = ctx.createLinearGradient(maskcanvas.width-(outpaintSizeIncrease/2+maskExtraOverlap/2)-maskExtraOffset, 0, outpaintSizeIncrease/2+maskExtraOverlap/2, 0);
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
-    gradient.addColorStop(0.1, 'rgba(255,255,255,0)'); //"black");
-    gradient.addColorStop(1, 'rgba(255,255,255,0)'); //"black");
+    gradient.addColorStop(maskFade, blackColor); //"black");
+    gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
-    maskctx.fillRect(outpaintSizeIncrease/2+4, outpaintSizeIncrease/2+4, origRequest.width-8, origRequest.height-8);
+    maskctx.fillRect(outpaintSizeIncrease/2+maskExtraOverlap/2-maskExtraOffset, outpaintSizeIncrease/2+maskExtraOverlap/2, origRequest.width-maskExtraOverlap+maskExtraOffset, origRequest.height-maskExtraOverlap);
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have   
