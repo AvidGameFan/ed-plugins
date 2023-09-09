@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.3.0, last updated: 9/7/2023
+ * v.1.3.1, last updated: 9/8/2023
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -92,6 +92,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height >outpaintMaxTurboResolution) {  //put max normal resolution here
     newTaskRequest.reqBody.vram_usage_level = 'low';
   }
+  delete newTaskRequest.reqBody.use_controlnet_model; //We're adding to the picture, and controlnet will try to make us conform to the old image.
   //newTaskRequest.reqBody.preserve_init_image_color_profile=true; //shouldn't be necessary, working from txt2img, and distorts colors
   //The comparison needs trimming, because the request box includes modifiers.  If the first part of the prompts match, we assume nothing's changed, and move on.
   //If prompt has changed, ask if we should pick up the new value.  Note that the new prompt will NOT include modifiers, only the text-box.
