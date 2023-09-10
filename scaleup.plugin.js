@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.1.3.6, last updated: 9/5/2023
+ * v.1.4.0, last updated: 9/9/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -179,6 +179,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push([
     on_click: onScaleUpLabelClick, filter: onScaleUpLabelFilter},
   { text: 'Scale Up', on_click: onScaleUpClick, filter: onScaleUpFilter },
   { text: 'Scale Up MAX', on_click: onScaleUpMAXClick, filter: onScaleUpMAXFilter },
+  { text: '2X', on_click: onScaleUp2xClick, filter: onScaleUp2xFilter },
   { html: '<i class="fa-solid fa-th-large"></i>', on_click: onScaleUpSplitClick, filter: onScaleUpSplitFilter  }
 ])
 /* Note: Tooltip will be removed once the label is clicked. */
@@ -326,6 +327,7 @@ function onScaleUpClick(origRequest, image) {
     guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
     num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 25, 100),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
+    //??use_upscale: 'None',
     //Using a new seed will allow some variation as it up-sizes.
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
@@ -451,6 +453,7 @@ function onScaleUpMAXClick(origRequest, image) {
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
     num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 50, 100),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
+    //?use_upscale: 'None',
     //tiling: "none", //if doing scaleUpSplit, don't want to double-tile.
     //Using a new seed will allow some variation as it up-sizes; if results are not ideal, rerunning will give different results.
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
@@ -509,6 +512,99 @@ function onScaleUpMAXFilter(origRequest, image) {
   }
   return result;
 }
+//________________________________________________________________________________________________________________________________________
+//ESRGAN or Latent upscaler, preferably 2x
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
+const asyncFunctionCall = async (origRequest, image, tools) => {
+  //while the spinner tool is still visible, wait.
+  while (!tools.spinner.classList.contains("displayNone"))
+  {
+    await delay(3000);
+  }
+  scaleUpOnce(origRequest, image) ;
+};
+
+function onScaleUp2xClick(origRequest, image, e, tools) {
+  //first, run the latent 2x upscale.
+  let path = upscaleModelField.value;
+  let scale = 2;
+  let filterName = path.toLowerCase().includes("realesrgan") ? "realesrgan" : "latent_upscaler";
+  let statusText = "Upscaling by " + scale + "x using " + filterName;
+  applyInlineFilter(filterName, path, { scale: scale }, image, statusText, tools)
+ 
+  // poll until latent upscaler finishes
+
+  asyncFunctionCall(origRequest, image, tools);
+};
+
+function scaleUpOnce(origRequest, image) {
+  //Grab the model name from the user-input area instead of the original image.
+  var desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; //origRequest.use_stable_diffusion_model for the original model
+  // grab the VAE too?
+
+  var isXl=false;
+  var maxRes=maxTotalResolution;
+  if (isModelXl(desiredModel)) {
+    maxRes=maxTotalResolutionXL;
+    isXl=true;
+  }
+  let newTaskRequest = getCurrentUserRequest();
+  newTaskRequest.reqBody = Object.assign({}, origRequest, {
+    init_image: image.src,
+    prompt_strength: (origRequest.scaleUpSplit || isXl)? (scaleUpPreserve ? 0.10 : 0.2):(scaleUpPreserve ? 0.15 : 0.3),  //Lower this number to make results closer to the original
+    // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
+    // - 0.15 sticks pretty close to the original, adding detail
+
+    //This will choose values that are not in the UI.
+    width: image.naturalWidth,
+    height: image.naturalHeight,
+    //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
+    num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 50, 100),  //large resolutions combined with large steps can cause an error
+    num_outputs: 1,
+    //??use_upscale: 'None',
+    //tiling: "none", //if doing scaleUpSplit, don't want to double-tile.
+    //Using a new seed will allow some variation as it up-sizes; if results are not ideal, rerunning will give different results.
+    seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
+  })
+
+  //If using controlnet, and not SDXL,
+  //    control_image: image.src
+  //    use_controlnet_model: "control_v11f1e_sd15_tile"
+  if (scaleUpControlNet && !isXl)
+  {
+    newTaskRequest.reqBody.control_image = image.src;
+    newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
+    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
+  }
+
+  newTaskRequest.seed = newTaskRequest.reqBody.seed
+//  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
+  newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
+  newTaskRequest.numOutputsTotal = 1 // "
+  //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
+  //Each person needs to test with different resolutions to find the limit of their card when using Balanced or modes other than 'low'.
+  if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //put max normal resolution here
+    //newTaskRequest.reqBody.turbo = false;
+    newTaskRequest.reqBody.vram_usage_level = 'low';
+  }
+
+  newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
+
+  delete newTaskRequest.reqBody.mask
+  createTask(newTaskRequest)
+}
+
+function onScaleUp2xFilter(origRequest, image) {
+  // this is an optional function. return true/false to show/hide the button
+  // if this function isn't set, the button will always be visible
+
+  //If already at max res, do not display.
+  let result = scaleUpMAXFilter(origRequest);
+  
+  return result;
+}
+
 //________________________________________________________________________________________________________________________________________
 
 const splitOverlap = 64;  //This can be modified by increments/decrements of 64, as desired
