@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.1.4.0, last updated: 9/9/2023
+ * v.1.4.1, last updated: 9/10/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -53,7 +53,6 @@ var MaxSquareResolution = 1344;
 
 //SDXL limits:2048*2048 or better
 var maxTotalResolutionXL = 3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
-
 
 //Note that the table entries go in pairs, if not 1:1 square ratio.
 //Ratios that don't match exactly may slightly stretch or squish the image, but should be slight enough to not be noticeable.
@@ -308,8 +307,9 @@ function onScaleUpLabelClick(origRequest, image) {
 //________________________________________________________________________________________________________________________________________
 
 function onScaleUpClick(origRequest, image) {
-  //Grab the model name from the user-input area instead of the original image.
-  var desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; //origRequest.use_stable_diffusion_model for the original model
+  //Uncomment to Grab the model name from the user-input area instead of the original image.
+  //var desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; 
+  var desiredModel=origRequest.use_stable_diffusion_model; //for the original model
 
   var isXl=false;
   if (isModelXl(desiredModel)) {
@@ -430,8 +430,9 @@ function ScaleUpMax(dimension, ratio) {
 }
   
 function onScaleUpMAXClick(origRequest, image) {
-  //Grab the model name from the user-input area instead of the original image.
-  var desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; //origRequest.use_stable_diffusion_model for the original model
+  //Uncomment to Grab the model name from the user-input area instead of the original image.
+  //var desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; 
+  var desiredModel=origRequest.use_stable_diffusion_model; //for the original model
 
   var isXl=false;
   var maxRes=maxTotalResolution;
@@ -539,9 +540,10 @@ function onScaleUp2xClick(origRequest, image, e, tools) {
 };
 
 function scaleUpOnce(origRequest, image) {
-  //Grab the model name from the user-input area instead of the original image.
-  var desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; //origRequest.use_stable_diffusion_model for the original model
+  //Uncomment to Grab the model name from the user-input area instead of the original image.
+  //var desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; 
   // grab the VAE too?
+  var desiredModel=origRequest.use_stable_diffusion_model; //for the original model
 
   var isXl=false;
   var maxRes=maxTotalResolution;
