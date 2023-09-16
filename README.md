@@ -15,7 +15,7 @@ Allows painting outside of the original image.  Simple one-click interface.
 
 ### Custom Modifiers
 
-Artists.zip - a collection of artists, with some separated by category  
-Fooocus Styles.zip - art styles originally created for the Fooocus UI, adapted for use in ED.
+[Custom Artists.zip](https://app.box.com/s/pv5t50jm3qebsiydsqnxd3pnqpj0roq7) - a collection of artists, with some separated by category  
+[Fooocus Styles.zip](https://app.box.com/s/q8bf32cqinjc920wkd2tjqzk24e89b2k) - art styles originally created for the Fooocus UI, adapted for use in ED.
 
 Unzip these folders into your "modifiers" folder inside easydiffusion. See the [ED Wiki](https://github.com/easydiffusion/easydiffusion/wiki/Custom-Modifiers) for more information.
