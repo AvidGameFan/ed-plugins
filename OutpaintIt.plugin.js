@@ -13,11 +13,16 @@
  *  
  */
 
+//needs to be outside of the wrapper, as the input items are in the main UI.
+var OutpaintItSettings = {
+  useChangedPrompt: false
+};
+
 /* EDIT THIS to put in the maximum resolutions your video card can handle. 
    These values work (usually) for the Nvidia 2060 Super with 8GB VRAM. 
    If you go too large, you'll see "Error: CUDA out of memory". 
  */
-(function() { "use strict"
+(function () { "use strict"
 var outpaintMaxTotalResolution = 6000000; //was: 1280 * 1280; //put max 'low' mode resolution here, max possible size when low mode is on
 var outpaintMaxTurboResolution = 1088	* 1664; //was: 1536	* 896;   //put max resolution (other than 'low' mode) here
 
@@ -78,7 +83,8 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
     width: origRequest.width + ((widen || all)?outpaintSizeIncrease:0),
     height: origRequest.height + ((!widen || all)?outpaintSizeIncrease:0),
     //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
-    num_inference_steps: Math.max(parseInt(origRequest.num_inference_steps), 50),  //DDIM may require more steps for better results
+    // With the high prompt strength, increasing the steps isn't necessary
+    //num_inference_steps: Math.max(parseInt(origRequest.num_inference_steps), 50),  //DDIM may require more steps for better results
     num_outputs: 1,
     seed: Math.floor(Math.random() * 10000000),
   })
@@ -97,9 +103,9 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   //The comparison needs trimming, because the request box includes modifiers.  If the first part of the prompts match, we assume nothing's changed, and move on.
   //If prompt has changed, ask if we should pick up the new value.  Note that the new prompt will NOT include modifiers, only the text-box.
   if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
-    if (confirm('OK to use new prompt?\n\n'+$("textarea#prompt").val())) {
-      newTaskRequest.reqBody.prompt=$("textarea#prompt").val();
-    }
+    if (OutpaintItSettings.useChangedPrompt ) {
+      newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
+    };
   }
 
   //Use UI's prompt to allow changing to a different model, such as inpainting model, before outpainting.
@@ -510,4 +516,39 @@ function  onOutpaintAllClick(origRequest, image) {
     }
     return text;
   }
+
+  //UI insertion adapted from Rabbit Hole plugin
+  function setup() {
+    var outpaintSettings = document.createElement('div');
+    outpaintSettings.id = 'outpaintit-settings';
+    outpaintSettings.classList.add('settings-box');
+    outpaintSettings.classList.add('panel-box');
+    let tempHTML =  
+        `<h4 class="collapsible">OutpaintIt Settings
+          <i id="reset-op-settings" class="fa-solid fa-arrow-rotate-left section-button">
+          <span class="simple-tooltip top-left">
+          Reset Image Settings
+          </span>
+          </i>
+        </h4>
+        <div id="outpaintit-settings-entries" class="collapsible-content" style="display: block;margin-top:15px;">
+        <div><ul style="padding-left:0px">
+          <li><b class="settings-subheader">OutpaintIt Settings</b></li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="outpaintit_change_prompt" name="outpaintit_change_prompt" type="checkbox" value="`+OutpaintItSettings.useChangedPrompt+`"  onchange="setOutpaintItSettings()"> <label for="outpaintit_change_prompt"></label>
+          </div>
+          <label for="outpaintit_change_prompt">Change to use modified prompt, above <small>(not the original prompt)</small></label>
+          </li>
+        </ul></div>
+        </div>`;
+    outpaintSettings.innerHTML = tempHTML;
+    var editorSettings = document.getElementById('editor-settings');
+    editorSettings.parentNode.insertBefore(outpaintSettings, editorSettings.nextSibling);
+    createCollapsibles(outpaintSettings);
+  }
+  setup();
 })();
+
+function setOutpaintItSettings() {
+  OutpaintItSettings.useChangedPrompt = outpaintit_change_prompt.checked; // document.getElementById('outpaintit_change_prompt').checked;
+}
