@@ -425,8 +425,10 @@ function scaleupLabel(atMaxRes)
 }
 //________________________________________________________________________________________________________________________________________
 
+const pixelChunkSize=8; //With older ED, used to have to use chunks of 64 pixels.
+
 function ScaleUpMax(dimension, ratio) {
-  return Math.round(((dimension*ratio)+32)/64)*64-64;
+  return Math.round(((dimension*ratio)+pixelChunkSize/2)/pixelChunkSize)*pixelChunkSize-pixelChunkSize;
 }
   
 function onScaleUpMAXClick(origRequest, image) {
