@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.1.4.1, last updated: 9/10/2023
+ * v.2.0.0, last updated: 9/24/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -30,6 +30,15 @@
  * 
  */
 
+//needs to be outside of the wrapper, as the input items are in the main UI.
+//Default settings upon startup:
+var ScaleUpSettings = {
+  use64PixelChunks: false,
+  useChangedPrompt: false,
+  useChangedModel: false
+  //useControlNet: false,
+};
+
 /**********************************************************************
 EDIT THE BELOW to put in the maximum resolutions your video card can handle. 
 These values work (usually) for the Nvidia 2060 Super with 8GB VRAM. 
@@ -43,6 +52,7 @@ allows, or you may want to keep values lower, for faster run-times.
 Installing xformers will also greatly reduce the RAM impact, and allow
 for much greater sizes.
 ***********************************************************************/
+
 (function() { "use strict"
 
 //Original 1.5 limits: 1280 * 1536 ( 1536	* 896 balanced?)
@@ -131,6 +141,11 @@ var resTable = [
 
 var scalingIncrease=1.25; //arbitrary amount to increase scaling, when beyond lookup table
 
+function maxRatio(maxRes, height, width) {
+  return Math.sqrt(maxRes/(height*width));
+}
+
+
 function scaleUp(height,width) {
   var result=height;
 
@@ -152,7 +167,7 @@ function scaleUp(height,width) {
           }
       }
       else {  //we don't have any match, but let's just make up something, until we run out of resolution
-          result = ScaleUpMax(height,scalingIncrease); //arbitrarily go 1.25 times larger
+          result = ScaleUpMax(height,Math.min(maxRatio(maxTotalResolution, height, width),scalingIncrease)); //arbitrarily go 1.25 times larger, until we hit max res
       }
   }
   return result;
@@ -166,6 +181,29 @@ function isModelXl(modelName) {
   return result;
 }
 
+function desiredModelName(origRequest) {
+  //Grab the model name from the user-input area instead of the original image.
+  if (ScaleUpSettings.useChangedModel) {
+    return $("#editor-settings #stable_diffusion_model")[0].dataset.path; 
+  }
+  else {
+    return origRequest.use_stable_diffusion_model; //for the original model
+  }
+}
+
+//Use the new image, if available. If unavailable (in the filters), just use the origRequest.  Unfortunately, these do not match after using Upscaler.
+function getWidth(origRequest, image) {
+  if(image!=undefined && image.naturalWidth>0) {
+    return image.naturalWidth;
+  }
+  return origRequest.width;
+}
+function getHeight(origRequest, image) {
+  if(image!=undefined && image.naturalHeight>0) {
+    return image.naturalHeight;
+  }
+  return origRequest.height;
+}
 
 const suLabel = 'Scale Up';  //base label prefix
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
@@ -300,16 +338,24 @@ function onScaleUpLabelClick(origRequest, image) {
 
   //update current labels
   for (var index=0; index<document.getElementsByClassName("scaleup-label").length;index++) {
-    document.getElementsByClassName("scaleup-label")[index].innerText=scaleupLabel(!scaleUpMAXFilter(origRequest));
+    document.getElementsByClassName("scaleup-label")[index].innerText=scaleupLabel(!scaleUpMAXFilter(origRequest, image));
   }
 };
 
 //________________________________________________________________________________________________________________________________________
 
 function onScaleUpClick(origRequest, image) {
-  //Uncomment to Grab the model name from the user-input area instead of the original image.
-  //var desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; 
-  var desiredModel=origRequest.use_stable_diffusion_model; //for the original model
+  var desiredModel=desiredModelName(origRequest);
+    // grab the VAE too?
+
+//  //Grab the model name from the user-input area instead of the original image.
+//  if (ScaleUpSettings.useChangedModel) {
+//    desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; 
+//    // grab the VAE too?
+//  }
+//  else {
+//    desiredModel=origRequest.use_stable_diffusion_model; //for the original model
+//  }
 
   var isXl=false;
   if (isModelXl(desiredModel)) {
@@ -322,8 +368,8 @@ function onScaleUpClick(origRequest, image) {
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
     // Lower amounts used for SDXL, as it seems more sensitive to changes, especially the refiner model.
-    width: scaleUp(origRequest.width, origRequest.height),
-    height: scaleUp(origRequest.height, origRequest.width),
+    width: scaleUp(image.naturalWidth, image.naturalHeight),
+    height: scaleUp(image.naturalHeight, image.naturalWidth),
     //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
     num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 25, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
@@ -356,21 +402,26 @@ function onScaleUpClick(origRequest, image) {
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
   
   //Grab the prompt from the user-input area instead of the original image.
-  //newTaskRequest.reqBody.prompt=$("textarea#prompt").val();
-  
+  if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
+    if (ScaleUpSettings.useChangedPrompt ) {
+      newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
+    };
+  }
+
+
   delete newTaskRequest.reqBody.mask
   createTask(newTaskRequest)
 }
 
 function scaleUpFilter(origRequest, image) {
   let result = false
-  if (origRequest.height==origRequest.width && origRequest.height<MaxSquareResolution) {
+  if (getHeight(origRequest, image)==getWidth(origRequest, image) && getHeight(origRequest, image)<MaxSquareResolution) {
       result=true;
   }
   else {      //check table for valid entries, otherwise disable button
       resTable.forEach(function(item){
-      if (item[0]==origRequest.height && 
-          item[1]==origRequest.width)
+      if (item[0]==getHeight(origRequest, image) && 
+          item[1]==getWidth(origRequest, image))
           {
           result=true;
           return;
@@ -378,26 +429,26 @@ function scaleUpFilter(origRequest, image) {
       })
   }
   //Additionally, allow additional scaling
-  if (scaleUpMAXFilter(origRequest) && origRequest.height!=ScaleUpMax(width,scalingIncrease)) {
+  if (scaleUpMAXFilter(origRequest, image) && getHeight(origRequest, image)!=ScaleUpMax(getWidth(origRequest, image),scalingIncrease)) {
       result=true;
   }
   return result;
 }
-function onScaleUpFilter(origRequest) {
+function onScaleUpFilter(origRequest, image) {
   // this is an optional function. return true/false to show/hide the button
   // if this function isn't set, the button will always be visible
-  let result = scaleUpFilter(origRequest);
+  let result = scaleUpFilter(origRequest, image);
 
    //Optional display of resolution
   if (result==true) {
-    this.text = scaleUp(origRequest.width, origRequest.height) + ' x ' +
-      scaleUp(origRequest.height, origRequest.width);
+    this.text = scaleUp(getWidth(origRequest, image), getHeight(origRequest, image)) + ' x ' +
+      scaleUp(getHeight(origRequest, image), getWidth(origRequest, image));
   }
   return result;
 }
 
 function onScaleUpLabelFilter(origRequest, image) {
-  let result=scaleUpFilter(origRequest) || scaleUpMAXFilter(origRequest);
+  let result=scaleUpFilter(origRequest, image) || scaleUpMAXFilter(origRequest, image);
 
   var text = scaleupLabel(!result);
   this.html = this.html.replace(/Scale Up.*:/,text);
@@ -426,15 +477,21 @@ function scaleupLabel(atMaxRes)
 //________________________________________________________________________________________________________________________________________
 
 const pixelChunkSize=8; //With older ED, used to have to use chunks of 64 pixels.
-
+//Need a settings option to choose between these 2 options.
+//Latent Upscaler still needs chunks of 64
+function ScaleUp64(dimension, ratio) {
+  return Math.round(((dimension*ratio)+32)/64)*64-64;
+}
 function ScaleUpMax(dimension, ratio) {
+  if (ScaleUpSettings.use64PixelChunks) {
+    return ScaleUp64(dimension, ratio);
+  }
   return Math.round(((dimension*ratio)+pixelChunkSize/2)/pixelChunkSize)*pixelChunkSize-pixelChunkSize;
 }
-  
+
+
 function onScaleUpMAXClick(origRequest, image) {
-  //Uncomment to Grab the model name from the user-input area instead of the original image.
-  //var desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; 
-  var desiredModel=origRequest.use_stable_diffusion_model; //for the original model
+  var desiredModel=desiredModelName(origRequest);
 
   var isXl=false;
   var maxRes=maxTotalResolution;
@@ -442,7 +499,7 @@ function onScaleUpMAXClick(origRequest, image) {
     maxRes=maxTotalResolutionXL;
     isXl=true;
   }
-  var ratio=Math.sqrt(maxRes/(origRequest.height*origRequest.width));
+  var ratio=Math.sqrt(maxRes/(image.naturalHeight*image.naturalWidth));
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
@@ -451,8 +508,8 @@ function onScaleUpMAXClick(origRequest, image) {
     // - 0.15 sticks pretty close to the original, adding detail
 
     //The rounding takes it to the nearest 64, which defines the resolutions available.  This will choose values that are not in the UI.
-    width: ScaleUpMax(origRequest.width,ratio),
-    height: ScaleUpMax(origRequest.height,ratio),
+    width: ScaleUpMax(image.naturalWidth,ratio),
+    height: ScaleUpMax(image.naturalHeight,ratio),
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
     num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
@@ -483,6 +540,13 @@ function onScaleUpMAXClick(origRequest, image) {
     newTaskRequest.reqBody.vram_usage_level = 'low';
   }
 
+  //Grab the prompt from the user-input area instead of the original image.
+  if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
+    if (ScaleUpSettings.useChangedPrompt ) {
+      newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
+    };
+  }
+
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
 
   delete newTaskRequest.reqBody.mask
@@ -490,15 +554,15 @@ function onScaleUpMAXClick(origRequest, image) {
 }
 
 var scaleUpMaxRatio;
-function scaleUpMAXFilter(origRequest) {
+function scaleUpMAXFilter(origRequest, image) {
   let result = false;
   var maxRes=maxTotalResolution;
-  if (isModelXl($("#editor-settings #stable_diffusion_model").val())) {  //origRequest.use_stable_diffusion_model
+  if (isModelXl(desiredModelName(origRequest))) { //$("#editor-settings #stable_diffusion_model").val())) {  //origRequest.use_stable_diffusion_model
     maxRes=maxTotalResolutionXL;
   }
 
-  scaleUpMaxRatio=Math.sqrt(maxRes/(origRequest.height*origRequest.width));
-  if (ScaleUpMax(origRequest.height, scaleUpMaxRatio) > origRequest.height) {  //if we already matched the max resolution, we're done.
+  scaleUpMaxRatio=Math.sqrt(maxRes/(getHeight(origRequest, image)*getWidth(origRequest, image)));
+  if (ScaleUpMax(getHeight(origRequest, image), scaleUpMaxRatio) > getHeight(origRequest, image)) {  //if we already matched the max resolution, we're done.
     result=true;
   }
   return result;
@@ -506,12 +570,12 @@ function scaleUpMAXFilter(origRequest) {
 function onScaleUpMAXFilter(origRequest, image) {
   // this is an optional function. return true/false to show/hide the button
   // if this function isn't set, the button will always be visible
-  let result = scaleUpMAXFilter(origRequest);
+  let result = scaleUpMAXFilter(origRequest, image);
   
   //Optional display of resolution
   if (result==true) {
-      this.text = ScaleUpMax(origRequest.width, scaleUpMaxRatio) + ' x ' +
-      ScaleUpMax(origRequest.height, scaleUpMaxRatio);
+      this.text = ScaleUpMax(getWidth(origRequest, image), scaleUpMaxRatio) + ' x ' +
+      ScaleUpMax(getHeight(origRequest, image), scaleUpMaxRatio);
   }
   return result;
 }
@@ -542,10 +606,7 @@ function onScaleUp2xClick(origRequest, image, e, tools) {
 };
 
 function scaleUpOnce(origRequest, image) {
-  //Uncomment to Grab the model name from the user-input area instead of the original image.
-  //var desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; 
-  // grab the VAE too?
-  var desiredModel=origRequest.use_stable_diffusion_model; //for the original model
+  var desiredModel=desiredModelName(origRequest);
 
   var isXl=false;
   var maxRes=maxTotalResolution;
@@ -604,7 +665,7 @@ function onScaleUp2xFilter(origRequest, image) {
   // if this function isn't set, the button will always be visible
 
   //If already at max res, do not display.
-  let result = scaleUpMAXFilter(origRequest);
+  let result = scaleUpMAXFilter(origRequest, image);
   
   return result;
 }
@@ -624,8 +685,8 @@ newTaskRequest.reqBody = Object.assign({}, origRequest, {})
 
 //create working canvas
 let canvas = document.createElement("canvas");
-canvas.width = origRequest.width/2+splitOverlap;
-canvas.height = origRequest.height/2+splitOverlap;
+canvas.width = image.naturalWidth/2+splitOverlap;
+canvas.height = image.naturalHeight/2+splitOverlap;
 
 newTaskRequest.reqBody.width=canvas.width;
 newTaskRequest.reqBody.height = canvas.height;
@@ -678,13 +739,62 @@ onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
 }
 
 function  onScaleUpSplitFilter(origRequest, image) {
-
-  if (Math.min(origRequest.width,origRequest.height)>=768)
+  if (Math.min(getWidth(origRequest, image),getHeight(origRequest, image))>=768)
   {
     return true;
   }
   else
     return false;
 }
+//________________________________________________________________________________________________________________________________________
+
+  //UI insertion adapted from Rabbit Hole plugin
+  function setup() {
+    var outpaintSettings = document.createElement('div');
+    outpaintSettings.id = 'scaleup-settings';
+    outpaintSettings.classList.add('settings-box');
+    outpaintSettings.classList.add('panel-box');
+    let tempHTML =  
+        `<h4 class="collapsible">ScaleUp Settings
+          <i id="reset-scaleup-settings" class="fa-solid fa-arrow-rotate-left section-button">
+          <span class="simple-tooltip top-left">
+          Reset Image Settings
+          </span>
+          </i>
+        </h4>
+        <div id="scaleup-settings-entries" class="collapsible-content" style="display: block;margin-top:15px;">
+        <div><ul style="padding-left:0px">
+          <li><b class="settings-subheader">ScaleUp Settings</b></li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="scaleup_64pixel_chunks" name="scaleup_64pixel_chunks" type="checkbox" value="`+ScaleUpSettings.use64PixelChunks+`"  onchange="setScaleUpSettings()"> <label for="scaleup_64pixel_chunks"></label>
+          </div>
+          <label for="scaleup_64pixel_chunks">Use 64 pixel chunks<small>(for compatibility with Latent Upscaler 2X, less accuracy)</small></label>
+          </li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="scaleup_change_model" name="scaleup_change_model" type="checkbox" value="`+ScaleUpSettings.useChangedModel+`"  onchange="setScaleUpSettings()"> <label for="scaleup_change_model"></label>
+          </div>
+          <label for="scaleup_change_model">Use model selected above <small>(not the original model)</small></label>
+          </li>
+          </li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="scaleup_change_prompt" name="scaleup_change_prompt" type="checkbox" value="`+ScaleUpSettings.useChangedPrompt+`"  onchange="setScaleUpSettings()"> <label for="scaleup_change_prompt"></label>
+          </div>
+          <label for="scaleup_change_prompt">Use new prompt, above <small>(not the original prompt)</small></label>
+          </li>
+        </ul></div>
+        </div>`;
+    outpaintSettings.innerHTML = tempHTML;
+    var editorSettings = document.getElementById('editor-settings');
+    editorSettings.parentNode.insertBefore(outpaintSettings, editorSettings.nextSibling);
+    createCollapsibles(outpaintSettings);
+  }
+  setup();
 
 })();
+
+function setScaleUpSettings() {
+  ScaleUpSettings.use64PixelChunks = scaleup_64pixel_chunks.checked;
+  ScaleUpSettings.useChangedPrompt = scaleup_change_prompt.checked;
+  ScaleUpSettings.useChangedModel = scaleup_change_model.checked;
+}
+
