@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.0.0, last updated: 9/24/2023
+ * v.2.0.1, last updated: 9/26/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -33,7 +33,7 @@
 //needs to be outside of the wrapper, as the input items are in the main UI.
 //Default settings upon startup:
 var ScaleUpSettings = {
-  use64PixelChunks: false,
+  use64PixelChunks: true,
   useChangedPrompt: false,
   useChangedModel: false
   //useControlNet: false,
@@ -190,18 +190,38 @@ function desiredModelName(origRequest) {
     return origRequest.use_stable_diffusion_model; //for the original model
   }
 }
+function desiredVaeName(origRequest) {
+  //Grab the  name from the user-input area instead of the original image.
+  if (ScaleUpSettings.useChangedModel) {
+    return $("#editor-settings #vae_model")[0].dataset.path; 
+  }
+  else {
+    return origRequest.use_vae_model; //for the original model
+  }
+}
 
 //Use the new image, if available. If unavailable (in the filters), just use the origRequest.  Unfortunately, these do not match after using Upscaler.
+//The filters don't have the image set.  Probably can revert them back to using origRequest directly.
+//The main buttons have access to the image, which may vary from origRequest if an uscaler has been used.  The image values are more accurate,
+//so using origRequest values will generate an incorrect label.  This seemingly can't be helped.
 function getWidth(origRequest, image) {
-  if(image!=undefined && image.naturalWidth>0) {
-    return image.naturalWidth;
+  //since the true image size isn't available, guesstimate it, if upscaler was used.
+  if (origRequest.use_upscale != undefined) {
+    return origRequest.width*origRequest.upscale_amount;
   }
+  //if(image!=undefined && image.naturalWidth>0) {
+  //  return image.naturalWidth;
+  //}
   return origRequest.width;
 }
 function getHeight(origRequest, image) {
-  if(image!=undefined && image.naturalHeight>0) {
-    return image.naturalHeight;
+  //since the true image size isn't available, guesstimate it, if upscaler was used.
+  if (origRequest.use_upscale != undefined) {
+    return origRequest.height*origRequest.upscale_amount;
   }
+  //if(image!=undefined && image.naturalHeight>0) {
+  //  return image.naturalHeight;
+  //}
   return origRequest.height;
 }
 
@@ -346,7 +366,6 @@ function onScaleUpLabelClick(origRequest, image) {
 
 function onScaleUpClick(origRequest, image) {
   var desiredModel=desiredModelName(origRequest);
-    // grab the VAE too?
 
 //  //Grab the model name from the user-input area instead of the original image.
 //  if (ScaleUpSettings.useChangedModel) {
@@ -373,6 +392,7 @@ function onScaleUpClick(origRequest, image) {
     //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
     num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 25, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
+    use_vae_model: desiredVaeName(origRequest),
     //??use_upscale: 'None',
     //Using a new seed will allow some variation as it up-sizes.
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
@@ -513,6 +533,7 @@ function onScaleUpMAXClick(origRequest, image) {
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
     num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
+    use_vae_model: desiredVaeName(origRequest),
     //?use_upscale: 'None',
     //tiling: "none", //if doing scaleUpSplit, don't want to double-tile.
     //Using a new seed will allow some variation as it up-sizes; if results are not ideal, rerunning will give different results.
@@ -627,6 +648,7 @@ function scaleUpOnce(origRequest, image) {
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
     num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
+    use_vae_model: desiredVaeName(origRequest),
     //??use_upscale: 'None',
     //tiling: "none", //if doing scaleUpSplit, don't want to double-tile.
     //Using a new seed will allow some variation as it up-sizes; if results are not ideal, rerunning will give different results.
@@ -787,6 +809,12 @@ function  onScaleUpSplitFilter(origRequest, image) {
     var editorSettings = document.getElementById('editor-settings');
     editorSettings.parentNode.insertBefore(outpaintSettings, editorSettings.nextSibling);
     createCollapsibles(outpaintSettings);
+
+    //Ensure switches match the settings
+    scaleup_64pixel_chunks.checked = ScaleUpSettings.use64PixelChunks;
+    scaleup_change_prompt.checked = ScaleUpSettings.useChangedPrompt;
+    scaleup_change_model.checked = ScaleUpSettings.useChangedModel;
+  
   }
   setup();
 
