@@ -31,7 +31,7 @@
  */
 
 //needs to be outside of the wrapper, as the input items are in the main UI.
-//Default settings upon startup:
+//These initial values can be overwritten upon startup -- do not rely on these as defaults.
 var ScaleUpSettings = {
   use64PixelChunks: true,
   useChangedPrompt: false,
@@ -772,15 +772,16 @@ function  onScaleUpSplitFilter(origRequest, image) {
 
   //UI insertion adapted from Rabbit Hole plugin
   function setup() {
+    //add new UI panel to left sidebar
     var outpaintSettings = document.createElement('div');
     outpaintSettings.id = 'scaleup-settings';
     outpaintSettings.classList.add('settings-box');
     outpaintSettings.classList.add('panel-box');
     let tempHTML =  
-        `<h4 class="collapsible">ScaleUp Settings
+        `<h4 class="collapsible">Scale Up Settings
           <i id="reset-scaleup-settings" class="fa-solid fa-arrow-rotate-left section-button">
           <span class="simple-tooltip top-left">
-          Reset Image Settings
+          Reset Scale Up Settings
           </span>
           </i>
         </h4>
@@ -810,19 +811,33 @@ function  onScaleUpSplitFilter(origRequest, image) {
     editorSettings.parentNode.insertBefore(outpaintSettings, editorSettings.nextSibling);
     createCollapsibles(outpaintSettings);
 
-    //Ensure switches match the settings
-    scaleup_64pixel_chunks.checked = ScaleUpSettings.use64PixelChunks;
-    scaleup_change_prompt.checked = ScaleUpSettings.useChangedPrompt;
-    scaleup_change_model.checked = ScaleUpSettings.useChangedModel;
-  
+    const icon = document.getElementById('reset-scaleup-settings');
+    icon.addEventListener('click', scaleUpResetSettings);
+
+    //Ensure switches match the settings (for the initial values), since "value=" in above HTML doesn't appear to work.
+    scaleUpResetSettings();
   }
   setup();
 
 })();
 
+
 function setScaleUpSettings() {
   ScaleUpSettings.use64PixelChunks = scaleup_64pixel_chunks.checked;
   ScaleUpSettings.useChangedPrompt = scaleup_change_prompt.checked;
   ScaleUpSettings.useChangedModel = scaleup_change_model.checked;
+}
+
+//Sets the default values for the settings.
+function scaleUpResetSettings() {
+  ScaleUpSettings.use64PixelChunks = true;
+  ScaleUpSettings.useChangedPrompt = false;
+  ScaleUpSettings.useChangedModel = false;
+  //useControlNet = false;
+
+  //set the input fields
+  scaleup_64pixel_chunks.checked = ScaleUpSettings.use64PixelChunks;
+  scaleup_change_prompt.checked = ScaleUpSettings.useChangedPrompt;
+  scaleup_change_model.checked = ScaleUpSettings.useChangedModel;
 }
 
