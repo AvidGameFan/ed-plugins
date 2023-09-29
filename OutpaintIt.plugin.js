@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.4.0, last updated: 9/23/2023
+ * v.1.4.1, last updated: 9/28/2023
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -101,7 +101,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   delete newTaskRequest.reqBody.use_controlnet_model; //We're adding to the picture, and controlnet will try to make us conform to the old image.
   //newTaskRequest.reqBody.preserve_init_image_color_profile=true; //shouldn't be necessary, working from txt2img, and distorts colors
   //The comparison needs trimming, because the request box includes modifiers.  If the first part of the prompts match, we assume nothing's changed, and move on.
-  //If prompt has changed, ask if we should pick up the new value.  Note that the new prompt will NOT include modifiers, only the text-box.
+  //If prompt has changed, ask if we should pick up the new value.  Note that the new prompt will now include modifiers- previously, only the text-box.
   if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
     if (OutpaintItSettings.useChangedPrompt ) {
       newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
@@ -524,10 +524,10 @@ function  onOutpaintAllClick(origRequest, image) {
     outpaintSettings.classList.add('settings-box');
     outpaintSettings.classList.add('panel-box');
     let tempHTML =  
-        `<h4 class="collapsible">OutpaintIt Settings
+        `<h4 class="collapsible">Outpaint It Settings
           <i id="reset-op-settings" class="fa-solid fa-arrow-rotate-left section-button">
           <span class="simple-tooltip top-left">
-          Reset Image Settings
+          Reset Outpaint It Settings
           </span>
           </i>
         </h4>
@@ -537,7 +537,7 @@ function  onOutpaintAllClick(origRequest, image) {
           <li class="pl-5"><div class="input-toggle">
           <input id="outpaintit_change_prompt" name="outpaintit_change_prompt" type="checkbox" value="`+OutpaintItSettings.useChangedPrompt+`"  onchange="setOutpaintItSettings()"> <label for="outpaintit_change_prompt"></label>
           </div>
-          <label for="outpaintit_change_prompt">Change to use modified prompt, above <small>(not the original prompt)</small></label>
+          <label for="outpaintit_change_prompt">Use new prompt, above <small>(not the original prompt)</small></label>
           </li>
         </ul></div>
         </div>`;
@@ -545,10 +545,24 @@ function  onOutpaintAllClick(origRequest, image) {
     var editorSettings = document.getElementById('editor-settings');
     editorSettings.parentNode.insertBefore(outpaintSettings, editorSettings.nextSibling);
     createCollapsibles(outpaintSettings);
+
+    const icon = document.getElementById('reset-op-settings');
+    icon.addEventListener('click', outpaintItResetSettings);
+
+    //Ensure switches match the settings (for the initial values), since "value=" in above HTML doesn't appear to work.
+    outpaintItResetSettings();
   }
   setup();
 })();
 
 function setOutpaintItSettings() {
   OutpaintItSettings.useChangedPrompt = outpaintit_change_prompt.checked; // document.getElementById('outpaintit_change_prompt').checked;
+}
+
+//Sets the default values for the settings.
+function outpaintItResetSettings() {
+  OutpaintItSettings.useChangedPrompt = false;
+
+  //set the input fields
+  outpaintit_change_prompt.checked = OutpaintItSettings.useChangedPrompt;
 }
