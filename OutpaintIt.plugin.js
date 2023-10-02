@@ -15,7 +15,8 @@
 
 //needs to be outside of the wrapper, as the input items are in the main UI.
 var OutpaintItSettings = {
-  useChangedPrompt: false
+  useChangedPrompt: false,
+  useChangedModel: false
 };
 
 /* EDIT THIS to put in the maximum resolutions your video card can handle. 
@@ -109,7 +110,11 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   }
 
   //Use UI's prompt to allow changing to a different model, such as inpainting model, before outpainting.
-  newTaskRequest.reqBody.use_stable_diffusion_model=$("#editor-settings #stable_diffusion_model")[0].dataset.path;
+  if (OutpaintItSettings.useChangedModel) {
+    newTaskRequest.reqBody.use_stable_diffusion_model = $("#editor-settings #stable_diffusion_model")[0].dataset.path; 
+    //newTaskRequest.reqBody.use_stable_diffusion_model =$("#editor-settings #stable_diffusion_model")[0].dataset.path;
+    newTaskRequest.use_vae_model = $("#editor-settings #vae_model")[0].dataset.path;
+  }
 
   return newTaskRequest;
 }
@@ -535,6 +540,11 @@ function  onOutpaintAllClick(origRequest, image) {
         <div><ul style="padding-left:0px">
           <li><b class="settings-subheader">OutpaintIt Settings</b></li>
           <li class="pl-5"><div class="input-toggle">
+          <input id="outpaintit_change_model" name="outpaintit_change_model" type="checkbox" value="`+OutpaintItSettings.useChangedModel+`"  onchange="setOutpaintItSettings()"> <label for="outpaintit_change_model"></label>
+          </div>
+          <label for="outpaintit_change_model">Use model selected above <small>(not the original model)</small></label>
+          </li>
+          <li class="pl-5"><div class="input-toggle">
           <input id="outpaintit_change_prompt" name="outpaintit_change_prompt" type="checkbox" value="`+OutpaintItSettings.useChangedPrompt+`"  onchange="setOutpaintItSettings()"> <label for="outpaintit_change_prompt"></label>
           </div>
           <label for="outpaintit_change_prompt">Use new prompt, above <small>(not the original prompt)</small></label>
@@ -557,12 +567,15 @@ function  onOutpaintAllClick(origRequest, image) {
 
 function setOutpaintItSettings() {
   OutpaintItSettings.useChangedPrompt = outpaintit_change_prompt.checked; // document.getElementById('outpaintit_change_prompt').checked;
+  OutpaintItSettings.useChangedModel = outpaintit_change_model.checked;
 }
 
 //Sets the default values for the settings.
 function outpaintItResetSettings() {
   OutpaintItSettings.useChangedPrompt = false;
+  OutpaintItSettings.useChangedModel = false;
 
   //set the input fields
   outpaintit_change_prompt.checked = OutpaintItSettings.useChangedPrompt;
+  outpaintit_change_model.checked = OutpaintItSettings.useChangedModel;
 }
