@@ -57,12 +57,12 @@ for much greater sizes.
 
 //Original 1.5 limits: 1280 * 1536 ( 1536	* 896 balanced?)
 //For 8GB VRAM and xformers, try 2592 * 2016 or more.
-var maxTotalResolution = 6000000; //2048 * 1088; //put max 'low' mode resolution here, max possible size when low mode is on
+var maxTotalResolution = 10000000; //6000000; //2048 * 1088; //put max 'low' mode resolution here, max possible size when low mode is on
 var maxTurboResolution = 1088	* 1664; //put max 'balanced' resolution here - larger output will enter 'low' mode, automatically.
 var MaxSquareResolution =  2048; //was: 1344;
 
 //SDXL limits:2048*2048 or better
-var maxTotalResolutionXL = 3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
+var maxTotalResolutionXL = 10000000; //3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
 
 //Note that the table entries go in pairs, if not 1:1 square ratio.
 //Ratios that don't match exactly may slightly stretch or squish the image, but should be slight enough to not be noticeable.
@@ -419,6 +419,8 @@ function onScaleUpClick(origRequest, image) {
     //delete newTaskRequest.reqBody.use_hypernetwork_model;
   }
   
+  delete newTaskRequest.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
+
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
   
   //Grab the prompt from the user-input area instead of the original image.
@@ -568,6 +570,8 @@ function onScaleUpMAXClick(origRequest, image) {
     };
   }
 
+  delete newTaskRequest.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
+
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
 
   delete newTaskRequest.reqBody.mask
@@ -675,6 +679,8 @@ function scaleUpOnce(origRequest, image) {
     //newTaskRequest.reqBody.turbo = false;
     newTaskRequest.reqBody.vram_usage_level = 'low';
   }
+
+  delete newTaskRequest.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
 
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
 
@@ -797,7 +803,6 @@ function  onScaleUpSplitFilter(origRequest, image) {
           <input id="scaleup_change_model" name="scaleup_change_model" type="checkbox" value="`+ScaleUpSettings.useChangedModel+`"  onchange="setScaleUpSettings()"> <label for="scaleup_change_model"></label>
           </div>
           <label for="scaleup_change_model">Use model selected above <small>(not the original model)</small></label>
-          </li>
           </li>
           <li class="pl-5"><div class="input-toggle">
           <input id="scaleup_change_prompt" name="scaleup_change_prompt" type="checkbox" value="`+ScaleUpSettings.useChangedPrompt+`"  onchange="setScaleUpSettings()"> <label for="scaleup_change_prompt"></label>
