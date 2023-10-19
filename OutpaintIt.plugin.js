@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.4.3, last updated: 10/16/2023
+ * v.1.5.0, last updated: 10/18/2023
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -75,14 +75,26 @@ function outpaintSetPixels(imageData) {
   }
 }
 
+function calcOutpaintSizeIncrease(image) {
+  //For each 2mp, add another block of 64 to the outpaint size.  For larger images, the default value is a bit thin.
+  return outpaintSizeIncrease + 64 * Math.floor((image.naturalWidth*image.naturalHeight)/2000000)
+//  //If the image is greater than 3.5mp, increase the size of the outpaint.  For larger images, the default value is a bit thin.
+//  if(image.naturalWidth*image.naturalHeight > 3500000) {
+//    return outpaintSizeIncrease * 2;
+//  }
+//  else {
+//    return outpaintSizeIncrease;
+//  }
+}
+
 function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   let newTaskRequest = getCurrentUserRequest();
       
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
     prompt_strength: 0.95+Math.random()*.05, //be sure the values add up to 1 or less
-    width: image.naturalWidth + ((widen || all)?outpaintSizeIncrease:0),
-    height: image.naturalHeight + ((!widen || all)?outpaintSizeIncrease:0),
+    width: image.naturalWidth + ((widen || all)?calcOutpaintSizeIncrease(image):0),
+    height: image.naturalHeight + ((!widen || all)?calcOutpaintSizeIncrease(image):0),
     //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
     // With the high prompt strength, increasing the steps isn't necessary
     //num_inference_steps: Math.max(parseInt(origRequest.num_inference_steps), 50),  //DDIM may require more steps for better results
@@ -115,6 +127,8 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
     //newTaskRequest.reqBody.use_stable_diffusion_model =$("#editor-settings #stable_diffusion_model")[0].dataset.path;
     newTaskRequest.use_vae_model = $("#editor-settings #vae_model")[0].dataset.path;
   }
+
+  delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again
 
   return newTaskRequest;
 }
@@ -152,7 +166,7 @@ function  onOutpaintUpClick(origRequest, image) {
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
-    var imageData = ctx.getImageData(0, 0, canvas.width, outpaintSizeIncrease);
+    var imageData = ctx.getImageData(0, 0, canvas.width, calcOutpaintSizeIncrease(image));
 
     outpaintSetPixels(imageData);
 
@@ -161,7 +175,7 @@ function  onOutpaintUpClick(origRequest, image) {
 
     ctx.drawImage( image,
       0, 0,image.naturalWidth,image.naturalHeight, //source 
-      0, outpaintSizeIncrease,image.naturalWidth,image.naturalHeight //destination
+      0, calcOutpaintSizeIncrease(image),image.naturalWidth,image.naturalHeight //destination
     );
 
     let maskcanvas = document.createElement("canvas");
@@ -169,16 +183,16 @@ function  onOutpaintUpClick(origRequest, image) {
     maskcanvas.height = newTaskRequest.reqBody.height;
     let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(0, 0,image.naturalWidth, outpaintSizeIncrease+maskExtraOverlap /*outpaintMaskOverlap*/);  //Need some overlap on the mask (minimum of 8px)
+    maskctx.fillRect(0, 0,image.naturalWidth, calcOutpaintSizeIncrease(image)+maskExtraOverlap /*outpaintMaskOverlap*/);  //Need some overlap on the mask (minimum of 8px)
     
-    const gradient = ctx.createLinearGradient(0, outpaintSizeIncrease+maskExtraOverlap+maskExtraOffset, 0, maskcanvas.height); //vertical line
+    const gradient = ctx.createLinearGradient(0, calcOutpaintSizeIncrease(image)+maskExtraOverlap+maskExtraOffset, 0, maskcanvas.height); //vertical line
 
     // Add three color stops
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
     gradient.addColorStop(maskFade, blackColor); //"black");
     gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
-    maskctx.fillRect(0, outpaintSizeIncrease+maskExtraOverlap+maskExtraOffset,image.naturalWidth, image.naturalHeight); 
+    maskctx.fillRect(0, calcOutpaintSizeIncrease(image)+maskExtraOverlap+maskExtraOffset,image.naturalWidth, image.naturalHeight); 
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have
@@ -194,8 +208,9 @@ function  onOutpaintUpClick(origRequest, image) {
 function onOutpaintUpFilter(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
+    //The filters do not have a valid image.
   let result = false
-  if ((image.naturalHeight+outpaintSizeIncrease)*image.naturalWidth<=outpaintMaxTotalResolution)  {
+  if ((origRequest.height+calcOutpaintSizeIncrease({naturalWidth:origRequest.width,naturalHeight:origRequest.height}))*origRequest.width<=outpaintMaxTotalResolution)  {
     result=true;
   }
   return result;
@@ -220,21 +235,21 @@ function  onOutpaintDownClick(origRequest, image) {
     //ctx.translate(0, canvas.height);
     //ctx.scale(1, -1);
     //ctx.drawImage( image,
-    //  0,image.naturalHeight-outpaintSizeIncrease,image.naturalWidth, outpaintSizeIncrease, //source 
-    //  0, 0,image.naturalWidth, outpaintSizeIncrease //destination -- inverted
+    //  0,image.naturalHeight-calcOutpaintSizeIncrease(image),image.naturalWidth, calcOutpaintSizeIncrease(image), //source 
+    //  0, 0,image.naturalWidth, calcOutpaintSizeIncrease(image) //destination -- inverted
     //);
     //ctx.restore();
 
     ////Fill in with a copy of the bottom
     //ctx.drawImage( image,
-    //  0,image.naturalHeight-outpaintSizeIncrease,image.naturalWidth, outpaintSizeIncrease, //source 
-    //  0,image.naturalHeight,image.naturalWidth, outpaintSizeIncrease //destination  -- normal
+    //  0,image.naturalHeight-calcOutpaintSizeIncrease(image),image.naturalWidth, calcOutpaintSizeIncrease(image), //source 
+    //  0,image.naturalHeight,image.naturalWidth, calcOutpaintSizeIncrease(image) //destination  -- normal
     //);
 
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
-    var imageData = ctx.getImageData(0, canvas.height-outpaintSizeIncrease, canvas.width, outpaintSizeIncrease);
+    var imageData = ctx.getImageData(0, canvas.height-calcOutpaintSizeIncrease(image), canvas.width, calcOutpaintSizeIncrease(image));
 
     outpaintSetPixels(imageData);
 
@@ -248,16 +263,16 @@ function  onOutpaintDownClick(origRequest, image) {
     maskcanvas.height = newTaskRequest.reqBody.height;
     let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(0,image.naturalHeight-maskExtraOverlap,image.naturalWidth, outpaintSizeIncrease+maskExtraOverlap);  //Need some overlap on the mask (minimum of 8px)
+    maskctx.fillRect(0,image.naturalHeight-maskExtraOverlap,image.naturalWidth, calcOutpaintSizeIncrease(image)+maskExtraOverlap);  //Need some overlap on the mask (minimum of 8px)
     
-    const gradient = ctx.createLinearGradient(0, maskcanvas.height-outpaintSizeIncrease-maskExtraOverlap-maskExtraOffset, 0, 0); //vertical line
+    const gradient = ctx.createLinearGradient(0, maskcanvas.height-calcOutpaintSizeIncrease(image)-maskExtraOverlap-maskExtraOffset, 0, 0); //vertical line
     // Add three color stops
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
     gradient.addColorStop(maskFade, blackColor); //"black");
     gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
-//    maskctx.fillRect(0,image.naturalHeight-outpaintSizeIncrease-8,image.naturalWidth, image.naturalHeight); 
-    maskctx.fillRect(0, 0,image.naturalWidth, maskcanvas.height-outpaintSizeIncrease-maskExtraOverlap-maskExtraOffset); 
+//    maskctx.fillRect(0,image.naturalHeight-calcOutpaintSizeIncrease(image)-8,image.naturalWidth, image.naturalHeight); 
+    maskctx.fillRect(0, 0,image.naturalWidth, maskcanvas.height-calcOutpaintSizeIncrease(image)-maskExtraOverlap-maskExtraOffset); 
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have
@@ -273,7 +288,7 @@ function onOutpaintDownFilter(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
   let result = false
-  if ((image.naturalHeight+outpaintSizeIncrease)*image.naturalWidth<=outpaintMaxTotalResolution)  {
+  if ((origRequest.height+calcOutpaintSizeIncrease({naturalWidth:origRequest.width,naturalHeight:origRequest.height}))*origRequest.width<=outpaintMaxTotalResolution)  {
     result=true;
   }
   return result;
@@ -291,7 +306,7 @@ function onOutpaintDownFilter(origRequest, image) {
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
-    var imageData = ctx.getImageData(0, 0, outpaintSizeIncrease, canvas.height);
+    var imageData = ctx.getImageData(0, 0, calcOutpaintSizeIncrease(image), canvas.height);
 
     outpaintSetPixels(imageData);
 
@@ -300,7 +315,7 @@ function onOutpaintDownFilter(origRequest, image) {
 
     ctx.drawImage( image,
       0, 0,image.naturalWidth,image.naturalHeight, //source 
-      outpaintSizeIncrease, 0,image.naturalWidth,image.naturalHeight //destination
+      calcOutpaintSizeIncrease(image), 0,image.naturalWidth,image.naturalHeight //destination
     );
 
 
@@ -309,15 +324,15 @@ function onOutpaintDownFilter(origRequest, image) {
     maskcanvas.height = newTaskRequest.reqBody.height;
     let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(0, 0, outpaintSizeIncrease+maskExtraOverlap,image.naturalHeight);  //Need some overlap on the mask (minimum of 8px)
+    maskctx.fillRect(0, 0, calcOutpaintSizeIncrease(image)+maskExtraOverlap,image.naturalHeight);  //Need some overlap on the mask (minimum of 8px)
 
-    const gradient = ctx.createLinearGradient(outpaintSizeIncrease+maskExtraOverlap+maskExtraOffset, 0, maskcanvas.width-outpaintSizeIncrease-maskExtraOverlap-maskExtraOffset, 0); //horizontal line
+    const gradient = ctx.createLinearGradient(calcOutpaintSizeIncrease(image)+maskExtraOverlap+maskExtraOffset, 0, maskcanvas.width-calcOutpaintSizeIncrease(image)-maskExtraOverlap-maskExtraOffset, 0); //horizontal line
     // Add three color stops
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
     gradient.addColorStop(maskFade, blackColor); //"black");
     gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
-    maskctx.fillRect(outpaintSizeIncrease+maskExtraOverlap+maskExtraOffset, 0,image.naturalWidth-maskExtraOverlap-maskExtraOffset, image.naturalHeight); 
+    maskctx.fillRect(calcOutpaintSizeIncrease(image)+maskExtraOverlap+maskExtraOffset, 0,image.naturalWidth-maskExtraOverlap-maskExtraOffset, image.naturalHeight); 
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have    
@@ -335,7 +350,7 @@ function onOutpaintLeftFilter(origRequest, image) {
     // if this function isn't set, the button will always be visible
 
   let result = false
-  if ((image.naturalWidth+outpaintSizeIncrease)*image.naturalHeight<=outpaintMaxTotalResolution)  {
+  if ((origRequest.width+calcOutpaintSizeIncrease({naturalWidth:origRequest.width,naturalHeight:origRequest.height}))*origRequest.height<=outpaintMaxTotalResolution)  {
     result=true;
   }
   return result;
@@ -352,7 +367,7 @@ function onOutpaintLeftFilter(origRequest, image) {
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
-    var imageData = ctx.getImageData(canvas.width-outpaintSizeIncrease, 0, outpaintSizeIncrease, canvas.height);
+    var imageData = ctx.getImageData(canvas.width-calcOutpaintSizeIncrease(image), 0, calcOutpaintSizeIncrease(image), canvas.height);
 
     outpaintSetPixels(imageData);
 
@@ -369,9 +384,9 @@ function onOutpaintLeftFilter(origRequest, image) {
     maskcanvas.height = newTaskRequest.reqBody.height;
     let maskctx = maskcanvas.getContext("2d");
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(image.naturalWidth-maskExtraOverlap, 0, outpaintSizeIncrease+maskExtraOverlap,image.naturalHeight);  //Need some overlap on the mask (minimum of 8px)
+    maskctx.fillRect(image.naturalWidth-maskExtraOverlap, 0, calcOutpaintSizeIncrease(image)+maskExtraOverlap,image.naturalHeight);  //Need some overlap on the mask (minimum of 8px)
 
-    const gradient = ctx.createLinearGradient(image.naturalWidth-maskExtraOverlap-maskExtraOffset /*maskcanvas.width-outpaintSizeIncrease-8*/, 0, 0, 0); //horizontal line
+    const gradient = ctx.createLinearGradient(image.naturalWidth-maskExtraOverlap-maskExtraOffset /*maskcanvas.width-calcOutpaintSizeIncrease(image)-8*/, 0, 0, 0); //horizontal line
     // Add three color stops
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
     gradient.addColorStop(maskFade, blackColor); //"black");
@@ -396,7 +411,7 @@ function onOutpaintRightFilter(origRequest, image) {
     // if this function isn't set, the button will always be visible
 
     let result = false
-    if ((image.naturalWidth+outpaintSizeIncrease)*image.naturalHeight<=outpaintMaxTotalResolution)  {
+    if ((origRequest.width+calcOutpaintSizeIncrease({naturalWidth:origRequest.width,naturalHeight:origRequest.height}))*origRequest.height<=outpaintMaxTotalResolution)  {
       result=true;
     }
     return result;
@@ -422,7 +437,7 @@ function  onOutpaintAllClick(origRequest, image) {
 
     ctx.drawImage( image,
       0, 0,image.naturalWidth,image.naturalHeight, //source 
-      outpaintSizeIncrease/2, outpaintSizeIncrease/2,image.naturalWidth,image.naturalHeight //destination
+      calcOutpaintSizeIncrease(image)/2, calcOutpaintSizeIncrease(image)/2,image.naturalWidth,image.naturalHeight //destination
     );
 
     let maskcanvas = document.createElement("canvas");
@@ -438,7 +453,7 @@ function  onOutpaintAllClick(origRequest, image) {
     maskctx.rect(0, 0,  maskcanvas.width, maskcanvas.height);
     // Define an inner rectangle that you want to mask out
     // Use a negative value for anticlockwise parameter
-    maskctx.rect(maskcanvas.width-(outpaintSizeIncrease/2+maskExtraOverlap/2), outpaintSizeIncrease/2+maskExtraOverlap/2, -(image.naturalWidth-maskExtraOverlap),image.naturalHeight-maskExtraOverlap, true);
+    maskctx.rect(maskcanvas.width-(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2), calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2, -(image.naturalWidth-maskExtraOverlap),image.naturalHeight-maskExtraOverlap, true);
     // Create a clipping region from the current path
     maskctx.clip();
     maskctx.fillStyle = 'white';
@@ -450,35 +465,35 @@ function  onOutpaintAllClick(origRequest, image) {
 
     //Draw 4 thin, grey rectangles, with gradient
     //Top box
-    var gradient = ctx.createLinearGradient(0, outpaintSizeIncrease/2+maskExtraOverlap/2+maskExtraOffset, 0,image.naturalHeight-maskExtraOverlap);
+    var gradient = ctx.createLinearGradient(0, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2+maskExtraOffset, 0,image.naturalHeight-maskExtraOverlap);
     // Add three color stops
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
     gradient.addColorStop(maskFade, blackColor); //"black");
     gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
     //maskctx.fillStyle = 'rgba(255,255,255,0.5)'; //'lightgrey'; 
-    maskctx.fillRect(outpaintSizeIncrease/2+maskExtraOverlap/2, outpaintSizeIncrease/2+maskExtraOverlap/2,image.naturalWidth-maskExtraOverlap,image.naturalHeight-maskExtraOverlap-maskExtraOffset); 
+    maskctx.fillRect(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2,image.naturalWidth-maskExtraOverlap,image.naturalHeight-maskExtraOverlap-maskExtraOffset); 
     //bottom
-    gradient = ctx.createLinearGradient(0, maskcanvas.height-(outpaintSizeIncrease/2+maskExtraOverlap/2)-maskExtraOffset, 0, outpaintSizeIncrease/2+maskExtraOverlap/2);
+    gradient = ctx.createLinearGradient(0, maskcanvas.height-(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2)-maskExtraOffset, 0, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2);
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
     gradient.addColorStop(maskFade, blackColor); //"black");
     gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
-    maskctx.fillRect(outpaintSizeIncrease/2+maskExtraOverlap/2, outpaintSizeIncrease/2+maskExtraOverlap/2-maskExtraOffset,image.naturalWidth-maskExtraOverlap,image.naturalHeight-maskExtraOverlap+maskExtraOffset);
+    maskctx.fillRect(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2-maskExtraOffset,image.naturalWidth-maskExtraOverlap,image.naturalHeight-maskExtraOverlap+maskExtraOffset);
     //left box
-    gradient = ctx.createLinearGradient((outpaintSizeIncrease/2)+(maskExtraOverlap/2)+maskExtraOffset, 0,image.naturalWidth-maskExtraOverlap, 0);
+    gradient = ctx.createLinearGradient((calcOutpaintSizeIncrease(image)/2)+(maskExtraOverlap/2)+maskExtraOffset, 0,image.naturalWidth-maskExtraOverlap, 0);
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
     gradient.addColorStop(maskFade, blackColor); //"black");
     gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
-    maskctx.fillRect(outpaintSizeIncrease/2+maskExtraOverlap/2, outpaintSizeIncrease/2+maskExtraOverlap/2,image.naturalWidth-maskExtraOverlap+maskExtraOffset,image.naturalHeight-maskExtraOverlap);
+    maskctx.fillRect(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2,image.naturalWidth-maskExtraOverlap+maskExtraOffset,image.naturalHeight-maskExtraOverlap);
     //right box
-    gradient = ctx.createLinearGradient(maskcanvas.width-(outpaintSizeIncrease/2+maskExtraOverlap/2)-maskExtraOffset, 0, outpaintSizeIncrease/2+maskExtraOverlap/2, 0);
+    gradient = ctx.createLinearGradient(maskcanvas.width-(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2)-maskExtraOffset, 0, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2, 0);
     gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
     gradient.addColorStop(maskFade, blackColor); //"black");
     gradient.addColorStop(1, blackColor); //"black");
     maskctx.fillStyle = gradient; 
-    maskctx.fillRect(outpaintSizeIncrease/2+maskExtraOverlap/2-maskExtraOffset, outpaintSizeIncrease/2+maskExtraOverlap/2,image.naturalWidth-maskExtraOverlap+maskExtraOffset,image.naturalHeight-maskExtraOverlap);
+    maskctx.fillRect(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2-maskExtraOffset, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2,image.naturalWidth-maskExtraOverlap+maskExtraOffset,image.naturalHeight-maskExtraOverlap);
 
     //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
     //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have   
@@ -494,7 +509,8 @@ function  onOutpaintAllClick(origRequest, image) {
     // if this function isn't set, the button will always be visible
 
   let result = false
-  if ((image.naturalWidth+outpaintSizeIncrease)*(image.naturalHeight+outpaintSizeIncrease)<=outpaintMaxTotalResolution)  {
+  if ((origRequest.width+calcOutpaintSizeIncrease({naturalWidth:origRequest.width,naturalHeight:origRequest.height}))
+      *(origRequest.height+calcOutpaintSizeIncrease({naturalWidth:origRequest.width,naturalHeight:origRequest.height}))<=outpaintMaxTotalResolution)  {
     result=true;
   }
   return result;

@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.0.3, last updated: 10/12/2023
+ * v.2.0.4, last updated: 10/18/2023
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -63,7 +63,7 @@ var MaxSquareResolution =  2048; //was: 1344;
 
 //SDXL limits:2048*2048 or better
 var maxTotalResolutionXL = 10000000; //3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
-
+var maxLatentUpscaler = 1600*1152; //Max resolution in which to do the 2x.  Much larger, and Latent Upscaler will run out of memory.
 //Note that the table entries go in pairs, if not 1:1 square ratio.
 //Ratios that don't match exactly may slightly stretch or squish the image, but should be slight enough to not be noticeable.
 //First two entries are the x,y resolutions of the image, and last entry is the upscale resolution for x.
@@ -419,7 +419,7 @@ function onScaleUpClick(origRequest, image) {
     //delete newTaskRequest.reqBody.use_hypernetwork_model;
   }
   
-  delete newTaskRequest.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
+  delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
 
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
   
@@ -570,7 +570,7 @@ function onScaleUpMAXClick(origRequest, image) {
     };
   }
 
-  delete newTaskRequest.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
+  delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
 
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
 
@@ -680,7 +680,7 @@ function scaleUpOnce(origRequest, image) {
     newTaskRequest.reqBody.vram_usage_level = 'low';
   }
 
-  delete newTaskRequest.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
+  delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
 
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
 
@@ -691,6 +691,10 @@ function scaleUpOnce(origRequest, image) {
 function onScaleUp2xFilter(origRequest, image) {
   // this is an optional function. return true/false to show/hide the button
   // if this function isn't set, the button will always be visible
+
+  //If resolution too large for latent upscaler, don't display
+  if (getWidth(origRequest, image) * getHeight(origRequest, image) > maxLatentUpscaler)
+    return false;
 
   //If already at max res, do not display.
   let result = scaleUpMAXFilter(origRequest, image);
