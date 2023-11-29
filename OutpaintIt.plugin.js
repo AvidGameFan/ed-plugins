@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.5.0, last updated: 10/18/2023
+ * v.1.6.0, last updated: 11/28/2023
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -16,7 +16,8 @@
 //needs to be outside of the wrapper, as the input items are in the main UI.
 var OutpaintItSettings = {
   useChangedPrompt: false,
-  useChangedModel: false
+  useChangedModel: false,
+  useExtendImage: false
 };
 
 /* EDIT THIS to put in the maximum resolutions your video card can handle. 
@@ -29,23 +30,23 @@ var outpaintMaxTurboResolution = 1088	* 1664; //was: 1536	* 896;   //put max res
 
 const outpaintSizeIncrease = 128;  //This can be modified by increments/decrements of 64, as desired
 //const outpaintMaskOverlap = 36; //Need some overlap on the mask (minimum of 8px)
-//const outpaintPercentToKeep = .2; //Amount of random pixels to retain, to bias effect
+const outpaintPercentToKeep = .3; //Amount of random pixels to retain, to bias effect
 const maskFade = 0.07;
 const maskExtraOverlap = 0;
 const maskExtraOffset = -24;
 const blackColor = 'rgba(255,255,255,0)'; //'rgba(0,0,0,0)';
 
 function outpaintSetPixels(imageData) {
-  //function guassianRand() {  //approximation of Gaussian, from Stackoverflow
-  //  var rand =0;
-  //  for (var i=0; i<6; i+=1) {
-  //    rand += Math.random();
-  //  }
-  //  return rand/6;
-  //}
+  function guassianRand() {  //approximation of Gaussian, from Stackoverflow
+    var rand =0;
+    for (var i=0; i<6; i+=1) {
+      rand += Math.random();
+    }
+    return rand/6;
+  }
   function randomPixel() {
-    return Math.floor(Math.random() * 256); //0 to 255
-    //return Math.floor(guassianRand() * 256); //0 to 255
+    //return Math.floor(Math.random() * 256); //0 to 255
+    return Math.floor(guassianRand() * 256); //0 to 255
     //Math.random() doesn't seem too random.
     //return Math.floor(1-Math.pow(Math.random(),2) * 256);
   }
@@ -54,7 +55,9 @@ function outpaintSetPixels(imageData) {
 
   // loop through each pixel
   for (var i = 0; i < pixels.length; i += 4) {
-    //if (Math.random()<outpaintPercentToKeep) continue; -- if you pre-fill the space, you can vary how much is randomized, to encourage a bias
+    //if not blank/black and keeping the original pixel, continue.  (If black, probably have not pre-filled the space.)
+    if (!(pixels[i]==0 && pixels[i+1]==0 && pixels[i+2]==0) 
+      && Math.random()<outpaintPercentToKeep) continue; //-- if you pre-fill the space, you can vary how much is randomized, to encourage a bias
     // get the red, green, blue (but not alpha) values
     var r = pixels[i];
     var g = pixels[i + 1];
@@ -89,10 +92,11 @@ function calcOutpaintSizeIncrease(image) {
 
 function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   let newTaskRequest = getCurrentUserRequest();
+  let initialPromptStrength = (OutpaintItSettings.useExtendImage ? 0.89 : 0.95);
       
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: 0.95+Math.random()*.05, //be sure the values add up to 1 or less
+    prompt_strength: initialPromptStrength+Math.random()*(1-initialPromptStrength), //be sure the values add up to 1 or less
     width: image.naturalWidth + ((widen || all)?calcOutpaintSizeIncrease(image):0),
     height: image.naturalHeight + ((!widen || all)?calcOutpaintSizeIncrease(image):0),
     //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
@@ -164,6 +168,26 @@ function  onOutpaintUpClick(origRequest, image) {
     canvas.height = newTaskRequest.reqBody.height;
     let ctx = canvas.getContext("2d");
 
+
+    if (OutpaintItSettings.useExtendImage) {
+      //if (OutpaintItSettings.invertExtendImage) 
+
+      //Fill in with duplicate/invert
+      ctx.save();
+      ctx.translate(0, canvas.height);
+      ctx.scale(1, -1);
+      ctx.drawImage( image,
+        0, 0,image.naturalWidth, calcOutpaintSizeIncrease(image), //source 
+        0, image.naturalHeight, image.naturalWidth, calcOutpaintSizeIncrease(image) //destination -- inverted
+      );
+      ctx.restore();
+      ////Fill in with a copy of the bottom
+      //ctx.drawImage( image,
+      //  0,image.naturalHeight-calcOutpaintSizeIncrease(image),image.naturalWidth, calcOutpaintSizeIncrease(image), //source 
+      //  0,image.naturalHeight,image.naturalWidth, calcOutpaintSizeIncrease(image) //destination  -- normal
+      //);
+    }
+
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
     var imageData = ctx.getImageData(0, 0, canvas.width, calcOutpaintSizeIncrease(image));
@@ -230,21 +254,25 @@ function  onOutpaintDownClick(origRequest, image) {
       0, 0,image.naturalWidth,image.naturalHeight //destination
     );
 
-    ////Fill in with duplicate/invert
-    //ctx.save();
-    //ctx.translate(0, canvas.height);
-    //ctx.scale(1, -1);
-    //ctx.drawImage( image,
-    //  0,image.naturalHeight-calcOutpaintSizeIncrease(image),image.naturalWidth, calcOutpaintSizeIncrease(image), //source 
-    //  0, 0,image.naturalWidth, calcOutpaintSizeIncrease(image) //destination -- inverted
-    //);
-    //ctx.restore();
+    if (OutpaintItSettings.useExtendImage) {
+      //if (OutpaintItSettings.invertExtendImage) 
 
-    ////Fill in with a copy of the bottom
-    //ctx.drawImage( image,
-    //  0,image.naturalHeight-calcOutpaintSizeIncrease(image),image.naturalWidth, calcOutpaintSizeIncrease(image), //source 
-    //  0,image.naturalHeight,image.naturalWidth, calcOutpaintSizeIncrease(image) //destination  -- normal
-    //);
+      //Fill in with duplicate/invert
+      ctx.save();
+      ctx.translate(0, canvas.height);
+      ctx.scale(1, -1);
+      ctx.drawImage( image,
+        0,image.naturalHeight-calcOutpaintSizeIncrease(image),image.naturalWidth, calcOutpaintSizeIncrease(image), //source 
+        0, 0,image.naturalWidth, calcOutpaintSizeIncrease(image) //destination -- inverted
+      );
+      ctx.restore();
+
+      ////Fill in with a copy of the bottom
+      //ctx.drawImage( image,
+      //  0,image.naturalHeight-calcOutpaintSizeIncrease(image),image.naturalWidth, calcOutpaintSizeIncrease(image), //source 
+      //  0,image.naturalHeight,image.naturalWidth, calcOutpaintSizeIncrease(image) //destination  -- normal
+      //);
+    }
 
 
     //fill with noise here
@@ -304,6 +332,26 @@ function onOutpaintDownFilter(origRequest, image) {
     canvas.height = newTaskRequest.reqBody.height;
     let ctx = canvas.getContext("2d");
 
+    if (OutpaintItSettings.useExtendImage) {
+      //if (OutpaintItSettings.invertExtendImage) 
+
+      //Fill in with duplicate/invert
+      ctx.save();
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage( image,
+        0, 0, calcOutpaintSizeIncrease(image), image.naturalHeight, //source 
+        image.naturalWidth, 0, calcOutpaintSizeIncrease(image), image.naturalHeight //destination -- inverted   
+     );
+      ctx.restore();
+
+      ////Fill in with a copy of the bottom
+      //ctx.drawImage( image,
+      //  0,image.naturalHeight-calcOutpaintSizeIncrease(image),image.naturalWidth, calcOutpaintSizeIncrease(image), //source 
+      //  0,image.naturalHeight,image.naturalWidth, calcOutpaintSizeIncrease(image) //destination  -- normal
+      //);
+    }
+
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
     var imageData = ctx.getImageData(0, 0, calcOutpaintSizeIncrease(image), canvas.height);
@@ -334,8 +382,8 @@ function onOutpaintDownFilter(origRequest, image) {
     maskctx.fillStyle = gradient; 
     maskctx.fillRect(calcOutpaintSizeIncrease(image)+maskExtraOverlap+maskExtraOffset, 0,image.naturalWidth-maskExtraOverlap-maskExtraOffset, image.naturalHeight); 
 
-    //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
-    //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have    
+  //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
+  //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have    
 
    newTaskRequest.reqBody.mask = maskcanvas.toDataURL('image/png');
    newTaskRequest.reqBody.init_image = canvas.toDataURL('image/png');
@@ -364,6 +412,26 @@ function onOutpaintLeftFilter(origRequest, image) {
     canvas.width = newTaskRequest.reqBody.width;
     canvas.height = newTaskRequest.reqBody.height;
     let ctx = canvas.getContext("2d");
+
+    if (OutpaintItSettings.useExtendImage) {
+      //if (OutpaintItSettings.invertExtendImage) 
+
+      //Fill in with duplicate/invert
+      ctx.save();
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage( image,
+        image.naturalWidth-calcOutpaintSizeIncrease(image), 0, calcOutpaintSizeIncrease(image), image.naturalHeight, //source 
+        0, 0, calcOutpaintSizeIncrease(image), image.naturalHeight //destination -- inverted
+      );
+      ctx.restore();
+
+      ////Fill in with a copy of the right
+      //ctx.drawImage( image,
+      //  image.naturalWidth-calcOutpaintSizeIncrease(image), 0, calcOutpaintSizeIncrease(image), image.naturalHeight, //source 
+      //  image.naturalWidth, 0, calcOutpaintSizeIncrease(image), image.naturalHeight //destination  -- normal
+      //);
+    }
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
@@ -565,6 +633,11 @@ function  onOutpaintAllClick(origRequest, image) {
           </div>
           <label for="outpaintit_change_prompt">Use new prompt, above <small>(not the original prompt)</small></label>
           </li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="outpaintit_extend_image" name="outpaintit_extend_image" type="checkbox" value="`+OutpaintItSettings.useExtendImage+`"  onchange="setOutpaintItSettings()"> <label for="outpaintit_extend_image"></label>
+          </div>
+          <label for="outpaintit_extend_image">Extend image into new area <small>(with noise)</small></label>
+          </li>
         </ul></div>
         </div>`;
     outpaintSettings.innerHTML = tempHTML;
@@ -582,16 +655,20 @@ function  onOutpaintAllClick(origRequest, image) {
 })();
 
 function setOutpaintItSettings() {
-  OutpaintItSettings.useChangedPrompt = outpaintit_change_prompt.checked; // document.getElementById('outpaintit_change_prompt').checked;
+  OutpaintItSettings.useChangedPrompt = outpaintit_change_prompt.checked;
   OutpaintItSettings.useChangedModel = outpaintit_change_model.checked;
+  OutpaintItSettings.useExtendImage = outpaintit_extend_image.checked; //Extend image into noise area
 }
 
 //Sets the default values for the settings.
 function outpaintItResetSettings() {
   OutpaintItSettings.useChangedPrompt = false;
   OutpaintItSettings.useChangedModel = false;
+  OutpaintItSettings.useExtendImage = false;
+  //OutpaintItSettings.invertExtendImage = false; //TODO
 
   //set the input fields
   outpaintit_change_prompt.checked = OutpaintItSettings.useChangedPrompt;
   outpaintit_change_model.checked = OutpaintItSettings.useChangedModel;
+  outpaintit_extend_image.checked = OutpaintItSettings.useExtendImage;
 }
