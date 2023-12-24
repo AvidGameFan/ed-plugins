@@ -63,7 +63,7 @@ var MaxSquareResolution =  2048; //was: 1344;
 
 //SDXL limits:2048*2048 or better
 var maxTotalResolutionXL = 10000000; //3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
-var maxLatentUpscaler = 1600*1152; //Max resolution in which to do the 2x.  Much larger, and Latent Upscaler will run out of memory.
+var maxLatentUpscaler = 1728*1152; //1600*1152; //Max resolution in which to do the 2x.  Much larger, and Latent Upscaler will run out of memory.
 //Note that the table entries go in pairs, if not 1:1 square ratio.
 //Ratios that don't match exactly may slightly stretch or squish the image, but should be slight enough to not be noticeable.
 //First two entries are the x,y resolutions of the image, and last entry is the upscale resolution for x.
@@ -173,6 +173,16 @@ function scaleUp(height,width) {
   return result;
 }
 
+//Model needs to have "turbo" in the filename to be recognized as a turbo model.
+function isModelTurbo(modelName) {
+  let result = false;
+  if (modelName.search(/turbo/i)>=0) {
+    result = true;
+  }  
+  return result;
+}
+
+//Model needs to have "xl" in the filename to be recognized as an xl model.
 function isModelXl(modelName) {
   let result = false;
   if (modelName.search(/xl/i)>=0) {
@@ -376,10 +386,8 @@ function onScaleUpClick(origRequest, image) {
 //    desiredModel=origRequest.use_stable_diffusion_model; //for the original model
 //  }
 
-  var isXl=false;
-  if (isModelXl(desiredModel)) {
-    isXl=true;
-  }
+  var isXl=isModelXl(desiredModel);
+  var isTurbo=isModelTurbo(desiredModel);
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
@@ -390,7 +398,7 @@ function onScaleUpClick(origRequest, image) {
     width: scaleUp(image.naturalWidth, image.naturalHeight),
     height: scaleUp(image.naturalHeight, image.naturalWidth),
     //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
-    num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 25, 80),  //large resolutions combined with large steps can cause an error
+    num_inference_steps: (isTurbo)? 30 : Math.min(parseInt(origRequest.num_inference_steps) + 25, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
     //??use_upscale: 'None',
