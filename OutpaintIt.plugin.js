@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.6.0, last updated: 11/28/2023
+ * v.1.6.1, last updated: 1/1/2024
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -27,6 +27,7 @@ var OutpaintItSettings = {
 (function () { "use strict"
 var outpaintMaxTotalResolution = 6000000; //was: 1280 * 1280; //put max 'low' mode resolution here, max possible size when low mode is on
 var outpaintMaxTurboResolution = 1088	* 1664; //was: 1536	* 896;   //put max resolution (other than 'low' mode) here
+var maxNoVaeTiling = 5500000;  //max resolution to allow no VAE tiling.  Turn off VAE tiling for larger images.
 
 const outpaintSizeIncrease = 128;  //This can be modified by increments/decrements of 64, as desired
 //const outpaintMaskOverlap = 36; //Need some overlap on the mask (minimum of 8px)
@@ -78,6 +79,33 @@ function outpaintSetPixels(imageData) {
   }
 }
 
+//Model needs to have "turbo" in the filename to be recognized as a turbo model.
+function isModelTurbo(modelName) {
+  let result = false;
+  if (modelName.search(/turbo/i)>=0) {
+    result = true;
+  }  
+  return result;
+}
+function desiredModelName(origRequest) {
+  //Grab the model name from the user-input area instead of the original image.
+  if (OutpaintItSettings.useChangedModel) {
+    return $("#editor-settings #stable_diffusion_model")[0].dataset.path; 
+  }
+  else {
+    return origRequest.use_stable_diffusion_model; //for the original model
+  }
+}
+function desiredVaeName(origRequest) {
+  //Grab the  name from the user-input area instead of the original image.
+  if (OutpaintItSettings.useChangedModel) {
+    return $("#editor-settings #vae_model")[0].dataset.path; 
+  }
+  else {
+    return origRequest.use_vae_model; //for the original model
+  }
+}
+
 function calcOutpaintSizeIncrease(image) {
   //For each 2mp, add another block of 64 to the outpaint size.  For larger images, the default value is a bit thin.
   return outpaintSizeIncrease + 64 * Math.floor((image.naturalWidth*image.naturalHeight)/2000000)
@@ -93,6 +121,8 @@ function calcOutpaintSizeIncrease(image) {
 function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   let newTaskRequest = getCurrentUserRequest();
   let initialPromptStrength = (OutpaintItSettings.useExtendImage ? 0.89 : 0.95);
+  var desiredModel=desiredModelName(origRequest);  
+  var isTurbo=isModelTurbo(desiredModel);
       
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
@@ -103,6 +133,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
     // With the high prompt strength, increasing the steps isn't necessary
     //num_inference_steps: Math.max(parseInt(origRequest.num_inference_steps), 50),  //DDIM may require more steps for better results
     num_outputs: 1,
+    use_vae_model: desiredVaeName(origRequest),
     seed: Math.floor(Math.random() * 10000000),
   })
   newTaskRequest.seed = newTaskRequest.reqBody.seed;
@@ -125,12 +156,26 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
     };
   }
 
-  //Use UI's prompt to allow changing to a different model, such as inpainting model, before outpainting.
-  if (OutpaintItSettings.useChangedModel) {
-    newTaskRequest.reqBody.use_stable_diffusion_model = $("#editor-settings #stable_diffusion_model")[0].dataset.path; 
-    //newTaskRequest.reqBody.use_stable_diffusion_model =$("#editor-settings #stable_diffusion_model")[0].dataset.path;
-    newTaskRequest.use_vae_model = $("#editor-settings #vae_model")[0].dataset.path;
+  //we don't need to increase the steps so much, as with normal img2img in ScaleUp, as our prompt strength is high, using nearly all specified steps.
+  if(isTurbo) {
+    newTaskRequest.reqBody.num_inference_steps=Math.min(7,newTaskRequest.reqBody.num_inference_steps);
   }
+  else {
+    newTaskRequest.reqBody.num_inference_steps=Math.min(50,newTaskRequest.reqBody.num_inference_steps);
+  }
+
+  // //Use UI's prompt to allow changing to a different model, such as inpainting model, before outpainting.
+  // if (OutpaintItSettings.useChangedModel) {
+  //   newTaskRequest.reqBody.use_stable_diffusion_model = $("#editor-settings #stable_diffusion_model")[0].dataset.path; 
+  //   //newTaskRequest.reqBody.use_stable_diffusion_model =$("#editor-settings #stable_diffusion_model")[0].dataset.path;
+  //   newTaskRequest.use_vae_model = $("#editor-settings #vae_model")[0].dataset.path;
+  // }
+  newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
+
+  if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
+    newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
+  }
+
 
   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again
 

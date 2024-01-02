@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.0.4, last updated: 10/18/2023
+ * v.2.0.5, last updated: 1/1/2024
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -64,6 +64,7 @@ var MaxSquareResolution =  2048; //was: 1344;
 //SDXL limits:2048*2048 or better
 var maxTotalResolutionXL = 10000000; //3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
 var maxLatentUpscaler = 1728*1152; //1600*1152; //Max resolution in which to do the 2x.  Much larger, and Latent Upscaler will run out of memory.
+var maxNoVaeTiling = 5500000;  //max resolution to allow no VAE tiling.  Turn off VAE tiling for larger images.
 //Note that the table entries go in pairs, if not 1:1 square ratio.
 //Ratios that don't match exactly may slightly stretch or squish the image, but should be slight enough to not be noticeable.
 //First two entries are the x,y resolutions of the image, and last entry is the upscale resolution for x.
@@ -426,7 +427,9 @@ function onScaleUpClick(origRequest, image) {
     //delete newTaskRequest.reqBody.hypernetwork_strength;
     //delete newTaskRequest.reqBody.use_hypernetwork_model;
   }
-  
+  if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
+    newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
+  }
   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
 
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
@@ -458,8 +461,8 @@ function scaleUpFilter(origRequest, image) {
           }
       })
   }
-  //Additionally, allow additional scaling
-  if (scaleUpMAXFilter(origRequest, image) && getHeight(origRequest, image)!=ScaleUpMax(getWidth(origRequest, image),scalingIncrease)) {
+  //Additionally, allow additional scaling -- if not already at max, and if requested resolution doesn't equal what we already have, we should be OK.
+  if (scaleUpMAXFilter(origRequest, image) && getHeight(origRequest, image)!=ScaleUpMax(getHeight(origRequest, image),scalingIncrease)) {
       result=true;
   }
   return result;
@@ -541,7 +544,7 @@ function onScaleUpMAXClick(origRequest, image) {
     width: ScaleUpMax(image.naturalWidth,ratio),
     height: ScaleUpMax(image.naturalHeight,ratio),
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
-    num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
+    num_inference_steps: (isTurbo)? 40 : Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
     //?use_upscale: 'None',
@@ -576,6 +579,10 @@ function onScaleUpMAXClick(origRequest, image) {
     if (ScaleUpSettings.useChangedPrompt ) {
       newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
     };
+  }
+
+  if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
+    newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
   }
 
   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
@@ -658,7 +665,7 @@ function scaleUpOnce(origRequest, image) {
     width: image.naturalWidth,
     height: image.naturalHeight,
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
-    num_inference_steps: Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
+    num_inference_steps: (isTurbo)? 40 : Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
     //??use_upscale: 'None',
@@ -686,6 +693,10 @@ function scaleUpOnce(origRequest, image) {
   if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //put max normal resolution here
     //newTaskRequest.reqBody.turbo = false;
     newTaskRequest.reqBody.vram_usage_level = 'low';
+  }
+
+  if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
+    newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
   }
 
   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
