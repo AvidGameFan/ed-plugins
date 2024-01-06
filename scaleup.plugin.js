@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.0.5, last updated: 1/1/2024
+ * v.2.0.6, last updated: 1/5/2024
  * By Gary W.
  * 
  * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -64,7 +64,7 @@ var MaxSquareResolution =  2048; //was: 1344;
 //SDXL limits:2048*2048 or better
 var maxTotalResolutionXL = 10000000; //3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
 var maxLatentUpscaler = 1728*1152; //1600*1152; //Max resolution in which to do the 2x.  Much larger, and Latent Upscaler will run out of memory.
-var maxNoVaeTiling = 5500000;  //max resolution to allow no VAE tiling.  Turn off VAE tiling for larger images.
+var maxNoVaeTiling = 2200000; //5500000;  //max resolution to allow no VAE tiling.  Turn on VAE tiling for larger images, otherwise it loads more slowly.
 //Note that the table entries go in pairs, if not 1:1 square ratio.
 //Ratios that don't match exactly may slightly stretch or squish the image, but should be slight enough to not be noticeable.
 //First two entries are the x,y resolutions of the image, and last entry is the upscale resolution for x.
@@ -527,6 +527,7 @@ function onScaleUpMAXClick(origRequest, image) {
   var desiredModel=desiredModelName(origRequest);
 
   var isXl=false;
+  var isTurbo=isModelTurbo(desiredModel);
   var maxRes=maxTotalResolution;
   if (isModelXl(desiredModel)) {
     maxRes=maxTotalResolutionXL;
@@ -541,8 +542,9 @@ function onScaleUpMAXClick(origRequest, image) {
     // - 0.15 sticks pretty close to the original, adding detail
 
     //The rounding takes it to the nearest 64, which defines the resolutions available.  This will choose values that are not in the UI.
-    width: ScaleUpMax(image.naturalWidth,ratio),
-    height: ScaleUpMax(image.naturalHeight,ratio),
+    //image.naturalWidth doesn't exist when called from "split click"
+    width: ScaleUpMax(image.naturalWidth==0?origRequest.width:image.naturalWidth,ratio),
+    height: ScaleUpMax(image.naturalHeight==0?origRequest.height:image.naturalHeight,ratio),
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
     num_inference_steps: (isTurbo)? 40 : Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
@@ -649,6 +651,7 @@ function scaleUpOnce(origRequest, image) {
   var desiredModel=desiredModelName(origRequest);
 
   var isXl=false;
+  var isTurbo=isModelTurbo(desiredModel);
   var maxRes=maxTotalResolution;
   if (isModelXl(desiredModel)) {
     maxRes=maxTotalResolutionXL;
@@ -755,6 +758,7 @@ ctx.drawImage( image,
 //var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);  
 var newImage = new Image;
 newImage.src = canvas.toDataURL('image/png');
+
 onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
 
 //lower left
