@@ -1,9 +1,9 @@
 /**
  * Scale Up
- * v.2.0.6, last updated: 1/5/2024
+ * v.2.1.0, last updated: 1/7/2024
  * By Gary W.
  * 
- * Modest scaling up, maintaining close ratio, with img2img to increase resolution of output.
+ * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
  * 
  * Updated to support newer "diffusors" version of Easy Diffusion and SDXL, which can make use
  * of much higher resolutions than before.  (Note that new Nvidia drivers [since version 532]
@@ -533,7 +533,11 @@ function onScaleUpMAXClick(origRequest, image) {
     maxRes=maxTotalResolutionXL;
     isXl=true;
   }
-  var ratio=Math.sqrt(maxRes/(image.naturalHeight*image.naturalWidth));
+  //image.naturalWidth & Height don't exist when called from "split click".  The *2 only makes sense when doing the split.
+  const imageWidth = image.naturalWidth==0?origRequest.width*2:image.naturalWidth;
+  const imageHeight = image.naturalHeight==0?origRequest.height*2:image.naturalHeight;
+  //Only if using "split" and not using max split size, use a ratio of 1 to use current image size.
+  var ratio=(origRequest.scaleUpSplit && !ScaleUpSettings.useMaxSplitSize)? 1: Math.sqrt(maxRes/(imageHeight*imageWidth));
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
@@ -542,9 +546,8 @@ function onScaleUpMAXClick(origRequest, image) {
     // - 0.15 sticks pretty close to the original, adding detail
 
     //The rounding takes it to the nearest 64, which defines the resolutions available.  This will choose values that are not in the UI.
-    //image.naturalWidth doesn't exist when called from "split click"
-    width: ScaleUpMax(image.naturalWidth==0?origRequest.width:image.naturalWidth,ratio),
-    height: ScaleUpMax(image.naturalHeight==0?origRequest.height:image.naturalHeight,ratio),
+    width: ScaleUpMax(imageWidth,ratio),
+    height: ScaleUpMax(imageHeight,ratio),
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
     num_inference_steps: (isTurbo)? 40 : Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
@@ -836,6 +839,11 @@ function  onScaleUpSplitFilter(origRequest, image) {
           </div>
           <label for="scaleup_change_prompt">Use new prompt, above <small>(not the original prompt)</small></label>
           </li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="scaleup_split_size" name="scaleup_split_size" type="checkbox" value="`+ScaleUpSettings.useMaxSplitSize+`"  onchange="setScaleUpSettings()"> <label for="scaleup_split_size"></label>
+          </div>
+          <label for="scaleup_split_size">Use maximum image size for all 4 split (tiled) images</label>
+          </li>
         </ul></div>
         </div>`;
     outpaintSettings.innerHTML = tempHTML;
@@ -858,6 +866,7 @@ function setScaleUpSettings() {
   ScaleUpSettings.use64PixelChunks = scaleup_64pixel_chunks.checked;
   ScaleUpSettings.useChangedPrompt = scaleup_change_prompt.checked;
   ScaleUpSettings.useChangedModel = scaleup_change_model.checked;
+  ScaleUpSettings.useMaxSplitSize = scaleup_split_size.checked;
 }
 
 //Sets the default values for the settings.
@@ -865,11 +874,13 @@ function scaleUpResetSettings() {
   ScaleUpSettings.use64PixelChunks = true;
   ScaleUpSettings.useChangedPrompt = false;
   ScaleUpSettings.useChangedModel = false;
+  ScaleUpSettings.useMaxSplitSize = true;
   //useControlNet = false;
 
   //set the input fields
   scaleup_64pixel_chunks.checked = ScaleUpSettings.use64PixelChunks;
   scaleup_change_prompt.checked = ScaleUpSettings.useChangedPrompt;
   scaleup_change_model.checked = ScaleUpSettings.useChangedModel;
+  scaleup_split_size.checked = ScaleUpSettings.useMaxSplitSize;
 }
 
