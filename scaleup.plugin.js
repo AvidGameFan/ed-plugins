@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.1.0, last updated: 1/7/2024
+ * v.2.2.0, last updated: 1/14/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -557,14 +557,14 @@ function onScaleUpMAXClick(origRequest, image) {
     isXl=true;
   }
   //image.naturalWidth & Height don't exist when called from "split click".  The *2 only makes sense when doing the split.
-  const imageWidth = image.naturalWidth==0?origRequest.width*2:image.naturalWidth;
-  const imageHeight = image.naturalHeight==0?origRequest.height*2:image.naturalHeight;
+  const imageWidth = image.naturalWidth==0?origRequest.width:image.naturalWidth;
+  const imageHeight = image.naturalHeight==0?origRequest.height:image.naturalHeight;
   //Only if using "split" and not using max split size, use a ratio of 1 to use current image size.
-  var ratio=(origRequest.scaleUpSplit && !ScaleUpSettings.useMaxSplitSize)? 1: Math.sqrt(maxRes/(imageHeight*imageWidth));
+  var ratio=(origRequest.scaleUpSplit && !ScaleUpSettings.useMaxSplitSize)? 2: Math.sqrt(maxRes/(imageHeight*imageWidth));
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: (origRequest.scaleUpSplit || isXl)? (scaleUpPreserve ? 0.10 : 0.2):(scaleUpPreserve ? 0.15 : 0.3),  //Lower this number to make results closer to the original
+    prompt_strength: (origRequest.scaleUpSplit || isXl)? (scaleUpPreserve ? 0.11 : 0.22):(scaleUpPreserve ? 0.15 : 0.3),  //Lower this number to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
 
