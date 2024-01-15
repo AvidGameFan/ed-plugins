@@ -140,14 +140,15 @@ var resTable = [
     [896,960,960],  //1.071 -> 1.067
 ]
 
-var scalingIncrease=1.25; //arbitrary amount to increase scaling, when beyond lookup table
+var scalingIncrease1=1.25; //arbitrary amount to increase scaling, when beyond lookup table
+var scalingIncrease2=1.5; //arbitrary amount to increase scaling, when beyond lookup table
 
 function maxRatio(maxRes, height, width) {
   return Math.sqrt(maxRes/(height*width));
 }
 
 
-function scaleUp(height,width) {
+function scaleUp(height,width,scalingIncrease) {
   var result=height;
 
   resTable.forEach(function(item){
@@ -246,6 +247,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push([
     +suLabel+':</span>', type: 'label', 
     on_click: onScaleUpLabelClick, filter: onScaleUpLabelFilter},
   { text: 'Scale Up', on_click: onScaleUpClick, filter: onScaleUpFilter },
+  { text: 'Scale Up2', on_click: onScaleUpClick2, filter: onScaleUpFilter2 },
   { text: 'Scale Up MAX', on_click: onScaleUpMAXClick, filter: onScaleUpMAXFilter },
   { text: '2X', on_click: onScaleUp2xClick, filter: onScaleUp2xFilter },
   { html: '<i class="fa-solid fa-th-large"></i>', on_click: onScaleUpSplitClick, filter: onScaleUpSplitFilter  }
@@ -376,77 +378,85 @@ function onScaleUpLabelClick(origRequest, image) {
 //________________________________________________________________________________________________________________________________________
 
 function onScaleUpClick(origRequest, image) {
-  var desiredModel=desiredModelName(origRequest);
-
-//  //Grab the model name from the user-input area instead of the original image.
-//  if (ScaleUpSettings.useChangedModel) {
-//    desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; 
-//    // grab the VAE too?
-//  }
-//  else {
-//    desiredModel=origRequest.use_stable_diffusion_model; //for the original model
-//  }
-
-  var isXl=isModelXl(desiredModel);
-  var isTurbo=isModelTurbo(desiredModel);
-  let newTaskRequest = getCurrentUserRequest();
-  newTaskRequest.reqBody = Object.assign({}, origRequest, {
-    init_image: image.src,
-    prompt_strength: (isXl)? (scaleUpPreserve ? 0.10 : 0.25):(scaleUpPreserve ? 0.15 : 0.35),  //Lower this number to make results closer to the original
-    // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
-    // - 0.15 sticks pretty close to the original, adding detail
-    // Lower amounts used for SDXL, as it seems more sensitive to changes, especially the refiner model.
-    width: scaleUp(image.naturalWidth, image.naturalHeight),
-    height: scaleUp(image.naturalHeight, image.naturalWidth),
-    //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
-    num_inference_steps: (isTurbo)? 30 : Math.min(parseInt(origRequest.num_inference_steps) + 25, 80),  //large resolutions combined with large steps can cause an error
-    num_outputs: 1,
-    use_vae_model: desiredVaeName(origRequest),
-    //??use_upscale: 'None',
-    //Using a new seed will allow some variation as it up-sizes.
-    seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
-  })
-
-  //if using controlnet
-  if (scaleUpControlNet && !isXl)
-  {
-    newTaskRequest.reqBody.control_image = image.src;
-    newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
-    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
-  }
-
-  newTaskRequest.seed = newTaskRequest.reqBody.seed
-  //newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
-  newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
-  newTaskRequest.numOutputsTotal = 1 // "
-  //If you have a lower-end graphics card, the below will automatically disable memory-intensive options for larger images.
-  //Each person needs to test with different resolutions to find the limit of their card when using balanced (formerly, "turbo") mode.
-  if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //max normal resolution
-    //Disable anything that takes up VRAM here
-    newTaskRequest.reqBody.vram_usage_level = 'low';
-    //delete newTaskRequest.reqBody.hypernetwork_strength;
-    //delete newTaskRequest.reqBody.use_hypernetwork_model;
-  }
-  if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
-    newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
-  }
-  delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
-
-  newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
-  
-  //Grab the prompt from the user-input area instead of the original image.
-  if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
-    if (ScaleUpSettings.useChangedPrompt ) {
-      newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
-    };
-  }
-
-
-  delete newTaskRequest.reqBody.mask
-  createTask(newTaskRequest)
+   scaleUpOnce(origRequest, image, true, scalingIncrease1) ;
 }
 
-function scaleUpFilter(origRequest, image) {
+function onScaleUpClick2(origRequest, image) {
+  scaleUpOnce(origRequest, image, true, scalingIncrease2) ;
+}
+
+// function onScaleUpClick(origRequest, image) {
+//   var desiredModel=desiredModelName(origRequest);
+
+// //  //Grab the model name from the user-input area instead of the original image.
+// //  if (ScaleUpSettings.useChangedModel) {
+// //    desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; 
+// //    // grab the VAE too?
+// //  }
+// //  else {
+// //    desiredModel=origRequest.use_stable_diffusion_model; //for the original model
+// //  }
+
+//   var isXl=isModelXl(desiredModel);
+//   var isTurbo=isModelTurbo(desiredModel);
+//   let newTaskRequest = getCurrentUserRequest();
+//   newTaskRequest.reqBody = Object.assign({}, origRequest, {
+//     init_image: image.src,
+//     prompt_strength: (isXl)? (scaleUpPreserve ? 0.10 : 0.25):(scaleUpPreserve ? 0.15 : 0.35),  //Lower this number to make results closer to the original
+//     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
+//     // - 0.15 sticks pretty close to the original, adding detail
+//     // Lower amounts used for SDXL, as it seems more sensitive to changes, especially the refiner model.
+//     width: scaleUp(image.naturalWidth, image.naturalHeight),
+//     height: scaleUp(image.naturalHeight, image.naturalWidth),
+//     //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
+//     num_inference_steps: (isTurbo)? 30 : Math.min(parseInt(origRequest.num_inference_steps) + 25, 80),  //large resolutions combined with large steps can cause an error
+//     num_outputs: 1,
+//     use_vae_model: desiredVaeName(origRequest),
+//     //??use_upscale: 'None',
+//     //Using a new seed will allow some variation as it up-sizes.
+//     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
+//   })
+
+//   //if using controlnet
+//   if (scaleUpControlNet && !isXl)
+//   {
+//     newTaskRequest.reqBody.control_image = image.src;
+//     newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
+//     newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
+//   }
+
+//   newTaskRequest.seed = newTaskRequest.reqBody.seed
+//   //newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
+//   newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
+//   newTaskRequest.numOutputsTotal = 1 // "
+//   //If you have a lower-end graphics card, the below will automatically disable memory-intensive options for larger images.
+//   //Each person needs to test with different resolutions to find the limit of their card when using balanced (formerly, "turbo") mode.
+//   if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //max normal resolution
+//     //Disable anything that takes up VRAM here
+//     newTaskRequest.reqBody.vram_usage_level = 'low';
+//     //delete newTaskRequest.reqBody.hypernetwork_strength;
+//     //delete newTaskRequest.reqBody.use_hypernetwork_model;
+//   }
+//   if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
+//     newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
+//   }
+//   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
+
+//   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
+  
+//   //Grab the prompt from the user-input area instead of the original image.
+//   if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
+//     if (ScaleUpSettings.useChangedPrompt ) {
+//       newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
+//     };
+//   }
+
+
+//   delete newTaskRequest.reqBody.mask
+//   createTask(newTaskRequest)
+// }
+
+function scaleUpFilter(origRequest, image, scalingIncrease) {
   let result = false
   if (getHeight(origRequest, image)==getWidth(origRequest, image) && getHeight(origRequest, image)<MaxSquareResolution) {
       result=true;
@@ -470,12 +480,25 @@ function scaleUpFilter(origRequest, image) {
 function onScaleUpFilter(origRequest, image) {
   // this is an optional function. return true/false to show/hide the button
   // if this function isn't set, the button will always be visible
-  let result = scaleUpFilter(origRequest, image);
+  let result = scaleUpFilter(origRequest, image, scalingIncrease1);
 
    //Optional display of resolution
   if (result==true) {
-    this.text = scaleUp(getWidth(origRequest, image), getHeight(origRequest, image)) + ' x ' +
-      scaleUp(getHeight(origRequest, image), getWidth(origRequest, image));
+    this.text = scaleUp(getWidth(origRequest, image), getHeight(origRequest, image), scalingIncrease1) + ' x ' +
+      scaleUp(getHeight(origRequest, image), getWidth(origRequest, image), scalingIncrease1);
+  }
+  return result;
+}
+
+function onScaleUpFilter2(origRequest, image) {
+  // this is an optional function. return true/false to show/hide the button
+  // if this function isn't set, the button will always be visible
+  let result = scaleUpFilter(origRequest, image, scalingIncrease2);
+
+   //Optional display of resolution
+  if (result==true) {
+    this.text = scaleUp(getWidth(origRequest, image), getHeight(origRequest, image), scalingIncrease2) + ' x ' +
+      scaleUp(getHeight(origRequest, image), getWidth(origRequest, image), scalingIncrease2);
   }
   return result;
 }
@@ -634,7 +657,7 @@ const asyncFunctionCall = async (origRequest, image, tools) => {
   {
     await delay(3000);
   }
-  scaleUpOnce(origRequest, image) ;
+  scaleUpOnce(origRequest, image, false) ;
 };
 
 function onScaleUp2xClick(origRequest, image, e, tools) {
@@ -650,28 +673,30 @@ function onScaleUp2xClick(origRequest, image, e, tools) {
   asyncFunctionCall(origRequest, image, tools);
 };
 
-function scaleUpOnce(origRequest, image) {
+function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   var desiredModel=desiredModelName(origRequest);
 
   var isXl=false;
   var isTurbo=isModelTurbo(desiredModel);
-  var maxRes=maxTotalResolution;
+  //var maxRes=maxTotalResolution;
   if (isModelXl(desiredModel)) {
-    maxRes=maxTotalResolutionXL;
+    //maxRes=maxTotalResolutionXL;
     isXl=true;
   }
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: (origRequest.scaleUpSplit || isXl)? (scaleUpPreserve ? 0.10 : 0.2):(scaleUpPreserve ? 0.15 : 0.3),  //Lower this number to make results closer to the original
+    prompt_strength: ((origRequest.scaleUpSplit || isXl)? (scaleUpPreserve ? 0.11 : 0.25):(scaleUpPreserve ? 0.15 : 0.33))
+      + (doScaleUp?.05:0), 
+    //Lower prompt_strength to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
 
     //This will choose values that are not in the UI.
-    width: image.naturalWidth,
-    height: image.naturalHeight,
+    width: doScaleUp? scaleUp(image.naturalWidth, image.naturalHeight, scalingIncrease):image.naturalWidth,
+    height: doScaleUp? scaleUp(image.naturalHeight, image.naturalWidth, scalingIncrease):image.naturalHeight,
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
-    num_inference_steps: (isTurbo)? 40 : Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
+    num_inference_steps: (isTurbo)? 25 : Math.min(parseInt(origRequest.num_inference_steps) + 25, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
     //??use_upscale: 'None',
@@ -697,6 +722,7 @@ function scaleUpOnce(origRequest, image) {
   //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
   //Each person needs to test with different resolutions to find the limit of their card when using Balanced or modes other than 'low'.
   if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //put max normal resolution here
+    //Disable anything that takes up VRAM here
     //newTaskRequest.reqBody.turbo = false;
     newTaskRequest.reqBody.vram_usage_level = 'low';
   }
@@ -708,6 +734,13 @@ function scaleUpOnce(origRequest, image) {
   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
 
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
+
+  //Grab the prompt from the user-input area instead of the original image.
+  if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
+    if (ScaleUpSettings.useChangedPrompt ) {
+      newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
+    };
+  }
 
   delete newTaskRequest.reqBody.mask
   createTask(newTaskRequest)
