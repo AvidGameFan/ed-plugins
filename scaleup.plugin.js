@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.3.0, last updated: 1/15/2024
+ * v.2.3.1, last updated: 1/15/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -701,7 +701,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
     prompt_strength: ((origRequest.scaleUpSplit || isXl)? (scaleUpPreserve ? 0.11 : 0.25):(scaleUpPreserve ? 0.15 : 0.33))
-      + (doScaleUp?.05:0) + (ScaleUpSettings.resizeImage?.05:0), 
+      + (doScaleUp?.05:0) + (ScaleUpSettings.resizeImage?.03:0), 
     //Lower prompt_strength to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
@@ -774,7 +774,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
       0, 0, canvas.width, canvas.height //destination
     );
 
-    sharpen(ctx, canvas.width, canvas.height, .5);
+    sharpen(ctx, canvas.width, canvas.height, .3);
     //var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);  
     var newImage = new Image;
     newImage.src = canvas.toDataURL('image/png');
