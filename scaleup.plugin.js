@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.2.0, last updated: 1/14/2024
+ * v.2.3.0, last updated: 1/15/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -35,7 +35,8 @@
 var ScaleUpSettings = {
   use64PixelChunks: true,
   useChangedPrompt: false,
-  useChangedModel: false
+  useChangedModel: false,
+  resizeImage: true
   //useControlNet: false,
 };
 
@@ -159,7 +160,7 @@ function scaleUp(height,width,scalingIncrease) {
           return;
           }
   })
-  if (result==height) { /*no match found in table*/
+  if (result==height || scalingIncrease!=scalingIncrease1) { /*no match found in table OR if not the first button, ignore table */
       if (height==width) { /* and if square */
           if (height>=768 && height<MaxSquareResolution) {
               result=MaxSquareResolution; //arbitrary
@@ -472,7 +473,8 @@ function scaleUpFilter(origRequest, image, scalingIncrease) {
       })
   }
   //Additionally, allow additional scaling -- if not already at max, and if requested resolution doesn't equal what we already have, we should be OK.
-  if (scaleUpMAXFilter(origRequest, image) && getHeight(origRequest, image)!=ScaleUpMax(getHeight(origRequest, image),scalingIncrease)) {
+  if (scaleUpMAXFilter(origRequest, image) && getHeight(origRequest, image)!=ScaleUpMax(getHeight(origRequest, image),scalingIncrease)
+     && scalingIncrease<scaleUpMaxScalingRatio(origRequest, image) ) {
       result=true;
   }
   return result;
@@ -621,16 +623,27 @@ function onScaleUpMAXClick(origRequest, image) {
   createTask(newTaskRequest)
 }
 
-var scaleUpMaxRatio;
-function scaleUpMAXFilter(origRequest, image) {
-  let result = false;
+function scaleUpMaxScalingRatio(origRequest, image) {
+  var scaleUpMaxRatio;
   var maxRes=maxTotalResolution;
   if (isModelXl(desiredModelName(origRequest))) { //$("#editor-settings #stable_diffusion_model").val())) {  //origRequest.use_stable_diffusion_model
     maxRes=maxTotalResolutionXL;
   }
 
   scaleUpMaxRatio=Math.sqrt(maxRes/(getHeight(origRequest, image)*getWidth(origRequest, image)));
-  if (ScaleUpMax(getHeight(origRequest, image), scaleUpMaxRatio) > getHeight(origRequest, image)) {  //if we already matched the max resolution, we're done.
+  return scaleUpMaxRatio;
+}
+
+function scaleUpMAXFilter(origRequest, image) {
+  let result = false;
+  // var scaleUpMaxRatio;
+  // var maxRes=maxTotalResolution;
+  // if (isModelXl(desiredModelName(origRequest))) { //$("#editor-settings #stable_diffusion_model").val())) {  //origRequest.use_stable_diffusion_model
+  //   maxRes=maxTotalResolutionXL;
+  // }
+
+  // scaleUpMaxRatio=Math.sqrt(maxRes/(getHeight(origRequest, image)*getWidth(origRequest, image)));
+  if (ScaleUpMax(getHeight(origRequest, image), scaleUpMaxScalingRatio(origRequest, image)) > getHeight(origRequest, image)) {  //if we already matched the max resolution, we're done.
     result=true;
   }
   return result;
@@ -642,8 +655,8 @@ function onScaleUpMAXFilter(origRequest, image) {
   
   //Optional display of resolution
   if (result==true) {
-      this.text = ScaleUpMax(getWidth(origRequest, image), scaleUpMaxRatio) + ' x ' +
-      ScaleUpMax(getHeight(origRequest, image), scaleUpMaxRatio);
+      this.text = ScaleUpMax(getWidth(origRequest, image), scaleUpMaxScalingRatio(origRequest, image)) + ' x ' +
+      ScaleUpMax(getHeight(origRequest, image), scaleUpMaxScalingRatio(origRequest, image));
   }
   return result;
 }
@@ -683,11 +696,12 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     //maxRes=maxTotalResolutionXL;
     isXl=true;
   }
+
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
     prompt_strength: ((origRequest.scaleUpSplit || isXl)? (scaleUpPreserve ? 0.11 : 0.25):(scaleUpPreserve ? 0.15 : 0.33))
-      + (doScaleUp?.05:0), 
+      + (doScaleUp?.05:0) + (ScaleUpSettings.resizeImage?.05:0), 
     //Lower prompt_strength to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
@@ -743,8 +757,92 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   }
 
   delete newTaskRequest.reqBody.mask
+
+  //resize the image before scaling back up, to maximize detail
+  if(ScaleUpSettings.resizeImage) {
+    //create working canvas
+    let canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth*1.25;
+    canvas.height = image.naturalHeight*1.25;
+
+    let ctx = canvas.getContext("2d");
+
+    // get the image data of the canvas  -- we only need the part we're going to resize
+    //x,y -- upper-left, width & height
+    ctx.drawImage( image,
+      0, 0, image.naturalWidth, image.naturalHeight, //source 
+      0, 0, canvas.width, canvas.height //destination
+    );
+
+    sharpen(ctx, canvas.width, canvas.height, .5);
+    //var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);  
+    var newImage = new Image;
+    newImage.src = canvas.toDataURL('image/png');
+   
+    newTaskRequest.reqBody.init_image = newImage.src;
+  }
+
+
   createTask(newTaskRequest)
 }
+
+/// sharpen image, from https://stackoverflow.com/questions/20316680/javascript-sharpen-image-and-edge-detection-not-working
+/// USAGE:
+///    sharpen(context, width, height, mixFactor)
+///  mixFactor: [0.0, 1.0]
+function sharpen(ctx, w, h, mix) {
+
+  var weights = [0, -1, 0, -1, 5, -1, 0, -1, 0],
+      katet = Math.round(Math.sqrt(weights.length)),
+      half = (katet * 0.5) | 0,
+      dstData = ctx.createImageData(w, h),
+      dstBuff = dstData.data,
+      srcBuff = ctx.getImageData(0, 0, w, h).data,
+      y = h;
+
+  while (y--) {
+
+      var x = w;
+
+      while (x--) {
+
+          var sy = y,
+              sx = x,
+              dstOff = (y * w + x) * 4,
+              r = 0,
+              g = 0,
+              b = 0,
+              a = 0;
+
+          for (var cy = 0; cy < katet; cy++) {
+              for (var cx = 0; cx < katet; cx++) {
+
+                  var scy = sy + cy - half;
+                  var scx = sx + cx - half;
+
+                  if (scy >= 0 && scy < h && scx >= 0 && scx < w) {
+
+                      var srcOff = (scy * w + scx) * 4;
+                      var wt = weights[cy * katet + cx];
+
+                      r += srcBuff[srcOff] * wt;
+                      g += srcBuff[srcOff + 1] * wt;
+                      b += srcBuff[srcOff + 2] * wt;
+                      a += srcBuff[srcOff + 3] * wt;
+                  }
+              }
+          }
+
+          dstBuff[dstOff] = r * mix + srcBuff[dstOff] * (1 - mix);
+          dstBuff[dstOff + 1] = g * mix + srcBuff[dstOff + 1] * (1 - mix);
+          dstBuff[dstOff + 2] = b * mix + srcBuff[dstOff + 2] * (1 - mix)
+          dstBuff[dstOff + 3] = srcBuff[dstOff + 3];
+      }
+  }
+
+  ctx.putImageData(dstData, 0, 0);
+}
+
 
 function onScaleUp2xFilter(origRequest, image) {
   // this is an optional function. return true/false to show/hide the button
@@ -877,6 +975,11 @@ function  onScaleUpSplitFilter(origRequest, image) {
           </div>
           <label for="scaleup_split_size">Use maximum image size for all 4 split (tiled) images</label>
           </li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="scaleup_downsize_sharpen" name="scaleup_downsize_sharpen" type="checkbox" value="`+ScaleUpSettings.resizeImage+`"  onchange="setScaleUpSettings()"> <label for="scaleup_downsize_sharpen"></label>
+          </div>
+          <label for="scaleup_downsize_sharpen">Resize & sharpen image before ScaleUp <small>(enhance details)</small></label>
+          </li>
         </ul></div>
         </div>`;
     outpaintSettings.innerHTML = tempHTML;
@@ -900,6 +1003,7 @@ function setScaleUpSettings() {
   ScaleUpSettings.useChangedPrompt = scaleup_change_prompt.checked;
   ScaleUpSettings.useChangedModel = scaleup_change_model.checked;
   ScaleUpSettings.useMaxSplitSize = scaleup_split_size.checked;
+  ScaleUpSettings.resizeImage = scaleup_downsize_sharpen.checked;
 }
 
 //Sets the default values for the settings.
@@ -908,6 +1012,7 @@ function scaleUpResetSettings() {
   ScaleUpSettings.useChangedPrompt = false;
   ScaleUpSettings.useChangedModel = false;
   ScaleUpSettings.useMaxSplitSize = true;
+  ScaleUpSettings.resizeImage = true;
   //useControlNet = false;
 
   //set the input fields
@@ -915,5 +1020,6 @@ function scaleUpResetSettings() {
   scaleup_change_prompt.checked = ScaleUpSettings.useChangedPrompt;
   scaleup_change_model.checked = ScaleUpSettings.useChangedModel;
   scaleup_split_size.checked = ScaleUpSettings.useMaxSplitSize;
+  scaleup_downsize_sharpen.checked = ScaleUpSettings.resizeImage;
 }
 
