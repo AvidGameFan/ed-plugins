@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.3.2, last updated: 1/16/2024
+ * v.2.3.3, last updated: 1/16/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -177,12 +177,25 @@ function scaleUp(height,width,scalingIncrease) {
 }
 
 //Model needs to have "turbo" in the filename to be recognized as a turbo model.
-function isModelTurbo(modelName) {
-  let result = false;
+function isModelTurbo(modelName, loraList) {
   if (modelName.search(/turbo/i)>=0) {
-    result = true;
-  }  
-  return result;
+    return true;
+  }
+  //if either of the first two Loras contains "lcm", assume turbo lora -- fewer steps needed
+  if (loraList != undefined) {
+    if (loraList[0].length>1) { //it's an array of strings >1
+      if (loraList.some(element => element.search(/lcm/i)>=0) )
+          return true;
+    }
+    else {  //it's a string
+      if (loraList.search(/lcm/i)>=0)
+      return true;
+    }
+  }
+  //if (($("#editor-settings #lora_0")[0]!=undefined && $("#editor-settings #lora_0")[0].dataset.path.search(/lcm/i)>=0)
+  //   || ($("#editor-settings #lora_1")[0]!=undefined && $("#editor-settings #lora_1")[0].dataset.path.search(/lcm/i)>=0)) {
+   // return true;
+  return false;
 }
 
 //Model needs to have "xl" in the filename to be recognized as an xl model.
@@ -552,7 +565,7 @@ function onScaleUpMAXClick(origRequest, image) {
   var desiredModel=desiredModelName(origRequest);
 
   var isXl=false;
-  var isTurbo=isModelTurbo(desiredModel);
+  var isTurbo=isModelTurbo(desiredModel, origRequest.use_lora_model);
   var maxRes=maxTotalResolution;
   if (isModelXl(desiredModel)) {
     maxRes=maxTotalResolutionXL;
@@ -690,7 +703,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   var desiredModel=desiredModelName(origRequest);
 
   var isXl=false;
-  var isTurbo=isModelTurbo(desiredModel);
+  var isTurbo=isModelTurbo(desiredModel, origRequest.use_lora_model);
   //var maxRes=maxTotalResolution;
   if (isModelXl(desiredModel)) {
     //maxRes=maxTotalResolutionXL;
@@ -774,7 +787,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
       0, 0, canvas.width, canvas.height //destination
     );
 
-    sharpen(ctx, canvas.width, canvas.height, .4);
+    sharpen(ctx, canvas.width, canvas.height, .33);
     //var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);  
     var newImage = new Image;
     newImage.src = canvas.toDataURL('image/png');
