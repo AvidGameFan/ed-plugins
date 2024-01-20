@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.3.4, last updated: 1/19/2024
+ * v.2.4.0, last updated: 1/20/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -383,6 +383,15 @@ function onScaleUpLabelClick(origRequest, image) {
   scaleUpPreserve = scaleUpSelection==SCALEUP_PRESERVE || scaleUpSelection==SCALEUP_PRESERVE_CONTROLNET;
   scaleUpControlNet = scaleUpSelection==SCALEUP_CONTROLNET || scaleUpSelection==SCALEUP_PRESERVE_CONTROLNET;
 
+  //SDXL doesn't support controlnet for img2img, so reset the counter for SDXL if controlnet was selected.
+  if(scaleUpControlNet){
+    var desiredModel=desiredModelName(origRequest);
+    if (isModelXl(desiredModel)) {
+      scaleUpPreserve = false;
+      scaleUpControlNet = false;
+      scaleUpSelection = SCALEUP_NORMAL;
+    }
+  }
   //update current labels
   for (var index=0; index<document.getElementsByClassName("scaleup-label").length;index++) {
     document.getElementsByClassName("scaleup-label")[index].innerText=scaleupLabel(!scaleUpMAXFilter(origRequest, image));
@@ -771,7 +780,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     delete newTaskRequest.reqBody.control_filter_to_apply;
     delete newTaskRequest.reqBody.control_image;
   }
-  
+
   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
 
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
@@ -803,6 +812,10 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
 
     sharpen(ctx, canvas.width, canvas.height, .33);
     //var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);  
+    var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
+    img = contrastImage(img, 1);
+    ctx.putImageData(img, 0, 0);
+
     var newImage = new Image;
     newImage.src = canvas.toDataURL('image/png');
    
@@ -870,6 +883,23 @@ function sharpen(ctx, w, h, mix) {
   ctx.putImageData(dstData, 0, 0);
 }
 
+//Contrast from:
+//https://stackoverflow.com/questions/10521978/html5-canvas-image-contrast
+//https://jsfiddle.net/88k7zj3k/6/
+
+function contrastImage(imageData, contrast) {  // contrast as an integer percent  
+  var data = imageData.data;  // original array modified, but canvas not updated
+  contrast *= 2.55; // or *= 255 / 100; scale integer percent to full range
+  var factor = (255 + contrast) / (255.01 - contrast);  //add .1 to avoid /0 error
+
+  for(var i=0;i<data.length;i+=4)  //pixel values in 4-byte blocks (r,g,b,a)
+  {
+      data[i] = factor * (data[i] - 128) + 128;     //r value
+      data[i+1] = factor * (data[i+1] - 128) + 128; //g value
+      data[i+2] = factor * (data[i+2] - 128) + 128; //b value
+  }
+  return imageData;  //optional (e.g. for filter function chaining)
+}
 
 function onScaleUp2xFilter(origRequest, image) {
   // this is an optional function. return true/false to show/hide the button
