@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.3.3, last updated: 1/16/2024
+ * v.2.3.4, last updated: 1/19/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -630,6 +630,13 @@ function onScaleUpMAXClick(origRequest, image) {
 
   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
 
+  //for now, controlnet is not supported with SDLX and img2img, so disable if present.
+  if (isXl) {
+    delete newTaskRequest.reqBody.use_controlnet_model;
+    delete newTaskRequest.reqBody.control_filter_to_apply;
+    delete newTaskRequest.reqBody.control_image;
+  }
+
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
 
   delete newTaskRequest.reqBody.mask
@@ -758,6 +765,13 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
   }
 
+  //for now, controlnet is not supported with SDLX and img2img, so disable if present.
+  if (isXl) {
+    delete newTaskRequest.reqBody.use_controlnet_model;
+    delete newTaskRequest.reqBody.control_filter_to_apply;
+    delete newTaskRequest.reqBody.control_image;
+  }
+  
   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
 
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
