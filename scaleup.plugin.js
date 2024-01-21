@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.4.0, last updated: 1/20/2024
+ * v.2.4.1, last updated: 1/20/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -143,6 +143,7 @@ var resTable = [
 
 var scalingIncrease1=1.25; //arbitrary amount to increase scaling, when beyond lookup table
 var scalingIncrease2=1.5; //arbitrary amount to increase scaling, when beyond lookup table
+var contrastAmount=0.8;  //0.8 appears to slightly increase contrast; 0.7 is more neutral
 
 function maxRatio(maxRes, height, width) {
   return Math.sqrt(maxRes/(height*width));
@@ -649,6 +650,36 @@ function onScaleUpMAXClick(origRequest, image) {
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
 
   delete newTaskRequest.reqBody.mask
+
+  //resize the image before scaling back up, to maximize detail
+  if(ScaleUpSettings.resizeImage) {
+    //create working canvas
+    let canvas = document.createElement("canvas");
+    canvas.width = imageWidth*1.25;
+    canvas.height = imageHeight*1.25;
+
+    let ctx = canvas.getContext("2d");
+
+    // get the image data of the canvas  -- we only need the part we're going to resize
+    //x,y -- upper-left, width & height
+    ctx.drawImage( image,
+      0, 0, imageWidth, imageHeight, //source 
+      0, 0, canvas.width, canvas.height //destination
+    );
+
+    sharpen(ctx, canvas.width, canvas.height, .33);
+    
+    var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
+    img = contrastImage(img, contrastAmount);
+    ctx.putImageData(img, 0, 0);
+
+    var newImage = new Image;
+    newImage.src = canvas.toDataURL('image/png');
+    
+    newTaskRequest.reqBody.init_image = newImage.src;
+  }
+  
+
   createTask(newTaskRequest)
 }
 
@@ -811,9 +842,9 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     );
 
     sharpen(ctx, canvas.width, canvas.height, .33);
-    //var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);  
+    
     var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
-    img = contrastImage(img, 1);
+    img = contrastImage(img, contrastAmount);
     ctx.putImageData(img, 0, 0);
 
     var newImage = new Image;
@@ -1033,9 +1064,9 @@ function  onScaleUpSplitFilter(origRequest, image) {
           <label for="scaleup_split_size">Use maximum image size for all 4 split (tiled) images</label>
           </li>
           <li class="pl-5"><div class="input-toggle">
-          <input id="scaleup_downsize_sharpen" name="scaleup_downsize_sharpen" type="checkbox" value="`+ScaleUpSettings.resizeImage+`"  onchange="setScaleUpSettings()"> <label for="scaleup_downsize_sharpen"></label>
+          <input id="scaleup_resize_sharpen" name="scaleup_resize_sharpen" type="checkbox" value="`+ScaleUpSettings.resizeImage+`"  onchange="setScaleUpSettings()"> <label for="scaleup_resize_sharpen"></label>
           </div>
-          <label for="scaleup_downsize_sharpen">Resize & sharpen image before ScaleUp <small>(enhance details)</small></label>
+          <label for="scaleup_resize_sharpen">Enhance Details <small>(Resize & sharpen image before ScaleUp)</small></label>
           </li>
         </ul></div>
         </div>`;
@@ -1060,7 +1091,7 @@ function setScaleUpSettings() {
   ScaleUpSettings.useChangedPrompt = scaleup_change_prompt.checked;
   ScaleUpSettings.useChangedModel = scaleup_change_model.checked;
   ScaleUpSettings.useMaxSplitSize = scaleup_split_size.checked;
-  ScaleUpSettings.resizeImage = scaleup_downsize_sharpen.checked;
+  ScaleUpSettings.resizeImage = scaleup_resize_sharpen.checked;
 }
 
 //Sets the default values for the settings.
@@ -1077,6 +1108,6 @@ function scaleUpResetSettings() {
   scaleup_change_prompt.checked = ScaleUpSettings.useChangedPrompt;
   scaleup_change_model.checked = ScaleUpSettings.useChangedModel;
   scaleup_split_size.checked = ScaleUpSettings.useMaxSplitSize;
-  scaleup_downsize_sharpen.checked = ScaleUpSettings.resizeImage;
+  scaleup_resize_sharpen.checked = ScaleUpSettings.resizeImage;
 }
 
