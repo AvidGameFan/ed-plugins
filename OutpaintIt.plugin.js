@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.6.1, last updated: 1/1/2024
+ * v.1.7.0, last updated: 1/21/2024
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -31,7 +31,7 @@ var maxNoVaeTiling = 5500000;  //max resolution to allow no VAE tiling.  Turn of
 
 const outpaintSizeIncrease = 128;  //This can be modified by increments/decrements of 64, as desired
 //const outpaintMaskOverlap = 36; //Need some overlap on the mask (minimum of 8px)
-const outpaintPercentToKeep = .3; //Amount of random pixels to retain, to bias effect
+const outpaintPercentToKeep = 1;//.5; //Amount of random pixels to retain, to bias effect
 const maskFade = 0.07;
 const maskExtraOverlap = 0;
 const maskExtraOffset = -24;
@@ -53,31 +53,83 @@ function outpaintSetPixels(imageData) {
   }
   // get the pixel data array
   var pixels = imageData.data;
-
+  var numPixels = pixels.length/4;
   // loop through each pixel
   for (var i = 0; i < pixels.length; i += 4) {
     //if not blank/black and keeping the original pixel, continue.  (If black, probably have not pre-filled the space.)
     if (!(pixels[i]==0 && pixels[i+1]==0 && pixels[i+2]==0) 
-      && Math.random()<outpaintPercentToKeep) continue; //-- if you pre-fill the space, you can vary how much is randomized, to encourage a bias
-    // get the red, green, blue (but not alpha) values
-    var r = pixels[i];
-    var g = pixels[i + 1];
-    var b = pixels[i + 2];
-    //var a = pixels[i + 3];
+      && OutpaintItSettings.useExtendImage
+      && Math.random()<outpaintPercentToKeep)
+         continue; //-- if you pre-fill the space, you can vary how much is randomized, to encourage a bias
 
-    // randomize the pixel values
-    r = randomPixel();
-    g = randomPixel();
-    b = randomPixel();
-    //a = 255;
+    //if pixels are pre-filled and using the extended image, randomize existing pixels, so as not to always bias towards neutral grey
+    // if (OutpaintItSettings.useExtendImage && !(pixels[i]==0 && pixels[i+1]==0 && pixels[i+2]==0)) {
+    //   let newPixel=Math.floor(Math.random()*numPixels)*4;
+    //   //also, bias towards nearby pixels -- only works well for horizontal runs
+    //   if(Math.random()<.2 && i<pixels.length-200 && i>=200) {  //50*4
+    //     newPixel=(Math.floor(Math.random()*100)-50)*4+i;
+    //   }
 
-    // set the new pixel values back to the array
-    pixels[i] = r;
-    pixels[i + 1] = g;
-    pixels[i + 2] = b;
-    pixels[i + 3] = 255;
+    //   pixels[i] = pixels[newPixel];
+    //   pixels[i + 1] = pixels[newPixel+1];
+    //   pixels[i + 2] = pixels[newPixel+2];
+    //   pixels[i + 3] = 255;
+
+    // }
+
+    //always give some color bias to noise
+    let newPixel=Math.floor(Math.random()*numPixels)*4;
+    if(Math.random()<.2 && i<pixels.length-200 && i>=200) {  //50*4
+       newPixel=(Math.floor(Math.random()*100)-50)*4+i;
+        //note that if filled with more noise, this is going to reach back and pick up earlier noise values - not ideal
+       pixels[i] = pixels[newPixel];
+       pixels[i + 1] = pixels[newPixel+1];
+       pixels[i + 2] = pixels[newPixel+2];
+       pixels[i + 3] = 255;
+
+    }
+    else if (!OutpaintItSettings.useExtendImage)
+    {
+      // get the red, green, blue (but not alpha) values
+      var r;// = pixels[i];
+      var g;// = pixels[i + 1];
+      var b;// = pixels[i + 2];
+      //var a = pixels[i + 3];
+
+      // randomize the pixel values
+      r = randomPixel();
+      g = randomPixel();
+      b = randomPixel();
+      //a = 255;
+
+      // set the new pixel values back to the array
+      pixels[i] = r;
+      pixels[i + 1] = g;
+      pixels[i + 2] = b;
+      pixels[i + 3] = 255;
+    }
   }
 }
+
+var contrastAmount=2;
+//Contrast from:
+//https://stackoverflow.com/questions/10521978/html5-canvas-image-contrast
+//https://jsfiddle.net/88k7zj3k/6/
+
+function contrastImage(imageData, contrast) {  // contrast as an integer percent  
+  var data = imageData.data;  // original array modified, but canvas not updated
+  contrast *= 2.55; // or *= 255 / 100; scale integer percent to full range
+  var factor = (255 + contrast) / (255.01 - contrast);  //add .1 to avoid /0 error
+
+  for(var i=0;i<data.length;i+=4)  //pixel values in 4-byte blocks (r,g,b,a)
+  {
+      data[i] = factor * (data[i] - 128) + 128;     //r value
+      data[i+1] = factor * (data[i+1] - 128) + 128; //g value
+      data[i+2] = factor * (data[i+2] - 128) + 128; //b value
+  }
+  return imageData;  //optional (e.g. for filter function chaining)
+}
+
 
 //Model needs to have "turbo" in the filename to be recognized as a turbo model.
 function isModelTurbo(modelName) {
@@ -126,12 +178,13 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
       
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: initialPromptStrength+Math.random()*(1-initialPromptStrength), //be sure the values add up to 1 or less
+    prompt_strength: initialPromptStrength+Math.random()*(1-initialPromptStrength) - (OutpaintItSettings.useExtendImage ? 0.09 : 0.0), //be sure the values add up to 1 or less
     width: image.naturalWidth + ((widen || all)?calcOutpaintSizeIncrease(image):0),
     height: image.naturalHeight + ((!widen || all)?calcOutpaintSizeIncrease(image):0),
     //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
     // With the high prompt strength, increasing the steps isn't necessary
     //num_inference_steps: Math.max(parseInt(origRequest.num_inference_steps), 50),  //DDIM may require more steps for better results
+    //num_inference_steps: (isTurbo)? 10 : parseInt(origRequest.num_inference_steps) ),
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
     seed: Math.floor(Math.random() * 10000000),
@@ -214,7 +267,7 @@ function  onOutpaintUpClick(origRequest, image) {
     let ctx = canvas.getContext("2d");
 
 
-    if (OutpaintItSettings.useExtendImage) {
+//    if (OutpaintItSettings.useExtendImage) {
       //if (OutpaintItSettings.invertExtendImage) 
 
       //Fill in with duplicate/invert
@@ -231,12 +284,15 @@ function  onOutpaintUpClick(origRequest, image) {
       //  0,image.naturalHeight-calcOutpaintSizeIncrease(image),image.naturalWidth, calcOutpaintSizeIncrease(image), //source 
       //  0,image.naturalHeight,image.naturalWidth, calcOutpaintSizeIncrease(image) //destination  -- normal
       //);
-    }
+//    }
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
     var imageData = ctx.getImageData(0, 0, canvas.width, calcOutpaintSizeIncrease(image));
 
+//    if (OutpaintItSettings.useExtendImage) {
+      imageData = contrastImage(imageData, contrastAmount);
+//    }
     outpaintSetPixels(imageData);
 
     // put the modified image data back to the context
@@ -299,7 +355,7 @@ function  onOutpaintDownClick(origRequest, image) {
       0, 0,image.naturalWidth,image.naturalHeight //destination
     );
 
-    if (OutpaintItSettings.useExtendImage) {
+//    if (OutpaintItSettings.useExtendImage) {
       //if (OutpaintItSettings.invertExtendImage) 
 
       //Fill in with duplicate/invert
@@ -317,13 +373,16 @@ function  onOutpaintDownClick(origRequest, image) {
       //  0,image.naturalHeight-calcOutpaintSizeIncrease(image),image.naturalWidth, calcOutpaintSizeIncrease(image), //source 
       //  0,image.naturalHeight,image.naturalWidth, calcOutpaintSizeIncrease(image) //destination  -- normal
       //);
-    }
+//    }
 
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
     var imageData = ctx.getImageData(0, canvas.height-calcOutpaintSizeIncrease(image), canvas.width, calcOutpaintSizeIncrease(image));
 
+//    if (OutpaintItSettings.useExtendImage) {
+      imageData = contrastImage(imageData, contrastAmount);
+//    }
     outpaintSetPixels(imageData);
 
     // put the modified image data back to the context
@@ -377,7 +436,7 @@ function onOutpaintDownFilter(origRequest, image) {
     canvas.height = newTaskRequest.reqBody.height;
     let ctx = canvas.getContext("2d");
 
-    if (OutpaintItSettings.useExtendImage) {
+//    if (OutpaintItSettings.useExtendImage) {
       //if (OutpaintItSettings.invertExtendImage) 
 
       //Fill in with duplicate/invert
@@ -395,12 +454,15 @@ function onOutpaintDownFilter(origRequest, image) {
       //  0,image.naturalHeight-calcOutpaintSizeIncrease(image),image.naturalWidth, calcOutpaintSizeIncrease(image), //source 
       //  0,image.naturalHeight,image.naturalWidth, calcOutpaintSizeIncrease(image) //destination  -- normal
       //);
-    }
+//    }
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
     var imageData = ctx.getImageData(0, 0, calcOutpaintSizeIncrease(image), canvas.height);
 
+//    if (OutpaintItSettings.useExtendImage) {
+      imageData = contrastImage(imageData, contrastAmount);
+//    }
     outpaintSetPixels(imageData);
 
     // put the modified image data back to the context
@@ -458,7 +520,7 @@ function onOutpaintLeftFilter(origRequest, image) {
     canvas.height = newTaskRequest.reqBody.height;
     let ctx = canvas.getContext("2d");
 
-    if (OutpaintItSettings.useExtendImage) {
+//    if (OutpaintItSettings.useExtendImage) {
       //if (OutpaintItSettings.invertExtendImage) 
 
       //Fill in with duplicate/invert
@@ -476,12 +538,15 @@ function onOutpaintLeftFilter(origRequest, image) {
       //  image.naturalWidth-calcOutpaintSizeIncrease(image), 0, calcOutpaintSizeIncrease(image), image.naturalHeight, //source 
       //  image.naturalWidth, 0, calcOutpaintSizeIncrease(image), image.naturalHeight //destination  -- normal
       //);
-    }
+//    }
 
     //fill with noise here
     // get the image data of the canvas  -- we only need the part we're going to outpaint
     var imageData = ctx.getImageData(canvas.width-calcOutpaintSizeIncrease(image), 0, calcOutpaintSizeIncrease(image), canvas.height);
 
+//    if (OutpaintItSettings.useExtendImage) {
+      imageData = contrastImage(imageData, contrastAmount);
+//    }
     outpaintSetPixels(imageData);
 
     // put the modified image data back to the context
