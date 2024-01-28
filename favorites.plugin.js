@@ -1,7 +1,7 @@
 /***
  * 
  * Favorites Plugin for Easy Diffusion
- * v.0.9.0, last updated: 1/19/2024
+ * v.0.9.1, last updated: 1/26/2024
  * By Gary W.
  * 
  * This plugin allows you to tag your favorite images, by saving the seeds to a file.  
@@ -15,9 +15,10 @@
  * 
  */
 
-(function() { "use strict"
 
-var loadDate = Date.now();  //load date as soon as possible, to closely match the folder date
+
+(function() { "use strict"
+const favorites_loadDate = Date.now();  //load date as soon as possible, to closely match the folder date
 
 const suLabel = 'Favorites';  //base label prefix
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
@@ -53,7 +54,7 @@ var url = URL.createObjectURL(blob);
 // Create an anchor element with the download attribute
 var a = document.createElement("a");
 a.href = url;
-a.download = "favoriteslist-"+loadDate+".txt";
+a.download = "favoriteslist-"+favorites_loadDate+".txt";
 
 // Append the anchor to the document body
 document.body.appendChild(a);
