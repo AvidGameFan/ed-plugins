@@ -13,6 +13,19 @@ Adds options to easily scale-up to a slightly-higher resolution.  This will add 
 Allows painting outside of the original image.  Simple one-click interface.
 [OutpaintIt](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/master/OutpaintIt.plugin.js)
 
+### Favorites
+
+ Tag images to more easily organize them by moving your favorites to another location.
+
+ Click the heart icon to tag images in the browser, then, before you close the browser tab, click the disk icon to save the list of seeds corresponding to the images you tagged to a text file.  You can manually look for these seeds (for example, using the sidecar .txt or .json files), or use an external copy utility that nearly automates the process.
+
+[Favorites](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/master/favorites.plugin.js)
+
+[Copy utility MoveSelectedFavorites.exe](https://github.com/AvidGameFan/MoveSelectedFavorites/tree/main/bin/Release)
+
+#### Notes on using MoveSelectedFavorites
+Currently, files are copied, not moved, and not overwritten.  The Favorites txt file is usually placed in your downloads folder, while your images are typically saved in your home folder, under Stable Diffusion UI.  The utility attempts to match the number in the favorites txt file with the folder name.
+
 ### Custom Modifiers
 
 [Custom Artists.zip](https://app.box.com/s/pv5t50jm3qebsiydsqnxd3pnqpj0roq7) - a collection of artists, with some separated by category  
