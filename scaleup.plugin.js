@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.4.1, last updated: 1/20/2024
+ * v.2.5.0, last updated: 2/3/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1078,8 +1078,8 @@ function  onScaleUpSplitFilter(origRequest, image) {
     const icon = document.getElementById('reset-scaleup-settings');
     icon.addEventListener('click', scaleUpResetSettings);
 
-    //Ensure switches match the settings (for the initial values), since "value=" in above HTML doesn't appear to work.
-    scaleUpResetSettings();
+    //Ensure switches match the settings (for the initial values), since "value=" in above HTML may not work.  But more importantly, we now load settings from storage.
+    scaleUpResetSettings(null);
   }
   setup();
 
@@ -1092,16 +1092,33 @@ function setScaleUpSettings() {
   ScaleUpSettings.useChangedModel = scaleup_change_model.checked;
   ScaleUpSettings.useMaxSplitSize = scaleup_split_size.checked;
   ScaleUpSettings.resizeImage = scaleup_resize_sharpen.checked;
+
+  localStorage.setItem('ScaleUp_Plugin_Settings', JSON.stringify(ScaleUpSettings));  //Store settings
 }
 
 //Sets the default values for the settings.
-function scaleUpResetSettings() {
-  ScaleUpSettings.use64PixelChunks = true;
-  ScaleUpSettings.useChangedPrompt = false;
-  ScaleUpSettings.useChangedModel = false;
-  ScaleUpSettings.useMaxSplitSize = true;
-  ScaleUpSettings.resizeImage = true;
-  //useControlNet = false;
+//If reset=pointerevent, then we came from the reset click -- reset to absolute defaults
+//if reset=null, just reload from saved settings
+//Could manually remove/reset settings using:  localStorage.removeItem('ScaleUp_Plugin_Settings')
+function scaleUpResetSettings(reset) {
+
+  let settings = JSON.parse(localStorage.getItem('ScaleUp_Plugin_Settings'));
+  if (settings == null || reset !=null) {  //if settings not found, just set everything
+    ScaleUpSettings.use64PixelChunks = false;
+    ScaleUpSettings.useChangedPrompt = false;
+    ScaleUpSettings.useChangedModel = false;
+    ScaleUpSettings.useMaxSplitSize = true;
+    ScaleUpSettings.resizeImage = true;
+    //useControlNet = false;
+  }
+  else {  //if settings found, but we've added a new setting, use a default value instead.  (Not strictly necessary for this first group.)
+    ScaleUpSettings.use64PixelChunks =settings.use64PixelChunks ?? false;
+    ScaleUpSettings.useChangedPrompt =settings.useChangedPrompt ?? false;
+    ScaleUpSettings.useChangedModel =settings.useChangedModel ?? false;
+    ScaleUpSettings.useMaxSplitSize =settings.useMaxSplitSize ?? true;
+    ScaleUpSettings.resizeImage =settings.resizeImage ?? true;
+    }
+  localStorage.setItem('ScaleUp_Plugin_Settings', JSON.stringify(ScaleUpSettings));  //Store settings
 
   //set the input fields
   scaleup_64pixel_chunks.checked = ScaleUpSettings.use64PixelChunks;
