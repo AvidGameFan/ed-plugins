@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.7.0, last updated: 1/21/2024
+ * v.1.8.0, last updated: 2/3/2024
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -759,7 +759,7 @@ function  onOutpaintAllClick(origRequest, image) {
     icon.addEventListener('click', outpaintItResetSettings);
 
     //Ensure switches match the settings (for the initial values), since "value=" in above HTML doesn't appear to work.
-    outpaintItResetSettings();
+    outpaintItResetSettings(null);
   }
   setup();
 })();
@@ -768,14 +768,25 @@ function setOutpaintItSettings() {
   OutpaintItSettings.useChangedPrompt = outpaintit_change_prompt.checked;
   OutpaintItSettings.useChangedModel = outpaintit_change_model.checked;
   OutpaintItSettings.useExtendImage = outpaintit_extend_image.checked; //Extend image into noise area
+
+  localStorage.setItem('OutpaintIt_Plugin_Settings', JSON.stringify(OutpaintItSettings));  //Store settings
 }
 
 //Sets the default values for the settings.
-function outpaintItResetSettings() {
-  OutpaintItSettings.useChangedPrompt = false;
-  OutpaintItSettings.useChangedModel = false;
-  OutpaintItSettings.useExtendImage = false;
-  //OutpaintItSettings.invertExtendImage = false; //TODO
+function outpaintItResetSettings(reset) {
+  let settings = JSON.parse(localStorage.getItem('OutpaintIt_Plugin_Settings'));
+  if (settings == null || reset !=null) {  //if settings not found, just set everything
+    OutpaintItSettings.useChangedPrompt = false;
+    OutpaintItSettings.useChangedModel = false;
+    OutpaintItSettings.useExtendImage = false;
+    //OutpaintItSettings.invertExtendImage = false; //TODO
+  }
+  else {  //if settings found, but we've added a new setting, use a default value instead.  (Not strictly necessary for this first group.)
+    OutpaintItSettings.useChangedPrompt =settings.useChangedPrompt ?? false;
+    OutpaintItSettings.useChangedModel =settings.useChangedModel ?? false;
+    OutpaintItSettings.useExtendImage =settings.useExtendImage ?? false;
+  }
+  localStorage.setItem('OutpaintIt_Plugin_Settings', JSON.stringify(OutpaintItSettings));  //Store settings
 
   //set the input fields
   outpaintit_change_prompt.checked = OutpaintItSettings.useChangedPrompt;
