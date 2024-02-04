@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.5.0, last updated: 2/3/2024
+ * v.2.5.1, last updated: 2/3/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -58,12 +58,13 @@ for much greater sizes.
 
 //Original 1.5 limits: 1280 * 1536 ( 1536	* 896 balanced?)
 //For 8GB VRAM and xformers, try 2592 * 2016 or more.
+//Between more recent versions of ED and improved Nvidia drivers, you can now generate much larger (in late 2023) than before (early 2023).
 var maxTotalResolution = 10000000; //6000000; //2048 * 1088; //put max 'low' mode resolution here, max possible size when low mode is on
 var maxTurboResolution = 1088	* 1664; //put max 'balanced' resolution here - larger output will enter 'low' mode, automatically.
 var MaxSquareResolution =  2048; //was: 1344;
 
 //SDXL limits:2048*2048 or better
-var maxTotalResolutionXL = 10000000; //3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
+var maxTotalResolutionXL = 4096*3072; //10000000; //3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
 var maxLatentUpscaler = 1728*1152; //1600*1152; //Max resolution in which to do the 2x.  Much larger, and Latent Upscaler will run out of memory.
 var maxNoVaeTiling = 2200000; //5500000;  //max resolution to allow no VAE tiling.  Turn on VAE tiling for larger images, otherwise it loads more slowly.
 //Note that the table entries go in pairs, if not 1:1 square ratio.
