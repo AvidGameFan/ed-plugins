@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.8.0, last updated: 2/3/2024
+ * v.1.8.5, last updated: 2/3/2024
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -17,6 +17,7 @@
 var OutpaintItSettings = {
   useChangedPrompt: false,
   useChangedModel: false,
+  useChangedSampler: false,
   useExtendImage: false
 };
 
@@ -157,6 +158,17 @@ function desiredVaeName(origRequest) {
     return origRequest.use_vae_model; //for the original model
   }
 }
+//allow changing the sampler, for those who swap to a different sampler for img2img on intermediate steps
+function desiredSamplerName(origRequest) {
+  //Grab the  name from the user-input area instead of the original image.
+  if (OutpaintItSettings.useChangedSampler) {
+    return $("#editor-settings #sampler_name")[0].value
+  }
+  else {
+    return origRequest.sampler_name; //for the original model
+  }
+}
+
 
 function calcOutpaintSizeIncrease(image) {
   //For each 2mp, add another block of 64 to the outpaint size.  For larger images, the default value is a bit thin.
@@ -187,6 +199,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
     //num_inference_steps: (isTurbo)? 10 : parseInt(origRequest.num_inference_steps) ),
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
+    sampler_name: desiredSamplerName(origRequest),
     seed: Math.floor(Math.random() * 10000000),
   })
   newTaskRequest.seed = newTaskRequest.reqBody.seed;
@@ -744,6 +757,11 @@ function  onOutpaintAllClick(origRequest, image) {
           <label for="outpaintit_change_prompt">Use new prompt, above <small>(not the original prompt)</small></label>
           </li>
           <li class="pl-5"><div class="input-toggle">
+          <input id="outpaintit_change_sampler" name="outpaintit_change_sampler" type="checkbox" value="`+OutpaintItSettings.useChangedSampler+`"  onchange="setOutpaintItSettings()"> <label for="outpaintit_change_sampler"></label>
+          </div>
+          <label for="outpaintit_change_sampler">Use new sampler, above <small>(not the original sampler)</small></label>
+          </li>
+          <li class="pl-5"><div class="input-toggle">
           <input id="outpaintit_extend_image" name="outpaintit_extend_image" type="checkbox" value="`+OutpaintItSettings.useExtendImage+`"  onchange="setOutpaintItSettings()"> <label for="outpaintit_extend_image"></label>
           </div>
           <label for="outpaintit_extend_image">Extend image into new area <small>(with noise)</small></label>
@@ -767,6 +785,7 @@ function  onOutpaintAllClick(origRequest, image) {
 function setOutpaintItSettings() {
   OutpaintItSettings.useChangedPrompt = outpaintit_change_prompt.checked;
   OutpaintItSettings.useChangedModel = outpaintit_change_model.checked;
+  OutpaintItSettings.useChangedSampler = outpaintit_change_sampler.checked;
   OutpaintItSettings.useExtendImage = outpaintit_extend_image.checked; //Extend image into noise area
 
   localStorage.setItem('OutpaintIt_Plugin_Settings', JSON.stringify(OutpaintItSettings));  //Store settings
@@ -778,12 +797,14 @@ function outpaintItResetSettings(reset) {
   if (settings == null || reset !=null) {  //if settings not found, just set everything
     OutpaintItSettings.useChangedPrompt = false;
     OutpaintItSettings.useChangedModel = false;
+    OutpaintItSettings.useChangedSampler = false;
     OutpaintItSettings.useExtendImage = false;
     //OutpaintItSettings.invertExtendImage = false; //TODO
   }
   else {  //if settings found, but we've added a new setting, use a default value instead.  (Not strictly necessary for this first group.)
     OutpaintItSettings.useChangedPrompt =settings.useChangedPrompt ?? false;
     OutpaintItSettings.useChangedModel =settings.useChangedModel ?? false;
+    OutpaintItSettings.useChangedSampler =settings.useChangedSampler ?? false;
     OutpaintItSettings.useExtendImage =settings.useExtendImage ?? false;
   }
   localStorage.setItem('OutpaintIt_Plugin_Settings', JSON.stringify(OutpaintItSettings));  //Store settings
@@ -791,5 +812,6 @@ function outpaintItResetSettings(reset) {
   //set the input fields
   outpaintit_change_prompt.checked = OutpaintItSettings.useChangedPrompt;
   outpaintit_change_model.checked = OutpaintItSettings.useChangedModel;
+  outpaintit_change_sampler.checked = OutpaintItSettings.useChangedSampler;
   outpaintit_extend_image.checked = OutpaintItSettings.useExtendImage;
 }
