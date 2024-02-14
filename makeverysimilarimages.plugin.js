@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.0.9.0, last updated: 2/11/2024
+ * v.0.9.1, last updated: 2/13/2024
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -48,7 +48,7 @@ function onMakeVerySimilarClick(origRequest, image) {
   const newTaskRequest = modifyCurrentRequest(origRequest, {
     num_outputs: 1,
     num_inference_steps: (isTurbo)? 18 : Math.min(parseInt(origRequest.num_inference_steps) + 10, 50),  //large resolutions combined with large steps can cause an error
-    prompt_strength: 0.6,
+    prompt_strength: 0.7,
     init_image: image.src,
     seed: Math.floor(Math.random() * 10000000),
 })
