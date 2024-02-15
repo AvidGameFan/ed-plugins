@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.5.1, last updated: 2/3/2024
+ * v.2.6.0, last updated: 2/14/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -483,16 +483,15 @@ function onScaleUpClick2(origRequest, image) {
 
 function scaleUpFilter(origRequest, image, scalingIncrease) {
   let result = false
-  if (getHeight(origRequest, image)==getWidth(origRequest, image) && getHeight(origRequest, image)<MaxSquareResolution) {
-      result=true;
+  if (getHeight(origRequest, image)==getWidth(origRequest, image) ) { //if square image
+    return getHeight(origRequest, image)<MaxSquareResolution;
   }
   else {      //check table for valid entries, otherwise disable button
       resTable.forEach(function(item){
       if (item[0]==getHeight(origRequest, image) && 
           item[1]==getWidth(origRequest, image))
           {
-          result=true;
-          return;
+          return true;
           }
       })
   }
@@ -521,11 +520,19 @@ function onScaleUpFilter2(origRequest, image) {
   // if this function isn't set, the button will always be visible
   let result = scaleUpFilter(origRequest, image, scalingIncrease2);
 
+  var nextHeight=scaleUp(getWidth(origRequest, image), getHeight(origRequest, image), scalingIncrease2);
+  //If we happen to be the same size as the other button (such as when at max square size, or if there's an overlap between the 
+  //table and the calculated result), remove this button to ease confusing.
+  if (nextHeight==scaleUp(getWidth(origRequest, image), getHeight(origRequest, image), scalingIncrease1)) {
+    result=false;
+  }
+
    //Optional display of resolution
   if (result==true) {
-    this.text = scaleUp(getWidth(origRequest, image), getHeight(origRequest, image), scalingIncrease2) + ' x ' +
+    this.text = nextHeight + ' x ' +
       scaleUp(getHeight(origRequest, image), getWidth(origRequest, image), scalingIncrease2);
   }
+  
   return result;
 }
 
@@ -673,10 +680,8 @@ function onScaleUpMAXClick(origRequest, image) {
     var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
     img = contrastImage(img, contrastAmount);
     ctx.putImageData(img, 0, 0);
-
     var newImage = new Image;
     newImage.src = canvas.toDataURL('image/png');
-    
     newTaskRequest.reqBody.init_image = newImage.src;
   }
   
@@ -980,9 +985,8 @@ ctx.drawImage( image,
 );
 //var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);  
 var newImage = new Image;
+newImage.onload = function(){onScaleUpMAXClick(newTaskRequest.reqBody, newImage);}
 newImage.src = canvas.toDataURL('image/png');
-
-onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
 
 //lower left
 ctx.drawImage( image,
@@ -990,9 +994,9 @@ ctx.drawImage( image,
   0, 0, canvas.width, canvas.height //destination
 );
 //imageData = ctx.getImageData(0,canvas.width-splitOverlap*2, canvas.width, canvas.height); //upper-right
-newImage = new Image;
-newImage.src = canvas.toDataURL('image/png');
-onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
+var newImage2 = new Image;
+newImage2.onload = function(){onScaleUpMAXClick(newTaskRequest.reqBody, newImage2);}
+newImage2.src = canvas.toDataURL('image/png');
 
 //upper-right
 ctx.drawImage( image,
@@ -1000,9 +1004,9 @@ ctx.drawImage( image,
   0, 0, canvas.width, canvas.height //destination
 );
 //imageData = ctx.getImageData(canvas.height-splitOverlap*2, 0, canvas.width, canvas.height);  //x,y -- lower-r, width & height
-newImage = new Image;
-newImage.src = canvas.toDataURL('image/png');
-onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
+var newImage3 = new Image;
+newImage3.onload = function(){onScaleUpMAXClick(newTaskRequest.reqBody, newImage3);}
+newImage3.src = canvas.toDataURL('image/png');
 
 //lower right
 ctx.drawImage( image,
@@ -1010,9 +1014,9 @@ ctx.drawImage( image,
   0, 0, canvas.width, canvas.height //destination
 );
 //imageData = ctx.getImageData(canvas.height-splitOverlap*2, 0, canvas.width, canvas.height);  //x,y -- lower-r, width & height
-newImage = new Image;
-newImage.src = canvas.toDataURL('image/png');
-onScaleUpMAXClick(newTaskRequest.reqBody, newImage);
+var newImage4 = new Image;
+newImage4.onload = function(){onScaleUpMAXClick(newTaskRequest.reqBody, newImage4);}
+newImage4.src = canvas.toDataURL('image/png');
 
 }
 
@@ -1062,7 +1066,7 @@ function  onScaleUpSplitFilter(origRequest, image) {
           <li class="pl-5"><div class="input-toggle">
           <input id="scaleup_split_size" name="scaleup_split_size" type="checkbox" value="`+ScaleUpSettings.useMaxSplitSize+`"  onchange="setScaleUpSettings()"> <label for="scaleup_split_size"></label>
           </div>
-          <label for="scaleup_split_size">Use maximum image size for all 4 split (tiled) images</label>
+          <label for="scaleup_split_size">Use maximum image size for all 4 split (tiled) images <small>(else, use current size x4)</small></label>
           </li>
           <li class="pl-5"><div class="input-toggle">
           <input id="scaleup_resize_sharpen" name="scaleup_resize_sharpen" type="checkbox" value="`+ScaleUpSettings.resizeImage+`"  onchange="setScaleUpSettings()"> <label for="scaleup_resize_sharpen"></label>
