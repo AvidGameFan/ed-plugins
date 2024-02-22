@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.6.0, last updated: 2/14/2024
+ * v.2.7.0, last updated: 2/21/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -266,6 +266,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { text: 'Scale Up2', on_click: onScaleUpClick2, filter: onScaleUpFilter2 },
   { text: 'Scale Up MAX', on_click: onScaleUpMAXClick, filter: onScaleUpMAXFilter },
   { text: '2X', on_click: onScaleUp2xClick, filter: onScaleUp2xFilter },
+  { html: '<i class="fa fa-list-ol"></i>', on_click: onScaleUpMultiClick, filter: onScaleUpMultiFilter  },
   { html: '<i class="fa-solid fa-th-large"></i>', on_click: onScaleUpSplitClick, filter: onScaleUpSplitFilter  }
 ])
 /* Note: Tooltip will be removed once the label is clicked. */
@@ -838,7 +839,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     canvas.width = image.naturalWidth*1.25;
     canvas.height = image.naturalHeight*1.25;
 
-    let ctx = canvas.getContext("2d");
+    let ctx = canvas.getContext("2d", {willReadFrequently: true});
 
     // get the image data of the canvas  -- we only need the part we're going to resize
     //x,y -- upper-left, width & height
@@ -1027,6 +1028,45 @@ function  onScaleUpSplitFilter(origRequest, image) {
   }
   else
     return false;
+}
+//________________________________________________________________________________________________________________________________________
+
+// const asyncMultiCall = async (origRequest, image, tools) => {
+//   //while the image is still processing visible, wait.
+//   while (!(window.getComputedStyle($("div#server-status-color")[0]).getPropertyValue("color")=="rgb(0, 128, 0)"))
+//   {
+//     await delay(3000);
+//   }
+//   scaleUpOnce(origRequest, image, true, scalingIncrease2) ;
+// };
+const numScaleUps = 3;
+function onScaleUpMultiClick(origRequest, image) {
+  if (origRequest.MultiScaleUpCount == undefined) {
+    origRequest.MultiScaleUpCount = numScaleUps-1;
+    scaleUpOnce(origRequest, image, true, scalingIncrease1) ;
+  }
+  // else {
+  //   origRequest.MultiScaleUpCount--;
+  //   scaleUpOnce(origRequest, image, true, scalingIncrease2) ;
+  // }
+
+}
+
+function  onScaleUpMultiFilter(origRequest, image) {
+  let scale = (origRequest.MultiScaleUpCount==1)?scalingIncrease2:scalingIncrease1;  //Make the final size-up larger
+  //If we've reached the max (with the scaling increase), stop processing
+  if (!scaleUpFilter(origRequest, image, scale)) {
+    delete origRequest.MultiScaleUpCount; //needed?
+    return false;
+  }
+
+  //If we're here, we must have just finished a generation.  If doing multi-scaleup, trigger the next one.
+  if (origRequest.MultiScaleUpCount != undefined && origRequest.MultiScaleUpCount>0) {
+    origRequest.MultiScaleUpCount--;
+    image.onload = function(){scaleUpOnce(origRequest, image, true, scale);}
+  }
+
+  return true;
 }
 //________________________________________________________________________________________________________________________________________
 
