@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.7.0, last updated: 2/21/2024
+ * v.2.7.1, last updated: 2/22/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -180,10 +180,10 @@ function scaleUp(height,width,scalingIncrease) {
 
 //Model needs to have "turbo" in the filename to be recognized as a turbo model.
 function isModelTurbo(modelName, loraList) {
-  if (modelName.search(/turbo/i)>=0) {
+  if (modelName.search(/turbo/i)>=0 || modelName.search(/lightning/i)>=0) {
     return true;
   }
-  //if either of the first two Loras contains "lcm", assume turbo lora -- fewer steps needed
+  //if any of the Loras contains "lcm", assume turbo lora -- fewer steps needed
   if (loraList != undefined) {
     if (loraList[0].length>1) { //it's an array of strings >1
       if (loraList.some(element => element.search(/lcm/i)>=0) )
@@ -194,9 +194,6 @@ function isModelTurbo(modelName, loraList) {
       return true;
     }
   }
-  //if (($("#editor-settings #lora_0")[0]!=undefined && $("#editor-settings #lora_0")[0].dataset.path.search(/lcm/i)>=0)
-  //   || ($("#editor-settings #lora_1")[0]!=undefined && $("#editor-settings #lora_1")[0].dataset.path.search(/lcm/i)>=0)) {
-   // return true;
   return false;
 }
 
@@ -777,7 +774,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     width: doScaleUp? scaleUp(image.naturalWidth, image.naturalHeight, scalingIncrease):image.naturalWidth,
     height: doScaleUp? scaleUp(image.naturalHeight, image.naturalWidth, scalingIncrease):image.naturalHeight,
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
-    num_inference_steps: (isTurbo)? 25 : Math.min(parseInt(origRequest.num_inference_steps) + 25, 80),  //large resolutions combined with large steps can cause an error
+    num_inference_steps: (isTurbo)?  Math.min(parseInt(origRequest.num_inference_steps) + 18, 25): Math.min(parseInt(origRequest.num_inference_steps) + 25, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
     //??use_upscale: 'None',
@@ -1031,25 +1028,12 @@ function  onScaleUpSplitFilter(origRequest, image) {
 }
 //________________________________________________________________________________________________________________________________________
 
-// const asyncMultiCall = async (origRequest, image, tools) => {
-//   //while the image is still processing visible, wait.
-//   while (!(window.getComputedStyle($("div#server-status-color")[0]).getPropertyValue("color")=="rgb(0, 128, 0)"))
-//   {
-//     await delay(3000);
-//   }
-//   scaleUpOnce(origRequest, image, true, scalingIncrease2) ;
-// };
 const numScaleUps = 3;
 function onScaleUpMultiClick(origRequest, image) {
   if (origRequest.MultiScaleUpCount == undefined) {
     origRequest.MultiScaleUpCount = numScaleUps-1;
     scaleUpOnce(origRequest, image, true, scalingIncrease1) ;
   }
-  // else {
-  //   origRequest.MultiScaleUpCount--;
-  //   scaleUpOnce(origRequest, image, true, scalingIncrease2) ;
-  // }
-
 }
 
 function  onScaleUpMultiFilter(origRequest, image) {
