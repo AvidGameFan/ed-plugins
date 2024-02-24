@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.7.1, last updated: 2/22/2024
+ * v.2.8.0, last updated: 2/24/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -61,7 +61,7 @@ for much greater sizes.
 //Between more recent versions of ED and improved Nvidia drivers, you can now generate much larger (in late 2023) than before (early 2023).
 var maxTotalResolution = 10000000; //6000000; //2048 * 1088; //put max 'low' mode resolution here, max possible size when low mode is on
 var maxTurboResolution = 1088	* 1664; //put max 'balanced' resolution here - larger output will enter 'low' mode, automatically.
-var MaxSquareResolution =  2048; //was: 1344;
+var MaxSquareResolution =  3072; //was 2048;
 
 //SDXL limits:2048*2048 or better
 var maxTotalResolutionXL = 4096*3072; //10000000; //3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
@@ -70,6 +70,8 @@ var maxNoVaeTiling = 2200000; //5500000;  //max resolution to allow no VAE tilin
 //Note that the table entries go in pairs, if not 1:1 square ratio.
 //Ratios that don't match exactly may slightly stretch or squish the image, but should be slight enough to not be noticeable.
 //First two entries are the x,y resolutions of the image, and last entry is the upscale resolution for x.
+//Regarding the non-exact sizes in the table: the earlier versions of Easy Diffusion required that the pixel length and width fall on 64-pixel boundaries.  This
+//limitation is reduced to 8-pixel boundaries, except for certain cases.  Latant Upscaler and other features may still require 64-pixel boundaries.
 var resTable = [
     [512,512,768],
     [768,768,960], //limited to 960, just because 1024x1024 is not usable on some people's configurations
@@ -141,6 +143,103 @@ var resTable = [
     [960,896,1024],  //1.071 -> 1.067
     [896,960,960],  //1.071 -> 1.067
 ]
+//For precicely maintaining the aspect ratio, and allowing for 8-pixel boundaries, use this table.  Selected resolutions may not match the UI entries.
+//At larger image resolutions, the rounding to 8-pixels will be less apparent, an the formula will take over.
+var exactResTable = [
+  [512,512,768],
+  [768,768,960], 
+  [640,512,960],  //exactly 1.25
+  [512,640,768],  //exactly 1.25
+  [960,768,1280],  //exactly 1.25
+  [768,960,1024],  //exactly 1.25
+  [768,512,960],  //exactly 1.5
+  [512,768,640],  //exactly 1.5
+  [960,768,1280],  //exactly 1.25
+  [768,960,1024],  //exactly 1.25
+  [768,576,1024],  //exactly 1.333
+  [576,768,768],  //exactly 1.333
+  [1024,768,1280],  //exactly 1.333
+  [768,1024,960],  //exactly 1.333
+  [1280,960,1536],  //exactly 1.333 (nonstandard, but hits 64-pixel boundary)
+  [960,1280,1152],  //exactly 1.333
+
+  [832,576,1120],  //1.4444 -> 1.443 (nonstandard, not 64)
+  [576,832,776],  //1.4444 -> 1.443
+  [704,512,1056],  //1.375 exact (nonstandard, not 64)
+  [512,704,768],  //1.375
+  [704,576,968],  //1.222 exact (nonstandard, not 64)
+  [576,704,792],  //1.222 
+  [968,792,1232],  //1.222 exact (nonstandard, not 64)
+  [792,968,1008],  //1.222 
+  [960,640,1296],  //1.5  exact (nonstandard, not 64)
+  [640,960,864],  //1.5
+  [1296,864,1632],  //1.5  exact (nonstandard, not 64)
+  [864,1296,1088],  //1.5 
+  [896,576,1280],  //1.556 -> 1.553
+  [576,896,824],  //1.556 -> 1.553
+  [640,448,1280],  //1.428 -> 1.428
+  [448,640,896],  //1.428 -> 1.428
+  [1024,640,1536],  //1.6
+  [640,1024,960],  //1.6
+  [960,576,1280],  //1.667
+  [576,960,768],  //1.667
+  [832,512,1040],  //1.625   exact (nonstandard, not 64)
+  [512,832,640],  //1.625 
+  [896,512,1120],  //1.75   exact (nonstandard, not 64)
+  [512,896,640],  //1.75 
+  [1120,640,1344],  //1.75   exact (nonstandard, not 64)
+  [640,1120,768],  //1.75  (could also do 1288x736, but this one matches a SDXL starting res)
+  [1024,576,1280],  //1.78   exact (nonstandard, not 64)
+  [576,1024,720],  //1.78 
+  [1280,720,1408],  //1.78   exact (nonstandard, not 64)
+  [720,1280,792],  //1.78 
+  [1408,792,1536],  //1.78   exact (nonstandard, not 64)
+  [792,1408,864],  //1.78 
+  [1344,768,1456],  //1.75    exact (nonstandard, not 64)
+  [768,1344,832],  //1.75 (non-ED-standard resolution choice)
+  [960,512,1320],  //1.875   exact (nonstandard, not 64)
+  [512,960,704],  //1.875
+  [576,512,792],  //1.125   exact (nonstandard, not 64)
+  [512,576,704],  //1.125
+  [792,704,1008],  //1.125   exact (nonstandard, not 64)
+  [704,792,896],  //1.125
+
+// Recommended starting resolutions for SDXL.  Note that they don't actually match the given ratios.
+// Fullscreen: 4:3 - 1152x896
+// Widescreen: 16:9 - 1344x768
+//    Use 1280x720 or 1408x792 instead.
+// Ultrawide: 21:9 - 1536x640
+// Mobile landscape: 3:2 - 1216x832
+// Square: 1:1 - 1024x1024
+// Mobile Portrait: 2:3 - 832x1216
+// Tall: 9:16 - 768x1344
+
+  [1152,896,1224],  //1.285714286 -> 1.285714286  exact (nonstandard, not 64)
+  [896,1152,952],  //
+  [1344,768,1400],  //1.75 exact (nonstandard, not 64)
+  [768,1344,800],  //
+  [1216,832,1344],  //1.461538462 ->1.460869565 (nonstandard, not 64)
+  [832,1216,920],  //
+
+  //default resolutions in ED, as of Feb. 2024:   768,832,896,960,1024,1088,1280,1496,1536
+
+  [1280,768,1360],  //1.666666667 exact  (nonstandard, not 64)
+  [768,1280,816],  //
+  [1120,960,1400],  //1.166666667  exact  (nonstandard, not 64)
+  [960,1120,1200],  //
+  [1088,960,1224],  //1.133333333  exact  (nonstandard, not 64)
+  [960,1088,1080],  //
+  
+//These resolutions are exact from the formula, and don't need to be in the table. (And others, but these are likely to be common.)
+//1280x1024 -> 1600x1280
+//1088x896 -> 1360x1120
+//1280x768 ->	1600 x 960
+//1280x832 ->	1600x1040
+//1280x896 ->	1600x1120
+//1280x960 ->	1600x1200
+//1088x832 ->	1360 x 1040
+]
+
 
 var scalingIncrease1=1.25; //arbitrary amount to increase scaling, when beyond lookup table
 var scalingIncrease2=1.5; //arbitrary amount to increase scaling, when beyond lookup table
@@ -153,8 +252,8 @@ function maxRatio(maxRes, height, width) {
 
 function scaleUp(height,width,scalingIncrease) {
   var result=height;
-
-  resTable.forEach(function(item){
+  let table = (ScaleUpSettings.use64PixelChunks)?resTable:exactResTable;
+  table.forEach(function(item){
       if (item[0]==height && 
           item[1]==width)
           {
@@ -165,7 +264,8 @@ function scaleUp(height,width,scalingIncrease) {
   if (result==height || scalingIncrease!=scalingIncrease1) { /*no match found in table OR if not the first button, ignore table */
       if (height==width) { /* and if square */
           if (height>=768 && height<MaxSquareResolution) {
-              result=MaxSquareResolution; //arbitrary
+              //result=MaxSquareResolution; //arbitrary
+              result = ScaleUpMax(height,Math.min(maxRatio(maxTotalResolution, height, width),scalingIncrease));
           }
           else if (height<768) {
               result=896; //arbitrary
