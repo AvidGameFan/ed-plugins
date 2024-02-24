@@ -47,7 +47,8 @@ function onMakeVerySimilarClick(origRequest, image) {
 
   const newTaskRequest = modifyCurrentRequest(origRequest, {
     num_outputs: 1,
-    num_inference_steps: (isTurbo)? 18 : Math.min(parseInt(origRequest.num_inference_steps) + 10, 50),  //large resolutions combined with large steps can cause an error
+    // For Turbo, 22 steps is OK, but noticeable improvement at 30.   Larger resolutions show defects/duplication.
+    num_inference_steps: (isTurbo)? 28 : Math.min(parseInt(origRequest.num_inference_steps) + 15, 60),  //large resolutions combined with large steps can cause an error
     prompt_strength: 0.7,
     init_image: image.src,
     seed: Math.floor(Math.random() * 10000000),
