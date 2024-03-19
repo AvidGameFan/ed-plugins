@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.8.1, last updated: 3/18/2024
+ * v.2.8.2, last updated: 3/19/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -713,17 +713,15 @@ function onScaleUpMAXClick(origRequest, image) {
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
 
-  // always delete the controlnet filter, as we don't use it.  And delete previously-used controlnet, 
-  // as we'll substitute our own (tile).
-  delete newTaskRequest.reqBody.use_controlnet_model;
-  delete newTaskRequest.reqBody.control_filter_to_apply;
-  delete newTaskRequest.reqBody.control_image;
+  //May want to delete the original controlnet, but it can be useful to carry-forward while scaling-up (such as to preserve fingers)
+  //delete newTaskRequest.reqBody.use_controlnet_model;
+  //delete newTaskRequest.reqBody.control_filter_to_apply;
+  //delete newTaskRequest.reqBody.control_image;
   
-  //If using controlnet, and not SDXL,
-  //    control_image: image.src
-  //    use_controlnet_model: "control_v11f1e_sd15_tile"
+  //If using controlnet, and not SDXL
   if (scaleUpControlNet && !isXl)
   {
+    delete newTaskRequest.reqBody.control_filter_to_apply; //we don't want to retain a previously-used filter, if existing
     newTaskRequest.reqBody.control_image = image.src;
     newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
     newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
@@ -883,17 +881,15 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
 
-  // always delete the controlnet filter, as we don't use it.  And delete previously-used controlnet, 
-  // as we'll substitute our own (tile).
-  delete newTaskRequest.reqBody.use_controlnet_model;
-  delete newTaskRequest.reqBody.control_filter_to_apply;
-  delete newTaskRequest.reqBody.control_image;
+  //May want to delete the original controlnet, but it can be useful to carry-forward while scaling-up (such as to preserve fingers)
+  //delete newTaskRequest.reqBody.use_controlnet_model;
+  //delete newTaskRequest.reqBody.control_filter_to_apply;
+  //delete newTaskRequest.reqBody.control_image;
   
-  //If using controlnet, and not SDXL,
-  //    control_image: image.src
-  //    use_controlnet_model: "control_v11f1e_sd15_tile"
+  //If using controlnet, and not SDXL
   if (scaleUpControlNet && !isXl)
   {
+    delete newTaskRequest.reqBody.control_filter_to_apply;
     newTaskRequest.reqBody.control_image = image.src;
     newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
     newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
