@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.8.0, last updated: 2/24/2024
+ * v.2.8.1, last updated: 3/18/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -356,6 +356,7 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push([
     '<span class="scaleup-tooltiptext">Click to cycle through modes - "preserve", for fewer changes to the image, '+
     ' and "Controlnet", to allow more detail. ' +
     'Clicking on a resolution will generate a new image at that resolution. \n'+
+    'Click on the 3-row icon to generate 3 images, each at an increasing resolution, for max detail enhancement. \n'+
     'Click on the grid icon to generate 4 tiled images, for more resolution once stitched.</span>'
     +suLabel+':</span>', type: 'label', 
     on_click: onScaleUpLabelClick, filter: onScaleUpLabelFilter},
@@ -712,6 +713,12 @@ function onScaleUpMAXClick(origRequest, image) {
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
 
+  // always delete the controlnet filter, as we don't use it.  And delete previously-used controlnet, 
+  // as we'll substitute our own (tile).
+  delete newTaskRequest.reqBody.use_controlnet_model;
+  delete newTaskRequest.reqBody.control_filter_to_apply;
+  delete newTaskRequest.reqBody.control_image;
+  
   //If using controlnet, and not SDXL,
   //    control_image: image.src
   //    use_controlnet_model: "control_v11f1e_sd15_tile"
@@ -745,13 +752,6 @@ function onScaleUpMAXClick(origRequest, image) {
   }
 
   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
-
-  //for now, controlnet is not supported with SDLX and img2img, so disable if present.
-  if (isXl) {
-    delete newTaskRequest.reqBody.use_controlnet_model;
-    delete newTaskRequest.reqBody.control_filter_to_apply;
-    delete newTaskRequest.reqBody.control_image;
-  }
 
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
 
@@ -883,6 +883,12 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
 
+  // always delete the controlnet filter, as we don't use it.  And delete previously-used controlnet, 
+  // as we'll substitute our own (tile).
+  delete newTaskRequest.reqBody.use_controlnet_model;
+  delete newTaskRequest.reqBody.control_filter_to_apply;
+  delete newTaskRequest.reqBody.control_image;
+  
   //If using controlnet, and not SDXL,
   //    control_image: image.src
   //    use_controlnet_model: "control_v11f1e_sd15_tile"
@@ -907,13 +913,6 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
 
   if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
     newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
-  }
-
-  //for now, controlnet is not supported with SDLX and img2img, so disable if present.
-  if (isXl) {
-    delete newTaskRequest.reqBody.use_controlnet_model;
-    delete newTaskRequest.reqBody.control_filter_to_apply;
-    delete newTaskRequest.reqBody.control_image;
   }
 
   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
