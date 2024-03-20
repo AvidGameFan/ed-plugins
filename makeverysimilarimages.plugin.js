@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.0.9.3, last updated: 3/19/2024
+ * v.0.9.4, last updated: 3/19/2024
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -57,10 +57,11 @@ function onMakeVerySimilarClick(origRequest, image) {
 //newTaskRequest.numOutputsTotal = 5
 //newTaskRequest.batchCount = 5
 
-//May want to retain the original controlnet
-//delete newTaskRequest.reqBody.use_controlnet_model;
-//delete newTaskRequest.reqBody.control_filter_to_apply;
-//delete newTaskRequest.reqBody.control_image;
+//May want to retain the original controlnet, but for maximum variation, probably best to leave it out. 
+//A future enhancement could make this user-selectable.
+delete newTaskRequest.reqBody.use_controlnet_model;
+delete newTaskRequest.reqBody.control_filter_to_apply;
+delete newTaskRequest.reqBody.control_image;
 
 delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again
 

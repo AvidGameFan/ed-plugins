@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.8.2, last updated: 3/19/2024
+ * v.2.8.3, last updated: 3/19/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -36,7 +36,8 @@ var ScaleUpSettings = {
   use64PixelChunks: true,
   useChangedPrompt: false,
   useChangedModel: false,
-  resizeImage: true
+  resizeImage: true,
+  reuseControlnet: false
   //useControlNet: false,
 };
 
@@ -713,11 +714,14 @@ function onScaleUpMAXClick(origRequest, image) {
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
 
-  //May want to delete the original controlnet, but it can be useful to carry-forward while scaling-up (such as to preserve fingers)
-  //delete newTaskRequest.reqBody.use_controlnet_model;
-  //delete newTaskRequest.reqBody.control_filter_to_apply;
-  //delete newTaskRequest.reqBody.control_image;
-  
+  //May want to delete the original controlnet, as it's normally not neccessary once scaling-up,
+  //but it can be useful to carry-forward while scaling-up (such as to preserve fingers), so it's left as a user option.
+  if (!ScaleUpSettings.reuseControlnet)
+  {
+    delete newTaskRequest.reqBody.use_controlnet_model;
+    delete newTaskRequest.reqBody.control_filter_to_apply;
+    delete newTaskRequest.reqBody.control_image;
+  }
   //If using controlnet, and not SDXL
   if (scaleUpControlNet && !isXl)
   {
@@ -881,11 +885,14 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
 
-  //May want to delete the original controlnet, but it can be useful to carry-forward while scaling-up (such as to preserve fingers)
-  //delete newTaskRequest.reqBody.use_controlnet_model;
-  //delete newTaskRequest.reqBody.control_filter_to_apply;
-  //delete newTaskRequest.reqBody.control_image;
-  
+  //May want to delete the original controlnet, as it's normally not neccessary once scaling-up,
+  //but it can be useful to carry-forward while scaling-up (such as to preserve fingers), so it's left as a user option.
+  if (!ScaleUpSettings.reuseControlnet)
+  {
+    delete newTaskRequest.reqBody.use_controlnet_model;
+    delete newTaskRequest.reqBody.control_filter_to_apply;
+    delete newTaskRequest.reqBody.control_image;
+  }
   //If using controlnet, and not SDXL
   if (scaleUpControlNet && !isXl)
   {
@@ -1192,6 +1199,11 @@ function  onScaleUpMultiFilter(origRequest, image) {
           </div>
           <label for="scaleup_resize_sharpen">Enhance Details <small>(Resize & sharpen image before ScaleUp)</small></label>
           </li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="scaleup_reuse_controlnet" name="scaleup_reuse_controlnet" type="checkbox" value="`+ScaleUpSettings.reuseControlnet+`"  onchange="setScaleUpSettings()"> <label for="scaleup_reuse_controlnet"></label>
+          </div>
+          <label for="scaleup_reuse_controlnet">Reuse controlnet <small>(if existing and if not using ScaleUp's controlnet)</small></label>
+          </li>
         </ul></div>
         </div>`;
     outpaintSettings.innerHTML = tempHTML;
@@ -1216,6 +1228,7 @@ function setScaleUpSettings() {
   ScaleUpSettings.useChangedModel = scaleup_change_model.checked;
   ScaleUpSettings.useMaxSplitSize = scaleup_split_size.checked;
   ScaleUpSettings.resizeImage = scaleup_resize_sharpen.checked;
+  ScaleUpSettings.reuseControlnet = scaleup_reuse_controlnet.checked;
 
   localStorage.setItem('ScaleUp_Plugin_Settings', JSON.stringify(ScaleUpSettings));  //Store settings
 }
@@ -1233,6 +1246,7 @@ function scaleUpResetSettings(reset) {
     ScaleUpSettings.useChangedModel = false;
     ScaleUpSettings.useMaxSplitSize = true;
     ScaleUpSettings.resizeImage = true;
+    ScaleUpSettings.reuseControlnet = true;
     //useControlNet = false;
   }
   else {  //if settings found, but we've added a new setting, use a default value instead.  (Not strictly necessary for this first group.)
@@ -1241,6 +1255,7 @@ function scaleUpResetSettings(reset) {
     ScaleUpSettings.useChangedModel =settings.useChangedModel ?? false;
     ScaleUpSettings.useMaxSplitSize =settings.useMaxSplitSize ?? true;
     ScaleUpSettings.resizeImage =settings.resizeImage ?? true;
+    ScaleUpSettings.reuseControlnet =settings.reuseControlnet ?? false;
     }
   localStorage.setItem('ScaleUp_Plugin_Settings', JSON.stringify(ScaleUpSettings));  //Store settings
 
@@ -1250,5 +1265,6 @@ function scaleUpResetSettings(reset) {
   scaleup_change_model.checked = ScaleUpSettings.useChangedModel;
   scaleup_split_size.checked = ScaleUpSettings.useMaxSplitSize;
   scaleup_resize_sharpen.checked = ScaleUpSettings.resizeImage;
+  scaleup_reuse_controlnet.checked = ScaleUpSettings.reuseControlnet;
 }
 
