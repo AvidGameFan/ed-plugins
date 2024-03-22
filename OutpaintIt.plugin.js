@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.8.5, last updated: 2/3/2024
+ * v.1.8.6, last updated: 3/22/2024
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -26,9 +26,9 @@ var OutpaintItSettings = {
    If you go too large, you'll see "Error: CUDA out of memory". 
  */
 (function () { "use strict"
-var outpaintMaxTotalResolution = 6000000; //was: 1280 * 1280; //put max 'low' mode resolution here, max possible size when low mode is on
+var outpaintMaxTotalResolution = 10000000; //6000000; //was: 1280 * 1280; //put max 'low' mode resolution here, max possible size when low mode is on
 var outpaintMaxTurboResolution = 1088	* 1664; //was: 1536	* 896;   //put max resolution (other than 'low' mode) here
-var maxNoVaeTiling = 5500000;  //max resolution to allow no VAE tiling.  Turn off VAE tiling for larger images.
+var maxNoVaeTiling = 2200000; //5500000;  //max resolution to allow no VAE tiling.  Turn off VAE tiling for larger images.
 
 const outpaintSizeIncrease = 128;  //This can be modified by increments/decrements of 64, as desired
 //const outpaintMaskOverlap = 36; //Need some overlap on the mask (minimum of 8px)
@@ -213,6 +213,8 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
     newTaskRequest.reqBody.vram_usage_level = 'low';
   }
   delete newTaskRequest.reqBody.use_controlnet_model; //We're adding to the picture, and controlnet will try to make us conform to the old image.
+  delete newTaskRequest.reqBody.control_filter_to_apply;
+  delete newTaskRequest.reqBody.control_image;
   //newTaskRequest.reqBody.preserve_init_image_color_profile=true; //shouldn't be necessary, working from txt2img, and distorts colors
   //The comparison needs trimming, because the request box includes modifiers.  If the first part of the prompts match, we assume nothing's changed, and move on.
   //If prompt has changed, ask if we should pick up the new value.  Note that the new prompt will now include modifiers- previously, only the text-box.
