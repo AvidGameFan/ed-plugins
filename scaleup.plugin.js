@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.8.3, last updated: 3/19/2024
+ * v.2.8.4, last updated: 4/4/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -145,7 +145,7 @@ var resTable = [
     [896,960,960],  //1.071 -> 1.067
 ]
 //For precicely maintaining the aspect ratio, and allowing for 8-pixel boundaries, use this table.  Selected resolutions may not match the UI entries.
-//At larger image resolutions, the rounding to 8-pixels will be less apparent, an the formula will take over.
+//At larger image resolutions, the rounding to 8-pixels will be less apparent, where the formula will take over.
 var exactResTable = [
   [512,512,768],
   [768,768,960], 
@@ -176,6 +176,8 @@ var exactResTable = [
   [640,960,864],  //1.5
   [1296,864,1632],  //1.5  exact (nonstandard, not 64)
   [864,1296,1088],  //1.5 
+  [2248,1496,2736],  //1.5  exact (standard monitor)
+  [1496,2248,1824],  //1.5 
   [896,576,1280],  //1.556 -> 1.553
   [576,896,824],  //1.556 -> 1.553
   [640,448,1280],  //1.428 -> 1.428
@@ -190,6 +192,8 @@ var exactResTable = [
   [512,896,640],  //1.75 
   [1120,640,1344],  //1.75   exact (nonstandard, not 64)
   [640,1120,768],  //1.75  (could also do 1288x736, but this one matches a SDXL starting res)
+  [1920,1080,2560],  // 1.77  Standard monitor resolution
+  [1080,1920,1440],  // 1.77 
   [1024,576,1280],  //1.78   exact (nonstandard, not 64)
   [576,1024,720],  //1.78 
   [1280,720,1408],  //1.78   exact (nonstandard, not 64)
@@ -239,6 +243,7 @@ var exactResTable = [
 //1280x896 ->	1600x1120
 //1280x960 ->	1600x1200
 //1088x832 ->	1360 x 1040
+//1152x768 -> 1440 x 960  - 1.5
 ]
 
 
