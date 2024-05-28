@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.8.4, last updated: 4/4/2024
+ * v.2.9.0, last updated: 5/27/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -493,11 +493,11 @@ function onScaleUpLabelClick(origRequest, image) {
   //SDXL doesn't support controlnet for img2img, so reset the counter for SDXL if controlnet was selected.
   if(scaleUpControlNet){
     var desiredModel=desiredModelName(origRequest);
-    if (isModelXl(desiredModel)) {
-      scaleUpPreserve = false;
-      scaleUpControlNet = false;
-      scaleUpSelection = SCALEUP_NORMAL;
-    }
+    // if (isModelXl(desiredModel)) {
+      // scaleUpPreserve = false;
+      // scaleUpControlNet = false;
+      // scaleUpSelection = SCALEUP_NORMAL;
+    // }
   }
   //update current labels
   for (var index=0; index<document.getElementsByClassName("scaleup-label").length;index++) {
@@ -727,12 +727,13 @@ function onScaleUpMAXClick(origRequest, image) {
     delete newTaskRequest.reqBody.control_filter_to_apply;
     delete newTaskRequest.reqBody.control_image;
   }
-  //If using controlnet, and not SDXL
-  if (scaleUpControlNet && !isXl)
+  //If using controlnet --SDXL now supported
+  if (scaleUpControlNet /* && !isXl*/)
   {
     delete newTaskRequest.reqBody.control_filter_to_apply; //we don't want to retain a previously-used filter, if existing
     newTaskRequest.reqBody.control_image = image.src;
-    newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
+    newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v1_fp16":"control_v11f1e_sd15_tile";
+    //newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
     newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
   }
 
@@ -898,12 +899,19 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     delete newTaskRequest.reqBody.control_filter_to_apply;
     delete newTaskRequest.reqBody.control_image;
   }
-  //If using controlnet, and not SDXL
-  if (scaleUpControlNet && !isXl)
+  //If using controlnet --SDXL now supported
+  if (scaleUpControlNet /* && !isXl*/)
   {
     delete newTaskRequest.reqBody.control_filter_to_apply;
     newTaskRequest.reqBody.control_image = image.src;
-    newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
+    //TODO: Only for SDXL, search for an appropriate model
+    //let xlCnModel = "diffusers_xl_canny_full"; //default -- canny doesn't work that well
+    // if (isXl)  {
+        // if (inCnList("TTPLANET_Controlnet_Tile_realistic_v1_fp16")); 
+        //document.getElementById('controlnet_model-model-list').getElementsByTagName("li"); -- can cycle through to find available models
+    // }
+    
+    newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v1_fp16":"control_v11f1e_sd15_tile";
     newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
   }
 
