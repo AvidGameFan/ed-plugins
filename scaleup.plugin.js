@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.9.0, last updated: 5/27/2024
+ * v.2.9.1, last updated: 5/28/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -37,7 +37,8 @@ var ScaleUpSettings = {
   useChangedPrompt: false,
   useChangedModel: false,
   resizeImage: true,
-  reuseControlnet: false
+  reuseControlnet: false,
+  animeControlnet: false
   //useControlNet: false,
 };
 
@@ -729,13 +730,51 @@ function onScaleUpMAXClick(origRequest, image) {
   }
   //If using controlnet --SDXL now supported
   if (scaleUpControlNet /* && !isXl*/)
-  {
-    delete newTaskRequest.reqBody.control_filter_to_apply; //we don't want to retain a previously-used filter, if existing
-    newTaskRequest.reqBody.control_image = image.src;
-    newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v1_fp16":"control_v11f1e_sd15_tile";
-    //newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
-    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
-  }
+    {
+      delete newTaskRequest.reqBody.control_filter_to_apply;
+      //to avoid "halo" artifacts, need to soften the image before passing to control image.
+    
+        //create working canvas
+        let canvasSoft = document.createElement("canvas");
+        canvasSoft.width = image.naturalWidth*1.75;
+        canvasSoft.height = image.naturalHeight*1.75;
+        let ctx2 = canvasSoft.getContext("2d", {willReadFrequently: true});
+        ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
+        // get the image data of the canvasSoft  -- we only need the part we're going to resize
+        //x,y -- upper-left, width & height
+        ctx2.drawImage( image,
+          0, 0, image.naturalWidth, image.naturalHeight, //source 
+          0, 0, canvasSoft.width, canvasSoft.height //destination
+        );
+   //      sharpen(ctx2, canvasSoft.width, canvasSoft.height, .8, true);
+   //  document.querySelector('body').appendChild(canvasSoft);   //Testing -- let's see what we have
+        var img2 =  ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
+        ctx2.putImageData(img2, 0, 0);
+        var newImage2 = new Image;
+        newImage2.src = canvasSoft.toDataURL('image/png');
+        newTaskRequest.reqBody.control_image = newImage2.src;
+      //TODO: Only for SDXL, search for an appropriate model
+      //let xlCnModel = "diffusers_xl_canny_full"; //default -- canny doesn't work that well
+      // if (isXl)  {
+          // if (inCnList("TTPLANET_Controlnet_Tile_realistic_v2_fp16")); 
+          //document.getElementById('controlnet_model-model-list').getElementsByTagName("li"); -- can cycle through to find available models
+      // }
+      if(ScaleUpSettings.animeControlnet) {
+        newTaskRequest.reqBody.control_filter_to_apply= 'lineart_anime'; //works better than the canny filter
+        newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_canny";
+      }
+      else {
+        newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
+      }
+      newTaskRequest.reqBody.control_alpha = 0.3;
+      newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 :  (isXl? 0.6:0.5);
+    }
+
+
+
+
+
+
 
   newTaskRequest.seed = newTaskRequest.reqBody.seed
 //  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
@@ -903,16 +942,46 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   if (scaleUpControlNet /* && !isXl*/)
   {
     delete newTaskRequest.reqBody.control_filter_to_apply;
-    newTaskRequest.reqBody.control_image = image.src;
+
+    //to avoid "halo" artifacts, need to soften the image before passing to control image.
+  
+      //create working canvas
+      let canvasSoft = document.createElement("canvas");
+      canvasSoft.width = image.naturalWidth*1.75;
+      canvasSoft.height = image.naturalHeight*1.75;
+      let ctx2 = canvasSoft.getContext("2d", {willReadFrequently: true});
+
+      ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
+
+      // get the image data of the canvasSoft  -- we only need the part we're going to resize
+      //x,y -- upper-left, width & height
+      ctx2.drawImage( image,
+        0, 0, image.naturalWidth, image.naturalHeight, //source 
+        0, 0, canvasSoft.width, canvasSoft.height //destination
+      );
+//      sharpen(ctx2, canvasSoft.width, canvasSoft.height, .8, true);
+//  document.querySelector('body').appendChild(canvasSoft);   //Testing -- let's see what we have
+      var img2 =  ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
+      ctx2.putImageData(img2, 0, 0);
+      var newImage2 = new Image;
+      newImage2.src = canvasSoft.toDataURL('image/png');
+      newTaskRequest.reqBody.control_image = newImage2.src;
+
     //TODO: Only for SDXL, search for an appropriate model
     //let xlCnModel = "diffusers_xl_canny_full"; //default -- canny doesn't work that well
     // if (isXl)  {
-        // if (inCnList("TTPLANET_Controlnet_Tile_realistic_v1_fp16")); 
+        // if (inCnList("TTPLANET_Controlnet_Tile_realistic_v2_fp16")); 
         //document.getElementById('controlnet_model-model-list').getElementsByTagName("li"); -- can cycle through to find available models
     // }
-    
-    newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v1_fp16":"control_v11f1e_sd15_tile";
-    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
+    if(ScaleUpSettings.animeControlnet) {
+      newTaskRequest.reqBody.control_filter_to_apply= 'lineart_anime'; //works better than the canny filter
+      newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_canny";
+    }
+    else {
+      newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
+    }
+    newTaskRequest.reqBody.control_alpha = 0.3;
+    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 :  (isXl? 0.6:0.5);
   }
 
   newTaskRequest.seed = newTaskRequest.reqBody.seed
@@ -960,7 +1029,10 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
       0, 0, canvas.width, canvas.height //destination
     );
 
-    sharpen(ctx, canvas.width, canvas.height, .33);
+    //extra sharpening not necessarily needed with controlnet
+    //if (!scaleUpControlNet) {
+      sharpen(ctx, canvas.width, canvas.height, .33);
+    //}
     
     var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
     img = contrastImage(img, contrastAmount);
@@ -972,15 +1044,14 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     newTaskRequest.reqBody.init_image = newImage.src;
   }
 
-
   createTask(newTaskRequest)
 }
 
-/// sharpen image, from https://stackoverflow.com/questions/20316680/javascript-sharpen-image-and-edge-detection-not-working
+/// sharpen image, from https://stackoverflow.com/questions/20316680/javascript-sharpen-image-and-edge-detection-not-working; modified by GWW
 /// USAGE:
 ///    sharpen(context, width, height, mixFactor)
 ///  mixFactor: [0.0, 1.0]
-function sharpen(ctx, w, h, mix) {
+function sharpen(ctx, w, h, mix, soften=false) {
 
   var weights = [0, -1, 0, -1, 5, -1, 0, -1, 0],
       katet = Math.round(Math.sqrt(weights.length)),
@@ -990,7 +1061,11 @@ function sharpen(ctx, w, h, mix) {
       srcBuff = ctx.getImageData(0, 0, w, h).data,
       y = h;
 
-  while (y--) {
+    if (soften===true) {
+      weights = [1/9, 1/9, 1/9, 1/9, 1/9, 1/9, 1/9, 1/9, 1/9];
+    }
+
+    while (y--) {
 
       var x = w;
 
@@ -1012,22 +1087,23 @@ function sharpen(ctx, w, h, mix) {
 
                   if (scy >= 0 && scy < h && scx >= 0 && scx < w) {
 
-                      var srcOff = (scy * w + scx) * 4;
-                      var wt = weights[cy * katet + cx];
+                    var srcOff = (scy * w + scx) * 4;
+                    var wt = weights[cy * katet + cx];
 
-                      r += srcBuff[srcOff] * wt;
-                      g += srcBuff[srcOff + 1] * wt;
-                      b += srcBuff[srcOff + 2] * wt;
-                      a += srcBuff[srcOff + 3] * wt;
+                    r += srcBuff[srcOff] * wt;
+                    g += srcBuff[srcOff + 1] * wt;
+                    b += srcBuff[srcOff + 2] * wt;
+                
+                    a += srcBuff[srcOff + 3] * wt;
                   }
               }
           }
 
           dstBuff[dstOff] = r * mix + srcBuff[dstOff] * (1 - mix);
           dstBuff[dstOff + 1] = g * mix + srcBuff[dstOff + 1] * (1 - mix);
-          dstBuff[dstOff + 2] = b * mix + srcBuff[dstOff + 2] * (1 - mix)
+          dstBuff[dstOff + 2] = b * mix + srcBuff[dstOff + 2] * (1 - mix);
           dstBuff[dstOff + 3] = srcBuff[dstOff + 3];
-      }
+        }
   }
 
   ctx.putImageData(dstData, 0, 0);
@@ -1217,6 +1293,11 @@ function  onScaleUpMultiFilter(origRequest, image) {
           </div>
           <label for="scaleup_reuse_controlnet">Reuse controlnet <small>(if existing and if not using ScaleUp's controlnet)</small></label>
           </li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="scaleup_animeControlnet" name="scaleup_animeControlnet" type="checkbox" value="`+ScaleUpSettings.animeControlnet+`"  onchange="setScaleUpSettings()"> <label for="scaleup_animeControlnet"></label>
+          </div>
+          <label for="scaleup_animeControlnet">Use Canny for controlnet, not Tile<small>(better for Anime)</small></label>
+          </li>
         </ul></div>
         </div>`;
     outpaintSettings.innerHTML = tempHTML;
@@ -1242,6 +1323,7 @@ function setScaleUpSettings() {
   ScaleUpSettings.useMaxSplitSize = scaleup_split_size.checked;
   ScaleUpSettings.resizeImage = scaleup_resize_sharpen.checked;
   ScaleUpSettings.reuseControlnet = scaleup_reuse_controlnet.checked;
+  ScaleUpSettings.animeControlnet = scaleup_animeControlnet.checked;
 
   localStorage.setItem('ScaleUp_Plugin_Settings', JSON.stringify(ScaleUpSettings));  //Store settings
 }
@@ -1260,6 +1342,8 @@ function scaleUpResetSettings(reset) {
     ScaleUpSettings.useMaxSplitSize = true;
     ScaleUpSettings.resizeImage = true;
     ScaleUpSettings.reuseControlnet = true;
+    ScaleUpSettings.animeControlnet = false;
+
     //useControlNet = false;
   }
   else {  //if settings found, but we've added a new setting, use a default value instead.  (Not strictly necessary for this first group.)
@@ -1269,6 +1353,7 @@ function scaleUpResetSettings(reset) {
     ScaleUpSettings.useMaxSplitSize =settings.useMaxSplitSize ?? true;
     ScaleUpSettings.resizeImage =settings.resizeImage ?? true;
     ScaleUpSettings.reuseControlnet =settings.reuseControlnet ?? false;
+    ScaleUpSettings.animeControlnet =settings.animeControlnet ?? false;
     }
   localStorage.setItem('ScaleUp_Plugin_Settings', JSON.stringify(ScaleUpSettings));  //Store settings
 
@@ -1279,5 +1364,6 @@ function scaleUpResetSettings(reset) {
   scaleup_split_size.checked = ScaleUpSettings.useMaxSplitSize;
   scaleup_resize_sharpen.checked = ScaleUpSettings.resizeImage;
   scaleup_reuse_controlnet.checked = ScaleUpSettings.reuseControlnet;
+  scaleup_animeControlnet.checked = ScaleUpSettings.animeControlnet;
 }
 
