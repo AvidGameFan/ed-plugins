@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.9.1, last updated: 5/28/2024
+ * v.2.9.2, last updated: 5/28/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -767,7 +767,7 @@ function onScaleUpMAXClick(origRequest, image) {
         newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
       }
       newTaskRequest.reqBody.control_alpha = 0.3;
-      newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 :  (isXl? 0.6:0.5);
+      newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : (isXl? 0.45:0.5);
     }
 
 
@@ -981,7 +981,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
       newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
     }
     newTaskRequest.reqBody.control_alpha = 0.3;
-    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 :  (isXl? 0.6:0.5);
+    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : (isXl? 0.45:0.5);
   }
 
   newTaskRequest.seed = newTaskRequest.reqBody.seed
