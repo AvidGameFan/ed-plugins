@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.9.2, last updated: 5/28/2024
+ * v.2.9.3, last updated: 5/29/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -307,7 +307,7 @@ function isModelTurbo(modelName, loraList) {
 //Model needs to have "xl" in the filename to be recognized as an xl model.
 function isModelXl(modelName) {
   let result = false;
-  if (modelName.search(/xl/i)>=0) {
+  if (modelName.search(/xl/i)>=0 || modelName.search(/playground/i)>=0 || modelName.search(/disneyrealcartoonmix/i)>=0 ) {
     result = true;
   }  
   return result;
@@ -761,7 +761,7 @@ function onScaleUpMAXClick(origRequest, image) {
       // }
       if(ScaleUpSettings.animeControlnet) {
         newTaskRequest.reqBody.control_filter_to_apply= 'lineart_anime'; //works better than the canny filter
-        newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_canny";
+        newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny.pth";
       }
       else {
         newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
@@ -975,7 +975,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     // }
     if(ScaleUpSettings.animeControlnet) {
       newTaskRequest.reqBody.control_filter_to_apply= 'lineart_anime'; //works better than the canny filter
-      newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_canny";
+      newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny.pth";
     }
     else {
       newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
@@ -1224,6 +1224,7 @@ function onScaleUpMultiClick(origRequest, image) {
   if (origRequest.MultiScaleUpCount == undefined) {
     origRequest.MultiScaleUpCount = numScaleUps-1;
     scaleUpOnce(origRequest, image, true, scalingIncrease1) ;
+    delete origRequest.MultiScaleUpCount;  //remove embedded count so that we can have a fresh start with this image
   }
 }
 
@@ -1238,7 +1239,10 @@ function  onScaleUpMultiFilter(origRequest, image) {
   //If we're here, we must have just finished a generation.  If doing multi-scaleup, trigger the next one.
   if (origRequest.MultiScaleUpCount != undefined && origRequest.MultiScaleUpCount>0) {
     origRequest.MultiScaleUpCount--;
-    image.onload = function(){scaleUpOnce(origRequest, image, true, scale);}
+    image.onload = function(){
+      scaleUpOnce(origRequest, image, true, scale);
+      delete origRequest.MultiScaleUpCount;  //remove embedded count so that we can have a fresh start with this image
+    }
   }
 
   return true;
