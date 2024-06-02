@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.9.3, last updated: 5/29/2024
+ * v.2.9.4, last updated: 5/31/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -305,9 +305,10 @@ function isModelTurbo(modelName, loraList) {
 }
 
 //Model needs to have "xl" in the filename to be recognized as an xl model.
+//add any special cases as needed.
 function isModelXl(modelName) {
   let result = false;
-  if (modelName.search(/xl/i)>=0 || modelName.search(/playground/i)>=0 || modelName.search(/disneyrealcartoonmix/i)>=0 ) {
+  if (modelName.search(/xl/i)>=0 || modelName.search(/playground/i)>=0 || modelName.search(/disneyrealcartoonmix/i)>=0  || modelName.search(/mobius/i)>=0) {
     result = true;
   }  
   return result;
@@ -736,8 +737,8 @@ function onScaleUpMAXClick(origRequest, image) {
     
         //create working canvas
         let canvasSoft = document.createElement("canvas");
-        canvasSoft.width = image.naturalWidth*1.75;
-        canvasSoft.height = image.naturalHeight*1.75;
+        canvasSoft.width = image.naturalWidth; //*1.75;
+        canvasSoft.height = image.naturalHeight; //*1.75;
         let ctx2 = canvasSoft.getContext("2d", {willReadFrequently: true});
         ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
         // get the image data of the canvasSoft  -- we only need the part we're going to resize
@@ -761,7 +762,7 @@ function onScaleUpMAXClick(origRequest, image) {
       // }
       if(ScaleUpSettings.animeControlnet) {
         newTaskRequest.reqBody.control_filter_to_apply= 'lineart_anime'; //works better than the canny filter
-        newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny.pth";
+        newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny";
       }
       else {
         newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
@@ -947,8 +948,8 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   
       //create working canvas
       let canvasSoft = document.createElement("canvas");
-      canvasSoft.width = image.naturalWidth*1.75;
-      canvasSoft.height = image.naturalHeight*1.75;
+      canvasSoft.width = image.naturalWidth; //*1.75;
+      canvasSoft.height = image.naturalHeight; //*1.75;
       let ctx2 = canvasSoft.getContext("2d", {willReadFrequently: true});
 
       ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
@@ -975,7 +976,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     // }
     if(ScaleUpSettings.animeControlnet) {
       newTaskRequest.reqBody.control_filter_to_apply= 'lineart_anime'; //works better than the canny filter
-      newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny.pth";
+      newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny";
     }
     else {
       newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
