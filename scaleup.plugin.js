@@ -809,8 +809,8 @@ function onScaleUpMAXClick(origRequest, image) {
   if(ScaleUpSettings.resizeImage) {
     //create working canvas
     let canvas = document.createElement("canvas");
-    canvas.width = imageWidth*1.25;
-    canvas.height = imageHeight*1.25;
+    canvas.width = Math.round(imageWidth*1.25);
+    canvas.height = Math.round(imageHeight*1.25);
 
     let ctx = canvas.getContext("2d");
 
@@ -1018,8 +1018,8 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   if(ScaleUpSettings.resizeImage) {
     //create working canvas
     let canvas = document.createElement("canvas");
-    canvas.width = image.naturalWidth*1.25;
-    canvas.height = image.naturalHeight*1.25;
+    canvas.width = Math.round(image.naturalWidth*1.25);
+    canvas.height = Math.round(image.naturalHeight*1.25);
 
     let ctx = canvas.getContext("2d", {willReadFrequently: true});
 
@@ -1048,67 +1048,57 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   createTask(newTaskRequest)
 }
 
-/// sharpen image, from https://stackoverflow.com/questions/20316680/javascript-sharpen-image-and-edge-detection-not-working; modified by GWW
-/// USAGE:
-///    sharpen(context, width, height, mixFactor)
-///  mixFactor: [0.0, 1.0]
-function sharpen(ctx, w, h, mix, soften=false) {
+// sharpen image, from Bing CoPilot, after correcting for rounding and edge pixels
+// USAGE:
+//    sharpen(context, width, height, amount)
+//  amount: [0.0, 1.0]
+// This is similar to https://stackoverflow.com/questions/20316680/javascript-sharpen-image-and-edge-detection-not-working;
+// but without the edge-pixel problem.
 
-  var weights = [0, -1, 0, -1, 5, -1, 0, -1, 0],
-      katet = Math.round(Math.sqrt(weights.length)),
-      half = (katet * 0.5) | 0,
-      dstData = ctx.createImageData(w, h),
-      dstBuff = dstData.data,
-      srcBuff = ctx.getImageData(0, 0, w, h).data,
-      y = h;
+function sharpen(ctx, width, height, amount) {
+  const weights = [
+      0, -1, 0,
+      -1, 5, -1,
+      0, -1, 0
+  ];
 
-    if (soften===true) {
-      weights = [1/9, 1/9, 1/9, 1/9, 1/9, 1/9, 1/9, 1/9, 1/9];
-    }
+  const side = Math.round(Math.sqrt(weights.length));
+  const halfSide = Math.floor(side / 2);
+  const src = ctx.getImageData(0, 0, width, height);
+  const sw = src.width;
+  const sh = src.height;
+  const srcPixels = src.data;
+  const output = ctx.createImageData(sw, sh);
+  const dstPixels = output.data;
 
-    while (y--) {
+  for (let y = 0; y < sh; y++) {
+      for (let x = 0; x < sw; x++) {
+          const dstOff = (y * sw + x) * 4;
+          let r = 0, g = 0, b = 0;
 
-      var x = w;
+          for (let cy = 0; cy < side; cy++) {
+              for (let cx = 0; cx < side; cx++) {
+                  const scy = Math.min(sh - 1, Math.max(0, y + cy - halfSide));
+                  const scx = Math.min(sw - 1, Math.max(0, x + cx - halfSide));
+                  const srcOff = (scy * sw + scx) * 4;
+                  const wt = weights[cy * side + cx];
 
-      while (x--) {
-
-          var sy = y,
-              sx = x,
-              dstOff = (y * w + x) * 4,
-              r = 0,
-              g = 0,
-              b = 0,
-              a = 0;
-
-          for (var cy = 0; cy < katet; cy++) {
-              for (var cx = 0; cx < katet; cx++) {
-
-                  var scy = sy + cy - half;
-                  var scx = sx + cx - half;
-
-                  if (scy >= 0 && scy < h && scx >= 0 && scx < w) {
-
-                    var srcOff = (scy * w + scx) * 4;
-                    var wt = weights[cy * katet + cx];
-
-                    r += srcBuff[srcOff] * wt;
-                    g += srcBuff[srcOff + 1] * wt;
-                    b += srcBuff[srcOff + 2] * wt;
-                
-                    a += srcBuff[srcOff + 3] * wt;
-                  }
+                  r += srcPixels[srcOff] * wt;
+                  g += srcPixels[srcOff + 1] * wt;
+                  b += srcPixels[srcOff + 2] * wt;
               }
           }
 
-          dstBuff[dstOff] = r * mix + srcBuff[dstOff] * (1 - mix);
-          dstBuff[dstOff + 1] = g * mix + srcBuff[dstOff + 1] * (1 - mix);
-          dstBuff[dstOff + 2] = b * mix + srcBuff[dstOff + 2] * (1 - mix);
-          dstBuff[dstOff + 3] = srcBuff[dstOff + 3];
-        }
+          dstPixels[dstOff] = Math.round(r * amount + srcPixels[dstOff] * (1 - amount));
+          dstPixels[dstOff + 1] = Math.round(g * amount + srcPixels[dstOff + 1] * (1 - amount));
+          dstPixels[dstOff + 2] = Math.round(b * amount + srcPixels[dstOff + 2] * (1 - amount));
+          dstPixels[dstOff + 3] = srcPixels[dstOff + 3]; // alpha channel
+      }
   }
 
-  ctx.putImageData(dstData, 0, 0);
+  ctx.putImageData(output, 0, 0);
 }
+
 
 //Contrast from:
 //https://stackoverflow.com/questions/10521978/html5-canvas-image-contrast
