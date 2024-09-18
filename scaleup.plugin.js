@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.9.4, last updated: 5/31/2024
+ * v.2.9.5, last updated: 9/17/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -287,7 +287,7 @@ function scaleUp(height,width,scalingIncrease) {
 
 //Model needs to have "turbo" in the filename to be recognized as a turbo model.
 function isModelTurbo(modelName, loraList) {
-  if (modelName.search(/turbo/i)>=0 || modelName.search(/lightning/i)>=0) {
+  if (modelName.search(/turbo/i)>=0 || modelName.search(/lightning/i)>=0 || modelName.search(/schnell/i)>=0) {
     return true;
   }
   //if any of the Loras contains "lcm", assume turbo lora -- fewer steps needed
@@ -308,7 +308,7 @@ function isModelTurbo(modelName, loraList) {
 //add any special cases as needed.
 function isModelXl(modelName) {
   let result = false;
-  if (modelName.search(/xl/i)>=0 || modelName.search(/playground/i)>=0 || modelName.search(/disneyrealcartoonmix/i)>=0  || modelName.search(/mobius/i)>=0) {
+  if (modelName.search(/xl/i)>=0 || modelName.search(/playground/i)>=0 || modelName.search(/disneyrealcartoonmix/i)>=0  || modelName.search(/mobius/i)>=0 || modelName.search(/flux/i)>=0) {
     result = true;
   }  
   return result;
@@ -712,7 +712,7 @@ function onScaleUpMAXClick(origRequest, image) {
     width: ScaleUpMax(imageWidth,ratio),
     height: ScaleUpMax(imageHeight,ratio),
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
-    num_inference_steps: (isTurbo)? 40 : Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
+    num_inference_steps: (isTurbo)? 25 : Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
     //?use_upscale: 'None',
@@ -922,7 +922,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     width: doScaleUp? scaleUp(image.naturalWidth, image.naturalHeight, scalingIncrease):image.naturalWidth,
     height: doScaleUp? scaleUp(image.naturalHeight, image.naturalWidth, scalingIncrease):image.naturalHeight,
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
-    num_inference_steps: (isTurbo)?  Math.min(parseInt(origRequest.num_inference_steps) + 18, 25): Math.min(parseInt(origRequest.num_inference_steps) + 25, 80),  //large resolutions combined with large steps can cause an error
+    num_inference_steps: (isTurbo)?  Math.min(parseInt(origRequest.num_inference_steps) + 15, 22): Math.min(parseInt(origRequest.num_inference_steps) + 25, 80),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
     //??use_upscale: 'None',
