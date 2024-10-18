@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.9.6, last updated: 10/2/2024
+ * v.2.9.7, last updated: 10/17/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -315,6 +315,20 @@ function isModelXl(modelName) {
   }  
   return result;
 }
+
+//If flux, can use fewer steps
+function isModelFlux(modelName) {
+  let result = false;
+  if (modelName.search(/flux/i)>=0) {
+    result = true;
+  }  
+  //If turbo model but not actually turbo, go ahead and call it flux, to do fewer steps
+  if (isModelTurbo(modelName) && modelName.search(/turbo/i)<0) {
+    result = true;
+  }
+  return result;
+}
+
 
 function desiredModelName(origRequest) {
   //Grab the model name from the user-input area instead of the original image.
@@ -905,6 +919,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
 
   var isXl=false;
   var isTurbo=isModelTurbo(desiredModel, origRequest.use_lora_model);
+  var isFlux = isModelFlux(desiredModel);  //Flux can handle fewer steps
   //var maxRes=maxTotalResolution;
   if (isModelXl(desiredModel)) {
     //maxRes=maxTotalResolutionXL;
@@ -924,7 +939,8 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     width: doScaleUp? scaleUp(image.naturalWidth, image.naturalHeight, scalingIncrease):image.naturalWidth,
     height: doScaleUp? scaleUp(image.naturalHeight, image.naturalWidth, scalingIncrease):image.naturalHeight,
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
-    num_inference_steps: (isTurbo)?  Math.min(parseInt(origRequest.num_inference_steps) + 15, 22): Math.min(parseInt(origRequest.num_inference_steps) + 25, 80),  //large resolutions combined with large steps can cause an error
+    num_inference_steps: (isTurbo)?  Math.min(parseInt(origRequest.num_inference_steps) + 15, (isFlux)? 15:22)
+      : Math.min(parseInt(origRequest.num_inference_steps) + ((isFlux)? 15:25), (isFlux)? 33:75),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
     //??use_upscale: 'None',
