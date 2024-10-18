@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.9.5, last updated: 9/17/2024
+ * v.2.9.6, last updated: 10/2/2024
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -287,17 +287,18 @@ function scaleUp(height,width,scalingIncrease) {
 
 //Model needs to have "turbo" in the filename to be recognized as a turbo model.
 function isModelTurbo(modelName, loraList) {
-  if (modelName.search(/turbo/i)>=0 || modelName.search(/lightning/i)>=0 || modelName.search(/schnell/i)>=0) {
+  if (modelName.search(/turbo/i)>=0 || modelName.search(/lightning/i)>=0 || modelName.search(/hyper/i)>=0 || modelName.search(/schnell/i)>=0) {
     return true;
   }
   //if any of the Loras contains "lcm", assume turbo lora -- fewer steps needed
   if (loraList != undefined) {
     if (loraList[0].length>1) { //it's an array of strings >1
-      if (loraList.some(element => element.search(/lcm/i)>=0) )
+      if (loraList.some(element => element.search(/lcm/i)>=0) ||
+          loraList.some(element => element.search(/hyper/i)>=0) )
           return true;
     }
     else {  //it's a string
-      if (loraList.search(/lcm/i)>=0)
+      if (loraList.search(/lcm/i)>=0 || loraList.search(/hyper/i)>=0)
       return true;
     }
   }
@@ -308,7 +309,8 @@ function isModelTurbo(modelName, loraList) {
 //add any special cases as needed.
 function isModelXl(modelName) {
   let result = false;
-  if (modelName.search(/xl/i)>=0 || modelName.search(/playground/i)>=0 || modelName.search(/disneyrealcartoonmix/i)>=0  || modelName.search(/mobius/i)>=0 || modelName.search(/flux/i)>=0) {
+  if (modelName.search(/xl/i)>=0 || modelName.search(/playground/i)>=0 || modelName.search(/disneyrealcartoonmix/i)>=0  || modelName.search(/mobius/i)>=0 
+    || modelName.search(/flux/i)>=0  || modelName.search(/zovya/i)>=0) {  //Zovya models appear to mostly be Pony XL -- need to update if there are SD 1.5 models instead
     result = true;
   }  
   return result;
