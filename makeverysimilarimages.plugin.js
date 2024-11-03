@@ -12,16 +12,17 @@
  * 
  */
 
-
+//needs to be outside of the wrapper, as the input items are in the main UI.
+//These initial values can be overwritten upon startup -- do not rely on these as defaults.
+var MakeVerySimilarSettings = {
+  highQuality: false,
+};
 
 (function() { "use strict"
-const favorites_loadDate = Date.now();  //load date as soon as possible, to closely match the folder date
 
-const suLabel = 'Favorites';  //base label prefix
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { text: "Make Very Similar Images", on_click: onMakeVerySimilarClick, filter: onMakeVerySimilarFilter }
 ])
-
 
 //Determine if model is Turbo or other fast model
 //Model needs to have "turbo" in the filename to be recognized as a turbo model.
@@ -72,7 +73,11 @@ function onMakeVerySimilarClick(origRequest, image) {
     num_outputs: 1,
     // For Turbo, in one test, 22 steps is OK, but noticeable improvement at 30.  In another test, 20 was too much, and 10 was better than 6.
     // Larger resolutions show defects/duplication.  Try to run this plugin on reasonably smaller resolutions, not very upscaled ones.
-    num_inference_steps: (isTurbo)? ((isLightning)?6:10) : Math.min(parseInt(origRequest.num_inference_steps) + 15, 36),  //large resolutions combined with large steps can cause an error
+    num_inference_steps: (MakeVerySimilarSettings.highQuality ? 
+      ((isTurbo)? ((isLightning)?9:12) : Math.min(parseInt(origRequest.num_inference_steps) + 15, 45)):  //More steps for higher quality -- a few makes a difference
+      ((isTurbo)? ((isLightning)?6:10) : Math.min(parseInt(origRequest.num_inference_steps) + 15, 36))   //Minimal steps for speed -- much lower, and results may be poor
+    ),  
+    //large resolutions combined with large steps can cause an error
     prompt_strength: 0.7,
     init_image: image.src,
     seed: Math.floor(Math.random() * 10000000),
@@ -98,4 +103,69 @@ function onMakeVerySimilarFilter(origRequest, image) {
     return true;
 }
 
+//________________________________________________________________________________________________________________________________________
+
+  //UI insertion adapted from Rabbit Hole plugin
+  function setup() {
+    //add new UI panel to left sidebar
+    var makeVerySettings = document.createElement('div');
+    makeVerySettings.id = 'makeverysimilar-settings';
+    makeVerySettings.classList.add('settings-box');
+    makeVerySettings.classList.add('panel-box');
+    let tempHTML =  
+        `<h4 class="collapsible">Make Very Similar Images Settings
+          <i id="reset-makeverysimilar-settings" class="fa-solid fa-arrow-rotate-left section-button">
+          <span class="simple-tooltip top-left">
+          Reset Make Very Similar Images Settings
+          </span>
+          </i>
+        </h4>
+        <div id="makeverysimilar-settings-entries" class="collapsible-content" style="display: block;margin-top:15px;">
+        <div><ul style="padding-left:0px">
+          <li><b class="settings-subheader">MakeVerySimilar Settings</b></li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="makeverysimilar_quality" name="makeverysimilar_quality" type="checkbox" value="`+MakeVerySimilarSettings.highQuality+`"  onchange="setMakeVerySimilarSettings()"> <label for="makeverysimilar_quality"></label>
+          </div>
+          <label for="makeverysimilar_quality">Use more steps for higher quality results<small> (longer run-time)</small></label>
+          </li>
+        </ul></div>
+        </div>`;
+    makeVerySettings.innerHTML = tempHTML;
+    var editorSettings = document.getElementById('editor-settings');
+    editorSettings.parentNode.insertBefore(makeVerySettings, editorSettings.nextSibling);
+    createCollapsibles(makeVerySettings);
+
+    const icon = document.getElementById('reset-makeverysimilar-settings');
+    icon.addEventListener('click', makeVerySimilarResetSettings);
+
+    //Ensure switches match the settings (for the initial values), since "value=" in above HTML may not work.  But more importantly, we now load settings from storage.
+    makeVerySimilarResetSettings(null);
+  }
+  setup();
+
 })();
+
+function setMakeVerySimilarSettings() {
+  MakeVerySimilarSettings.highQuality = makeverysimilar_quality.checked;
+
+  localStorage.setItem('MakeVerySimilar_Plugin_Settings', JSON.stringify(MakeVerySimilarSettings));  //Store settings
+}
+
+//Sets the default values for the settings.
+//If reset=pointerevent, then we came from the reset click -- reset to absolute defaults
+//if reset=null, just reload from saved settings
+//Could manually remove/reset settings using:  localStorage.removeItem('MakeVerySimilar_Plugin_Settings')
+function makeVerySimilarResetSettings(reset) {
+
+  let settings = JSON.parse(localStorage.getItem('MakeVerySimilar_Plugin_Settings'));
+  if (settings == null || reset !=null) {  //if settings not found, just set everything
+    MakeVerySimilarSettings.highQuality = false;
+  }
+  else {  //if settings found, but we've added a new setting, use a default value instead.  (Not strictly necessary for this first group.)
+    MakeVerySimilarSettings.highQuality =settings.highQuality ?? false;
+  }
+  localStorage.setItem('MakeVerySimilar_Plugin_Settings', JSON.stringify(MakeVerySimilarSettings));  //Store settings
+
+  //set the input fields
+  makeverysimilar_quality.checked = MakeVerySimilarSettings.highQuality;
+}
