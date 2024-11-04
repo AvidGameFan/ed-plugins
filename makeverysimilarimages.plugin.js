@@ -72,10 +72,16 @@ function onMakeVerySimilarClick(origRequest, image) {
   const newTaskRequest = modifyCurrentRequest(origRequest, {
     num_outputs: 1,
     // For Turbo, in one test, 22 steps is OK, but noticeable improvement at 30.  In another test, 20 was too much, and 10 was better than 6.
+    // For Lightning, 8 to 12 seemed to be peak quality, with 15 and 20 being OK, but progressively worse artifacting.
+    // With SDXL (not Turbo/Lightning), 55 may be excessive and does not appear to be better.  45 is somewhat better than 35.
+    // Actual improvements will vary by model and seed, so it's likely there's not one optimal fits-all choice, so chosen values are somewhat arbitrary.
+    //
     // Larger resolutions show defects/duplication.  Try to run this plugin on reasonably smaller resolutions, not very upscaled ones.
     num_inference_steps: (MakeVerySimilarSettings.highQuality ? 
-      ((isTurbo)? ((isLightning)?9:12) : Math.min(parseInt(origRequest.num_inference_steps) + 15, 45)):  //More steps for higher quality -- a few makes a difference
-      ((isTurbo)? ((isLightning)?6:10) : Math.min(parseInt(origRequest.num_inference_steps) + 15, 36))   //Minimal steps for speed -- much lower, and results may be poor
+      ((isTurbo)? Math.min((isLightning)? Math.max(7, parseInt(origRequest.num_inference_steps) + 3): Math.max(8, parseInt(origRequest.num_inference_steps) + 4), 12) : 
+        Math.min(parseInt(origRequest.num_inference_steps) + 15, 45)):  //More steps for higher quality -- a few makes a difference
+      ((isTurbo)? Math.min((isLightning)? Math.max(6, parseInt(origRequest.num_inference_steps) + 2): Math.max(7, parseInt(origRequest.num_inference_steps) + 3), 10) : 
+        Math.min(parseInt(origRequest.num_inference_steps) + 15, 35))   //Minimal steps for speed -- much lower, and results may be poor
     ),  
     //large resolutions combined with large steps can cause an error
     prompt_strength: 0.7,
