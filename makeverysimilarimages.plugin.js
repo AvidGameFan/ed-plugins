@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.1.0.0, last updated: 11/2/2024
+ * v.1.1.0, last updated: 1/1/2025
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -12,13 +12,16 @@
  * 
  */
 
-//needs to be outside of the wrapper, as the input items are in the main UI.
+//Settings need to be outside of the wrapper, as the input items are in the main UI.
 //These initial values can be overwritten upon startup -- do not rely on these as defaults.
 var MakeVerySimilarSettings = {
   highQuality: false,
+  enhanceImage: false,
 };
 
 (function() { "use strict"
+
+var contrastAmount=0.8;  //0.8 appears to slightly increase contrast; 0.7 is more neutral
 
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { text: "Make Very Similar Images", on_click: onMakeVerySimilarClick, filter: onMakeVerySimilarFilter }
@@ -102,6 +105,34 @@ delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don
 
 delete newTaskRequest.reqBody.mask
 
+  //sharpen the image before generating, to maximize detail
+  if(MakeVerySimilarSettings.enhanceImage) {
+    //create working canvas
+    let canvas = document.createElement("canvas");
+    canvas.width = Math.round(image.naturalWidth);
+    canvas.height = Math.round(image.naturalHeight);
+
+    let ctx = canvas.getContext("2d", {willReadFrequently: true});
+
+    // get the image data of the canvas
+    //x,y -- upper-left, width & height
+    ctx.drawImage( image,
+      0, 0, image.naturalWidth, image.naturalHeight, //source 
+      0, 0, canvas.width, canvas.height //destination
+    );
+
+    sharpen(ctx, canvas.width, canvas.height, .33);
+    
+    var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
+    img = contrastImage(img, contrastAmount);
+    ctx.putImageData(img, 0, 0);
+
+    var newImage = new Image;
+    newImage.src = canvas.toDataURL('image/png');
+   
+    newTaskRequest.reqBody.init_image = newImage.src;
+  }
+
 createTask(newTaskRequest)
 }
 
@@ -110,6 +141,78 @@ function onMakeVerySimilarFilter(origRequest, image) {
 }
 
 //________________________________________________________________________________________________________________________________________
+// sharpen image, from Bing CoPilot, after correcting for rounding and edge pixels
+// USAGE:
+//    sharpen(context, width, height, amount)
+//  amount: [0.0, 1.0]
+// This is similar to https://stackoverflow.com/questions/20316680/javascript-sharpen-image-and-edge-detection-not-working;
+// but without the edge-pixel problem.
+
+function sharpen(ctx, width, height, amount) {
+  const weights = [
+      0, -1, 0,
+      -1, 5, -1,
+      0, -1, 0
+  ];
+
+  const side = Math.round(Math.sqrt(weights.length));
+  const halfSide = Math.floor(side / 2);
+  const src = ctx.getImageData(0, 0, width, height);
+  const sw = src.width;
+  const sh = src.height;
+  const srcPixels = src.data;
+  const output = ctx.createImageData(sw, sh);
+  const dstPixels = output.data;
+
+  for (let y = 0; y < sh; y++) {
+      for (let x = 0; x < sw; x++) {
+          const dstOff = (y * sw + x) * 4;
+          let r = 0, g = 0, b = 0;
+
+          for (let cy = 0; cy < side; cy++) {
+              for (let cx = 0; cx < side; cx++) {
+                  const scy = Math.min(sh - 1, Math.max(0, y + cy - halfSide));
+                  const scx = Math.min(sw - 1, Math.max(0, x + cx - halfSide));
+                  const srcOff = (scy * sw + scx) * 4;
+                  const wt = weights[cy * side + cx];
+
+                  r += srcPixels[srcOff] * wt;
+                  g += srcPixels[srcOff + 1] * wt;
+                  b += srcPixels[srcOff + 2] * wt;
+              }
+          }
+
+          dstPixels[dstOff] = Math.round(r * amount + srcPixels[dstOff] * (1 - amount));
+          dstPixels[dstOff + 1] = Math.round(g * amount + srcPixels[dstOff + 1] * (1 - amount));
+          dstPixels[dstOff + 2] = Math.round(b * amount + srcPixels[dstOff + 2] * (1 - amount));
+          dstPixels[dstOff + 3] = srcPixels[dstOff + 3]; // alpha channel
+      }
+  }
+
+  ctx.putImageData(output, 0, 0);
+}
+
+
+//Contrast from:
+//https://stackoverflow.com/questions/10521978/html5-canvas-image-contrast
+//https://jsfiddle.net/88k7zj3k/6/
+
+function contrastImage(imageData, contrast) {  // contrast as an integer percent  
+  var data = imageData.data;  // original array modified, but canvas not updated
+  contrast *= 2.55; // or *= 255 / 100; scale integer percent to full range
+  var factor = (255 + contrast) / (255.01 - contrast);  //add .1 to avoid /0 error
+
+  for(var i=0;i<data.length;i+=4)  //pixel values in 4-byte blocks (r,g,b,a)
+  {
+      data[i] = factor * (data[i] - 128) + 128;     //r value
+      data[i+1] = factor * (data[i+1] - 128) + 128; //g value
+      data[i+2] = factor * (data[i+2] - 128) + 128; //b value
+  }
+  return imageData;  //optional (e.g. for filter function chaining)
+}
+
+//________________________________________________________________________________________________________________________________________
+
 
   //UI insertion adapted from Rabbit Hole plugin
   function setup() {
@@ -134,6 +237,11 @@ function onMakeVerySimilarFilter(origRequest, image) {
           </div>
           <label for="makeverysimilar_quality">Use more steps for higher quality results<small> (longer run-time)</small></label>
           </li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="makeverysimilar_sharpen" name="makeverysimilar_sharpen" type="checkbox" value="`+MakeVerySimilarSettings.enhanceImage+`"  onchange="setMakeVerySimilarSettings()"> <label for="makeverysimilar_sharpen"></label>
+          </div>
+          <label for="makeverysimilar_sharpen">Enhance Details</label>
+          </li>
         </ul></div>
         </div>`;
     makeVerySettings.innerHTML = tempHTML;
@@ -153,6 +261,8 @@ function onMakeVerySimilarFilter(origRequest, image) {
 
 function setMakeVerySimilarSettings() {
   MakeVerySimilarSettings.highQuality = makeverysimilar_quality.checked;
+  MakeVerySimilarSettings.enhanceImage = makeverysimilar_sharpen.checked;
+
 
   localStorage.setItem('MakeVerySimilar_Plugin_Settings', JSON.stringify(MakeVerySimilarSettings));  //Store settings
 }
@@ -166,12 +276,15 @@ function makeVerySimilarResetSettings(reset) {
   let settings = JSON.parse(localStorage.getItem('MakeVerySimilar_Plugin_Settings'));
   if (settings == null || reset !=null) {  //if settings not found, just set everything
     MakeVerySimilarSettings.highQuality = false;
+    MakeVerySimilarSettings.enhanceImage = false;
   }
   else {  //if settings found, but we've added a new setting, use a default value instead.  (Not strictly necessary for this first group.)
-    MakeVerySimilarSettings.highQuality =settings.highQuality ?? false;
+    MakeVerySimilarSettings.highQuality = settings.highQuality ?? false;
+    MakeVerySimilarSettings.enhanceImage = settings.enhanceImage ?? false;
   }
   localStorage.setItem('MakeVerySimilar_Plugin_Settings', JSON.stringify(MakeVerySimilarSettings));  //Store settings
 
   //set the input fields
   makeverysimilar_quality.checked = MakeVerySimilarSettings.highQuality;
+  makeverysimilar_sharpen.checked = MakeVerySimilarSettings.enhanceImage;
 }
