@@ -38,9 +38,17 @@ function onFavoritesClick(origRequest, image) {
     let unselected= this.children[0].classList.replace('fa-regular','fa-solid')
     //if we already selected, don't save the seed again
     if (unselected) {
-      names=names+image.dataset["seed"]+'\n';
+      //if seed is already present, no need to add it again
+      if (names.search('\n'+image.dataset["seed"]+'\n')<0) {
+        names=names+image.dataset["seed"]+'\n';
+      }
     }
-    //could remove from the list, with an untoggle -- future enhancement
+    else {
+      //remove from the list, with an untoggle
+      this.children[0].classList.replace('fa-solid','fa-regular');
+      // \n is used as a delimiter on both sides, to ensure that there are no false matches due to length.
+      names = names.replace('\n'+image.dataset["seed"]+'\n', '\n');
+    }
 }
 
 //Save text file with list of seeds
