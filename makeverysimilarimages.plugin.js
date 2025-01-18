@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.1.1.0, last updated: 1/1/2025
+ * v.1.2.0, last updated: 1/18/2025
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -17,6 +17,7 @@
 var MakeVerySimilarSettings = {
   highQuality: false,
   enhanceImage: false,
+  addNoise: false
 };
 
 (function() { "use strict"
@@ -26,6 +27,71 @@ var contrastAmount=0.8;  //0.8 appears to slightly increase contrast; 0.7 is mor
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { text: "Make Very Similar Images", on_click: onMakeVerySimilarClick, filter: onMakeVerySimilarFilter }
 ])
+
+const percentToKeep = .70; //Amount of random pixels to retain, to bias effect
+const noiseDepth = 128;
+//modified from OutpaintIt's outpaintSetPixels.
+function addNoiseToPixels(imageData) {
+  function guassianRand() {  //approximation of Gaussian, from Stackoverflow
+    var rand =0;
+    for (var i=0; i<6; i+=1) {
+      rand += Math.random();
+    }
+    return rand/6;
+  }
+  function randomPixel(range) {
+        return Math.floor(guassianRand() * range); //suggested range of 256 results in 0 to 255
+  }
+  // get the pixel data array
+  var pixels = imageData.data;
+  var numPixels = pixels.length/4;
+  // loop through each pixel
+  for (var i = 0; i < pixels.length; i += 4) {
+    if ( Math.random()<percentToKeep)
+        continue; 
+
+    //always give some color bias to noise
+    // let newPixel=Math.floor(Math.random()*numPixels)*4;
+    // if(Math.random()<.2 && i<pixels.length-200 && i>=200) {  //50*4
+    //    newPixel=(Math.floor(Math.random()*100)-50)*4+i;
+    //     //note that if filled with more noise, this is going to reach back and pick up earlier noise values - not ideal
+    //    pixels[i] = pixels[newPixel];
+    //    pixels[i + 1] = pixels[newPixel+1];
+    //    pixels[i + 2] = pixels[newPixel+2];
+    //    pixels[i + 3] = 255;
+
+    // }
+    // else 
+    {
+    
+      // get the red, green, blue (but not alpha) values
+      var r = pixels[i];
+      var g = pixels[i + 1];
+      var b = pixels[i + 2];
+      //var a = pixels[i + 3];
+      //console.log(`Initial values -> r: ${r}, g: ${g}, b: ${b}`);
+
+      // randomize the pixel values
+      r = r+randomPixel(noiseDepth)-noiseDepth/2;
+      g = g+randomPixel(noiseDepth)-noiseDepth/2;
+      b = b+randomPixel(noiseDepth)-noiseDepth/2;
+      //a = 255;
+
+      //don't wrap values, force to floor or ceiling
+      r = Math.max(Math.min(r,255), 0);
+      g = Math.max(Math.min(g,255), 0);
+      b = Math.max(Math.min(b,255), 0);
+      //console.log(`Updated values -> r: ${r}, g: ${g}, b: ${b}`);
+
+      // set the new pixel values back to the array
+      pixels[i] = r;
+      pixels[i + 1] = g;
+      pixels[i + 2] = b;
+      pixels[i + 3] = 255;
+    
+    }
+  }
+}
 
 //Determine if model is Turbo or other fast model
 //Model needs to have "turbo" in the filename to be recognized as a turbo model.
@@ -106,7 +172,7 @@ delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don
 delete newTaskRequest.reqBody.mask
 
   //sharpen the image before generating, to maximize detail
-  if(MakeVerySimilarSettings.enhanceImage) {
+  if(MakeVerySimilarSettings.enhanceImage || MakeVerySimilarSettings.addNoise) {
     //create working canvas
     let canvas = document.createElement("canvas");
     canvas.width = Math.round(image.naturalWidth);
@@ -120,11 +186,19 @@ delete newTaskRequest.reqBody.mask
       0, 0, image.naturalWidth, image.naturalHeight, //source 
       0, 0, canvas.width, canvas.height //destination
     );
-
-    sharpen(ctx, canvas.width, canvas.height, .33);
+    if(MakeVerySimilarSettings.enhanceImage) {
+      sharpen(ctx, canvas.width, canvas.height, .33);
+    }
     
     var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
-    img = contrastImage(img, contrastAmount);
+    if(MakeVerySimilarSettings.enhanceImage) {
+      img = contrastImage(img, contrastAmount);
+    }
+
+    if(MakeVerySimilarSettings.addNoise) {
+      addNoiseToPixels(img);
+    }
+
     ctx.putImageData(img, 0, 0);
 
     var newImage = new Image;
@@ -242,6 +316,11 @@ function contrastImage(imageData, contrast) {  // contrast as an integer percent
           </div>
           <label for="makeverysimilar_sharpen">Enhance Details</label>
           </li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="makeverysimilar_noise" name="makeverysimilar_noise" type="checkbox" value="`+MakeVerySimilarSettings.addNoise+`"  onchange="setMakeVerySimilarSettings()"> <label for="makeverysimilar_noise"></label>
+          </div>
+          <label for="makeverysimilar_noise">Add Noise<small> (further enhances details and texture)</small></label>
+          </li>
         </ul></div>
         </div>`;
     makeVerySettings.innerHTML = tempHTML;
@@ -262,7 +341,7 @@ function contrastImage(imageData, contrast) {  // contrast as an integer percent
 function setMakeVerySimilarSettings() {
   MakeVerySimilarSettings.highQuality = makeverysimilar_quality.checked;
   MakeVerySimilarSettings.enhanceImage = makeverysimilar_sharpen.checked;
-
+  MakeVerySimilarSettings.addNoise = makeverysimilar_noise.checked;
 
   localStorage.setItem('MakeVerySimilar_Plugin_Settings', JSON.stringify(MakeVerySimilarSettings));  //Store settings
 }
@@ -277,14 +356,17 @@ function makeVerySimilarResetSettings(reset) {
   if (settings == null || reset !=null) {  //if settings not found, just set everything
     MakeVerySimilarSettings.highQuality = false;
     MakeVerySimilarSettings.enhanceImage = false;
+    MakeVerySimilarSettings.addNoise = false;
   }
   else {  //if settings found, but we've added a new setting, use a default value instead.  (Not strictly necessary for this first group.)
     MakeVerySimilarSettings.highQuality = settings.highQuality ?? false;
     MakeVerySimilarSettings.enhanceImage = settings.enhanceImage ?? false;
+    MakeVerySimilarSettings.addNoise = settings.addNoise ?? false;
   }
   localStorage.setItem('MakeVerySimilar_Plugin_Settings', JSON.stringify(MakeVerySimilarSettings));  //Store settings
 
   //set the input fields
   makeverysimilar_quality.checked = MakeVerySimilarSettings.highQuality;
   makeverysimilar_sharpen.checked = MakeVerySimilarSettings.enhanceImage;
+  makeverysimilar_noise.checked = MakeVerySimilarSettings.addNoise;
 }
