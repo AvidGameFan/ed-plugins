@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.1.2.0, last updated: 1/18/2025
+ * v.1.2.1, last updated: 1/19/2025
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -17,7 +17,8 @@
 var MakeVerySimilarSettings = {
   highQuality: false,
   enhanceImage: false,
-  addNoise: false
+  addNoise: false,
+  preserve: false
 };
 
 (function() { "use strict"
@@ -153,7 +154,7 @@ function onMakeVerySimilarClick(origRequest, image) {
         Math.min(parseInt(origRequest.num_inference_steps) + 15, 35))   //Minimal steps for speed -- much lower, and results may be poor
     ),  
     //large resolutions combined with large steps can cause an error
-    prompt_strength: 0.7,
+    prompt_strength: MakeVerySimilarSettings.preserve ? 0.22 : 0.7,
     init_image: image.src,
     seed: Math.floor(Math.random() * 10000000),
 })
@@ -321,6 +322,11 @@ function contrastImage(imageData, contrast) {  // contrast as an integer percent
           </div>
           <label for="makeverysimilar_noise">Add Noise<small> (further enhances details and texture)</small></label>
           </li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="makeverysimilar_preserve" name="makeverysimilar_preserve" type="checkbox" value="`+MakeVerySimilarSettings.preserve+`"  onchange="setMakeVerySimilarSettings()"> <label for="makeverysimilar_preserve"></label>
+          </div>
+          <label for="makeverysimilar_preserve">Preserve image<small> (stay close to original image while enhancing details)</small></label>
+          </li>
         </ul></div>
         </div>`;
     makeVerySettings.innerHTML = tempHTML;
@@ -342,6 +348,7 @@ function setMakeVerySimilarSettings() {
   MakeVerySimilarSettings.highQuality = makeverysimilar_quality.checked;
   MakeVerySimilarSettings.enhanceImage = makeverysimilar_sharpen.checked;
   MakeVerySimilarSettings.addNoise = makeverysimilar_noise.checked;
+  MakeVerySimilarSettings.preserve = makeverysimilar_preserve.checked;
 
   localStorage.setItem('MakeVerySimilar_Plugin_Settings', JSON.stringify(MakeVerySimilarSettings));  //Store settings
 }
@@ -357,11 +364,13 @@ function makeVerySimilarResetSettings(reset) {
     MakeVerySimilarSettings.highQuality = false;
     MakeVerySimilarSettings.enhanceImage = false;
     MakeVerySimilarSettings.addNoise = false;
+    MakeVerySimilarSettings.preserve = false;
   }
   else {  //if settings found, but we've added a new setting, use a default value instead.  (Not strictly necessary for this first group.)
     MakeVerySimilarSettings.highQuality = settings.highQuality ?? false;
     MakeVerySimilarSettings.enhanceImage = settings.enhanceImage ?? false;
     MakeVerySimilarSettings.addNoise = settings.addNoise ?? false;
+    MakeVerySimilarSettings.preserve = settings.preserve ?? false;
   }
   localStorage.setItem('MakeVerySimilar_Plugin_Settings', JSON.stringify(MakeVerySimilarSettings));  //Store settings
 
@@ -369,4 +378,5 @@ function makeVerySimilarResetSettings(reset) {
   makeverysimilar_quality.checked = MakeVerySimilarSettings.highQuality;
   makeverysimilar_sharpen.checked = MakeVerySimilarSettings.enhanceImage;
   makeverysimilar_noise.checked = MakeVerySimilarSettings.addNoise;
+  makeverysimilar_preserve.checked = MakeVerySimilarSettings.preserve;
 }
