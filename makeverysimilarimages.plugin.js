@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.1.2.3, last updated: 1/20/2025
+ * v.1.2.4, last updated: 1/21/2025
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -189,16 +189,23 @@ delete newTaskRequest.reqBody.mask
       0, 0, image.naturalWidth, image.naturalHeight, //source 
       0, 0, canvas.width, canvas.height //destination
     );
-    if(MakeVerySimilarSettings.enhanceImage) {
-      sharpen(ctx, canvas.width, canvas.height, .33);
+
+    //Don't enhance if we previously just added noise, and we're doing "preserve".
+    if(MakeVerySimilarSettings.enhanceImage &&
+      (origRequest.NoisePreviouslyAdded == undefined
+      || (origRequest.NoisePreviouslyAdded != undefined && !MakeVerySimilarSettings.preserve))) {
+        sharpen(ctx, canvas.width, canvas.height, .33);
     }
     
     var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
+
     if(MakeVerySimilarSettings.enhanceImage) {
       img = contrastImage(img, contrastAmount);
     }
 
-    if(MakeVerySimilarSettings.addNoise) {
+    //Don't add noise if we previously just added noise, and we're doing "preserve".
+    if(MakeVerySimilarSettings.addNoise && (origRequest.NoisePreviouslyAdded == undefined
+      || (origRequest.NoisePreviouslyAdded != undefined && !MakeVerySimilarSettings.preserve))) {
       addNoiseToPixels(img);
     }
 
@@ -208,6 +215,19 @@ delete newTaskRequest.reqBody.mask
     newImage.src = canvas.toDataURL('image/png');
    
     newTaskRequest.reqBody.init_image = newImage.src;
+
+    //If Preserve is used, the noise tends to linger, so mark that we've done this already.
+    var setNoiseFlag=false;
+    if(MakeVerySimilarSettings.addNoise && MakeVerySimilarSettings.preserve) {
+      if (origRequest.NoisePreviouslyAdded == undefined) {
+        newTaskRequest.reqBody.NoisePreviouslyAdded = true;
+        setNoiseFlag=true;
+      }
+    }
+    //if we didn't just set the noise flag, turn it back off
+    if (!setNoiseFlag) {
+      delete newTaskRequest.reqBody.NoisePreviouslyAdded;
+    }
   }
 
 createTask(newTaskRequest)
