@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.1.2.4, last updated: 1/21/2025
+ * v.1.2.5, last updated: 2/8/2025
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -18,7 +18,8 @@ var MakeVerySimilarSettings = {
   highQuality: false,
   enhanceImage: false,
   addNoise: false,
-  preserve: false
+  preserve: false,
+  useChangedPrompt: false
 };
 
 (function() { "use strict"
@@ -147,19 +148,27 @@ function onMakeVerySimilarClick(origRequest, image) {
     // Actual improvements will vary by model and seed, so it's likely there's not one optimal fits-all choice, so chosen values are somewhat arbitrary.
     //
     // Larger resolutions show defects/duplication.  Try to run this plugin on reasonably smaller resolutions, not very upscaled ones.
-    num_inference_steps: (MakeVerySimilarSettings.highQuality ? 
+    num_inference_steps: Math.floor((MakeVerySimilarSettings.highQuality ? 
       ((isTurbo)? Math.min((isLightning)? Math.max(7, parseInt(origRequest.num_inference_steps) + 3): Math.max(8, parseInt(origRequest.num_inference_steps) + 4), 12) : 
-        Math.min(parseInt(origRequest.num_inference_steps) + 15, 45)):  //More steps for higher quality -- a few makes a difference
+        Math.min(parseInt(origRequest.num_inference_steps) + 10, 40)):  //More steps for higher quality -- a few makes a difference
       ((isTurbo)? Math.min((isLightning)? Math.max(6, parseInt(origRequest.num_inference_steps) + 2): Math.max(7, parseInt(origRequest.num_inference_steps) + 3), 10) : 
-        Math.min(parseInt(origRequest.num_inference_steps) + 15, 35))   //Minimal steps for speed -- much lower, and results may be poor
+        Math.min(parseInt(origRequest.num_inference_steps) + 5, 30))   //Minimal steps for speed -- much lower, and results may be poor
       )
-      * (MakeVerySimilarSettings.preserve ? 3 : 1)  //multiply steps by 3 to compensate for Prompt Strength being .3 instead of .7
+      * (MakeVerySimilarSettings.preserve ? 2.5 : 1)  //multiply steps to compensate for Prompt Strength being .3 instead of .7
+    )
     ,  
     //large resolutions combined with large steps can cause an error
     prompt_strength: MakeVerySimilarSettings.preserve ? 0.3 : 0.7,
     init_image: image.src,
     seed: Math.floor(Math.random() * 10000000),
 })
+
+//Grab the prompt from the user-input area instead of the original image.
+if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
+  if (MakeVerySimilarSettings.useChangedPrompt ) {
+    newTaskRequest.reqBody.prompt=getPrompts()[0];
+  };
+}
 
 //newTaskRequest.numOutputsTotal = 5
 //newTaskRequest.batchCount = 5
@@ -349,6 +358,11 @@ function contrastImage(imageData, contrast) {  // contrast as an integer percent
           </div>
           <label for="makeverysimilar_preserve">Preserve image<small> (stay close to original image while enhancing details)</small></label>
           </li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="makeverysimilar_change_prompt" name="makeverysimilar_change_prompt" type="checkbox" value="`+MakeVerySimilarSettings.useChangedPrompt+`"  onchange="setMakeVerySimilarSettings()"> <label for="makeverysimilar_change_prompt"></label>
+          </div>
+          <label for="makeverysimilar_change_prompt">Use new prompt, above <small>(not the original prompt)</small></label>
+          </li>
         </ul></div>
         </div>`;
     makeVerySettings.innerHTML = tempHTML;
@@ -371,6 +385,7 @@ function setMakeVerySimilarSettings() {
   MakeVerySimilarSettings.enhanceImage = makeverysimilar_sharpen.checked;
   MakeVerySimilarSettings.addNoise = makeverysimilar_noise.checked;
   MakeVerySimilarSettings.preserve = makeverysimilar_preserve.checked;
+  MakeVerySimilarSettings.useChangedPrompt = makeverysimilar_change_prompt.checked;
 
   localStorage.setItem('MakeVerySimilar_Plugin_Settings', JSON.stringify(MakeVerySimilarSettings));  //Store settings
 }
@@ -387,13 +402,16 @@ function makeVerySimilarResetSettings(reset) {
     MakeVerySimilarSettings.enhanceImage = false;
     MakeVerySimilarSettings.addNoise = false;
     MakeVerySimilarSettings.preserve = false;
+    MakeVerySimilarSettings.useChangedPrompt = false;
   }
   else {  //if settings found, but we've added a new setting, use a default value instead.  (Not strictly necessary for this first group.)
     MakeVerySimilarSettings.highQuality = settings.highQuality ?? false;
     MakeVerySimilarSettings.enhanceImage = settings.enhanceImage ?? false;
     MakeVerySimilarSettings.addNoise = settings.addNoise ?? false;
     MakeVerySimilarSettings.preserve = settings.preserve ?? false;
+    MakeVerySimilarSettings.useChangedPrompt =settings.useChangedPrompt ?? false;
   }
+
   localStorage.setItem('MakeVerySimilar_Plugin_Settings', JSON.stringify(MakeVerySimilarSettings));  //Store settings
 
   //set the input fields
@@ -401,4 +419,5 @@ function makeVerySimilarResetSettings(reset) {
   makeverysimilar_sharpen.checked = MakeVerySimilarSettings.enhanceImage;
   makeverysimilar_noise.checked = MakeVerySimilarSettings.addNoise;
   makeverysimilar_preserve.checked = MakeVerySimilarSettings.preserve;
+  makeverysimilar_change_prompt.checked = MakeVerySimilarSettings.useChangedPrompt;
 }
