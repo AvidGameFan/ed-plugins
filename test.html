@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8">
+<title>QUnit</title>
+<link rel="stylesheet" href="https://code.jquery.com/qunit/qunit-2.23.0.css">
+<body>
+  <div id="qunit"></div>
+  <div id="qunit-fixture"></div>
+  <script src="https://code.jquery.com/qunit/qunit-2.23.0.js"></script>
+  <!-- <script src="your_app.test.js"></script> 
+  <script src="favorites.plugin.js"></script> -->
+<!--
+Either extract contents of anon (wrapped) function below, or refactor to return an object of items that can be tested.
+
+For example:
+  return  object = {
+    myNumber: myNumber,
+    myObject  : myObject
+  };
+
+-->
+<i class="fa-regular fa-heart"></i>
+<script>
+
+//Test Setup
+var PLUGINS= {
+    IMAGE_INFO_BUTTONS: Array(5)
+};
+
+
+/***
+ * 
+ * Favorites Plugin for Easy Diffusion
+ * v.0.9.1, last updated: 1/26/2024
+ * By Gary W.
+ * 
+ * This plugin allows you to tag your favorite images, by saving the seeds to a file.  
+ * This file can then be used externally to assist with finding and copying just those
+ * images out of what is often a working folder with many unnecessary intermediate files.
+ * 
+ * See separate utility to automatically move a batch of images.
+ * 
+ * 
+ * Free to use with the CMDR2 Stable Diffusion UI.
+ * 
+ */
+
+
+
+const favorites_loadDate = Date.now();  //load date as soon as possible, to closely match the folder date
+
+const suLabel = 'Favorites';  //base label prefix
+PLUGINS['IMAGE_INFO_BUTTONS'].push([
+  { html: '<span class="favorites-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">'
+    +suLabel+':</span>', type: 'label'},
+  { html: '<i class="fa-regular fa-heart"></i>', on_click: onFavoritesClick, filter: onFavoritesClickFilter  },
+  { html: '<i class="fa-regular fa-floppy-disk"></i>', on_click: onFavoritesSaveClick, filter: onFavoritesSaveClickFilter  }
+])
+
+var names ="List of selected Favorites (seeds)\n";
+
+function onFavoritesClick(origRequest, image) {
+    //const name = getDownloadFilename(image, origRequest["output_format"])
+    //names=name+'\t'+convertDateToStr(1705429635772)+'\n';
+
+    //toggle the icon
+    let unselected= this.children[0].classList.replace('fa-regular','fa-solid')
+    //if we already selected, don't save the seed again
+    if (unselected) {
+      //if seed is already present, no need to add it again
+      if (names.search('\n'+image.dataset["seed"]+'\n')<0) {
+        names=names+image.dataset["seed"]+'\n';
+      }
+    }
+    else {
+      //remove from the list, with an untoggle
+      this.children[0].classList.replace('fa-solid','fa-regular');
+      // \n is used as a delimiter on both sides, to ensure that there are no false matches due to length.
+      names = names.replace('\n'+image.dataset["seed"]+'\n', '\n');
+    }
+}
+
+//Save text file with list of seeds
+function onFavoritesSaveClick(origRequest, image) {
+    // Create a blob from the text
+var blob = new Blob([names], {type: "text/plain;charset=utf-8"});
+
+// Create a temporary URL for the blob
+var url = URL.createObjectURL(blob);
+
+// Create an anchor element with the download attribute
+var a = document.createElement("a");
+a.href = url;
+a.download = "favoriteslist-"+favorites_loadDate+".txt";
+
+// Append the anchor to the document body
+document.body.appendChild(a);
+
+// Trigger a click event on the anchor
+a.click();
+
+// Remove the anchor from the document body
+document.body.removeChild(a);
+
+// Revoke the temporary URL
+URL.revokeObjectURL(url);
+}
+
+function onFavoritesClickFilter(origRequest, image) {
+    return true;
+}
+
+function onFavoritesSaveClickFilter(origRequest, image) {
+    return true;
+}
+
+QUnit.module('names', function() {
+      QUnit.test('initialized', function(assert) {
+        assert.ok(names);
+      });
+    });
+QUnit.module('names', function() {
+      QUnit.test('initialized2', function(assert) {
+        assert.equal(names,"List of selected Favorites (seeds)\n");
+      });
+    });
+
+
+// SimulatedDOMTokenList created by Bing CoPilot.
+// This is needed to simulate the behavior of replace() in DOMTokenList.
+class SimulatedDOMTokenList {
+
+  constructor(...initialTokens) {
+    this.tokens = new Set();
+    this.add(...initialTokens);
+  }
+
+  add(...tokens) {
+    tokens.forEach(token => this.tokens.add(token));
+  }
+
+  remove(...tokens) {
+    tokens.forEach(token => this.tokens.delete(token));
+  }
+
+  contains(token) {
+    return this.tokens.has(token);
+  }
+
+  replace(oldToken, newToken) {
+    if (this.tokens.delete(oldToken)) {
+      this.tokens.add(newToken);
+      return true;
+    }
+    return false;
+  }
+
+  get value() {
+    return Array.from(this.tokens).join(' ');
+  }
+}
+
+// Example usage:
+const simulatedList = new SimulatedDOMTokenList();
+simulatedList.add('class1', 'class2');
+console.log(simulatedList.value); // Outputs: "class1 class2"
+
+console.log(simulatedList.replace('class1', 'class3')); // Outputs: true
+console.log(simulatedList.value); // Outputs: "class2 class3"
+
+console.log(simulatedList.replace('class1', 'class4')); // Outputs: false
+console.log(simulatedList.value); // Outputs: "class2 class3"
+
+    //Test setup
+    var children=Array(1);
+
+    QUnit.module('onFavoritesClick', function() {
+      QUnit.test('names', function(assert) {
+        names ="List of selected Favorites (seeds)\n";
+        children[0]={classList:'fa-regular'}; //We start out unselected
+        onFavoritesClick(undefined,{dataset:{seed:111}});
+        assert.notEqual(names,"List of selected Favorites (seeds)\n");
+      });
+    });
+
+
+    QUnit.module('onFavoritesClick', function() {
+      QUnit.test('duplicates', function(assert) {
+        names ="List of selected Favorites (seeds)\n";
+        children[0]={classList:'fa-regular'}; //We start out unselected
+        onFavoritesClick(undefined,{dataset:{seed:111}});
+        children[0]={classList:'fa-regular'}; //new item is unselected
+        onFavoritesClick(undefined,{dataset:{seed:111}});
+        assert.equal(names,"List of selected Favorites (seeds)\n111\n");
+      });
+    });
+
+    QUnit.module('onFavoritesClick', function() {
+      QUnit.test('untoggle', function(assert) {
+        names ="List of selected Favorites (seeds)\n";
+        children[0]={classList:'fa-regular'}; //We start out unselected
+        onFavoritesClick(undefined,{dataset:{seed:111}});
+        children[0]={classList:'fa-regular'}; //new item is unselected
+        onFavoritesClick(undefined,{dataset:{seed:1111}});
+        //children[0]={classList:'fa-solid'}; //mock new item is selected
+        children[0]={classList: new SimulatedDOMTokenList('fa-solid fa-heart')}; //mock new item is selected
+        new SimulatedDOMTokenList();
+simulatedList.add('class1', 'class2');
+        onFavoritesClick(undefined,{dataset:{seed:111}}); //attempt removal of first item, not 2nd
+        assert.equal(names,"List of selected Favorites (seeds)\n1111\n");
+      });
+    });
+
+</script>
+
+<!-- sample 
+<script>
+    function add(a, b) {
+      return a + b;
+    }
+    
+    QUnit.module('add', function() {
+      QUnit.test('two numbers', function(assert) {
+        assert.equal(add(1, 2), 3);
+      });
+    });
+
+    QUnit.module('names', function() {
+      QUnit.test('initialized', function(assert) {
+        assert.ok(names);
+      });
+    });
+
+
+    </script> -->
+
+</body>
+</html>
