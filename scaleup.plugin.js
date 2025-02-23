@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.9.7, last updated: 10/17/2024
+ * v.2.9.8, last updated: 2/22/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -330,9 +330,9 @@ function isModelFlux(modelName) {
 }
 
 
-function desiredModelName(origRequest) {
+function desiredModelName(origRequest, forceOrigModelName /*optional*/) {
   //Grab the model name from the user-input area instead of the original image.
-  if (ScaleUpSettings.useChangedModel) {
+  if (ScaleUpSettings.useChangedModel && !forceOrigModelName) {
     return $("#editor-settings #stable_diffusion_model")[0].dataset.path; 
   }
   else {
@@ -533,76 +533,6 @@ function onScaleUpClick2(origRequest, image) {
   scaleUpOnce(origRequest, image, true, scalingIncrease2) ;
 }
 
-// function onScaleUpClick(origRequest, image) {
-//   var desiredModel=desiredModelName(origRequest);
-
-// //  //Grab the model name from the user-input area instead of the original image.
-// //  if (ScaleUpSettings.useChangedModel) {
-// //    desiredModel=$("#editor-settings #stable_diffusion_model")[0].dataset.path; 
-// //    // grab the VAE too?
-// //  }
-// //  else {
-// //    desiredModel=origRequest.use_stable_diffusion_model; //for the original model
-// //  }
-
-//   var isXl=isModelXl(desiredModel);
-//   var isTurbo=isModelTurbo(desiredModel);
-//   let newTaskRequest = getCurrentUserRequest();
-//   newTaskRequest.reqBody = Object.assign({}, origRequest, {
-//     init_image: image.src,
-//     prompt_strength: (isXl)? (scaleUpPreserve ? 0.10 : 0.25):(scaleUpPreserve ? 0.15 : 0.35),  //Lower this number to make results closer to the original
-//     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
-//     // - 0.15 sticks pretty close to the original, adding detail
-//     // Lower amounts used for SDXL, as it seems more sensitive to changes, especially the refiner model.
-//     width: scaleUp(image.naturalWidth, image.naturalHeight),
-//     height: scaleUp(image.naturalHeight, image.naturalWidth),
-//     //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
-//     num_inference_steps: (isTurbo)? 30 : Math.min(parseInt(origRequest.num_inference_steps) + 25, 80),  //large resolutions combined with large steps can cause an error
-//     num_outputs: 1,
-//     use_vae_model: desiredVaeName(origRequest),
-//     //??use_upscale: 'None',
-//     //Using a new seed will allow some variation as it up-sizes.
-//     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
-//   })
-
-//   //if using controlnet
-//   if (scaleUpControlNet && !isXl)
-//   {
-//     newTaskRequest.reqBody.control_image = image.src;
-//     newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11f1e_sd15_tile";
-//     newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : 0.5;
-//   }
-
-//   newTaskRequest.seed = newTaskRequest.reqBody.seed
-//   //newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
-//   newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
-//   newTaskRequest.numOutputsTotal = 1 // "
-//   //If you have a lower-end graphics card, the below will automatically disable memory-intensive options for larger images.
-//   //Each person needs to test with different resolutions to find the limit of their card when using balanced (formerly, "turbo") mode.
-//   if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //max normal resolution
-//     //Disable anything that takes up VRAM here
-//     newTaskRequest.reqBody.vram_usage_level = 'low';
-//     //delete newTaskRequest.reqBody.hypernetwork_strength;
-//     //delete newTaskRequest.reqBody.use_hypernetwork_model;
-//   }
-//   if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
-//     newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
-//   }
-//   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
-
-//   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
-  
-//   //Grab the prompt from the user-input area instead of the original image.
-//   if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
-//     if (ScaleUpSettings.useChangedPrompt ) {
-//       newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
-//     };
-//   }
-
-
-//   delete newTaskRequest.reqBody.mask
-//   createTask(newTaskRequest)
-// }
 
 function scaleUpFilter(origRequest, image, scalingIncrease) {
   let result = false
@@ -1028,6 +958,22 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     if (ScaleUpSettings.useChangedPrompt ) {
       newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
     };
+  }
+
+  //special case where you use Flux to do an initial generate, but want to use a smaller model for later generates
+  if (ScaleUpSettings.useChangedModel ) {
+    //If old model (from image) is flux and new desired model is not
+    if (isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && !isFlux /*calculated with UI prompt*/) {
+      let guidance = $("#guidance_scale").val();
+      //Change Guidance Scale of new image -- it's assumed that the flux run used <= 1.1
+      //  If GuidanceScale in UI is still 1, change it to 6
+      if (guidance <= 1.1) {
+        newTaskRequest.reqBody.guidance_scale=6;
+      }
+      else {  //  If GuidanceScale in UI is >1.1, change it to the UI value
+        newTaskRequest.reqBody.guidance_scale=guidance;
+      }
+    }
   }
 
   delete newTaskRequest.reqBody.mask
