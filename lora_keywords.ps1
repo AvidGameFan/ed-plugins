@@ -9,7 +9,7 @@ param (
     [string]$FileName,
 
     [Parameter(Mandatory=$false)]
-    [int]$Cutoff = 1
+    [int]$Cutoff = 2
 )
 
 
