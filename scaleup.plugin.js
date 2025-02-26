@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.9.8, last updated: 2/22/2025
+ * v.2.9.9, last updated: 2/25/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -973,6 +973,11 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
       else {  //  If GuidanceScale in UI is >1.1, change it to the UI value
         newTaskRequest.reqBody.guidance_scale=guidance;
       }
+    }
+    // if switching to flux, force GS to 1
+    else if (!isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && isFlux /*calculated with UI prompt*/) {
+        newTaskRequest.reqBody.guidance_scale=1;
+        //May want to switch the sampler (and scheduler) at the same time.
     }
   }
 
