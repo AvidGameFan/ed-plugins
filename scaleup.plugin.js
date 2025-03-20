@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.9.9, last updated: 2/25/2025
+ * v.2.9.10, last updated: 3/19/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1000,9 +1000,14 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     );
 
     //extra sharpening not necessarily needed with controlnet
-    //if (!scaleUpControlNet) {
+    //if (!scaleUpControlNet) { }
+    //extra sharpening doesn't work well for Flux
+    if (isFlux) {
+      sharpen(ctx, canvas.width, canvas.height, .1);
+    }
+    else {
       sharpen(ctx, canvas.width, canvas.height, .33);
-    //}
+    }
     
     var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
     img = contrastImage(img, contrastAmount);
