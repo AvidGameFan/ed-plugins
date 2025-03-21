@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.1.2.5, last updated: 2/8/2025
+ * v.1.2.6, last updated: 3/20/2025
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -136,9 +136,22 @@ function isModelLightning(modelName, loraList) {
   return false;
 }
 
+function isModelFlux(modelName) {
+  let result = false;
+  if (modelName.search(/flux/i)>=0) {
+    result = true;
+  }  
+  //If turbo model but not actually turbo, go ahead and call it flux, to do fewer steps
+ // if (isModelTurbo(modelName) && modelName.search(/turbo/i)<0) {
+ //   result = true;
+ // }
+  return result;
+}
+
 function onMakeVerySimilarClick(origRequest, image) {
   var isTurbo=isModelTurbo(origRequest.use_stable_diffusion_model, origRequest.use_lora_model);
   var isLightning=isModelLightning(origRequest.use_stable_diffusion_model, origRequest.use_lora_model);
+  var isFlux = isModelFlux(origRequest.use_stable_diffusion_model);
 
   const newTaskRequest = modifyCurrentRequest(origRequest, {
     num_outputs: 1,
@@ -164,11 +177,11 @@ function onMakeVerySimilarClick(origRequest, image) {
 })
 
 //Grab the prompt from the user-input area instead of the original image.
-if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
+//if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) { <-- fails if empty prompt.  Probably unneeded.
   if (MakeVerySimilarSettings.useChangedPrompt ) {
     newTaskRequest.reqBody.prompt=getPrompts()[0];
   };
-}
+//}
 
 //newTaskRequest.numOutputsTotal = 5
 //newTaskRequest.batchCount = 5
@@ -203,7 +216,7 @@ delete newTaskRequest.reqBody.mask
     if(MakeVerySimilarSettings.enhanceImage &&
       (origRequest.NoisePreviouslyAdded == undefined
       || (origRequest.NoisePreviouslyAdded != undefined && !MakeVerySimilarSettings.preserve))) {
-        sharpen(ctx, canvas.width, canvas.height, .33);
+        sharpen(ctx, canvas.width, canvas.height, isFlux?.11:.33);
     }
     
     var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
