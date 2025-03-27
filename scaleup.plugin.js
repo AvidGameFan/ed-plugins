@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.9.10, last updated: 3/19/2025
+ * v.2.10.0, last updated: 3/26/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -708,10 +708,17 @@ function onScaleUpMAXClick(origRequest, image) {
       // }
       if(ScaleUpSettings.animeControlnet) {
         newTaskRequest.reqBody.control_filter_to_apply= 'lineart_anime'; //works better than the canny filter
-        newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny";
+        newTaskRequest.reqBody.use_controlnet_model = isFlux?"flux-canny-controlnet-v3.safetensors":(isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny");
       }
       else {
-        newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
+        //if (isFlux) {
+        //  newTaskRequest.reqBody.control_filter_to_apply= 'canny'; //canny works better than lineart_anime for realistic.  Tile controlnet not yet available.
+        //  newTaskRequest.reqBody.use_controlnet_model = "flux-canny-controlnet-v3.safetensors";
+        //}
+        //else {
+        //Flux works fine with SDXL controlnet tile method (but not with XL canny)
+          newTaskRequest.reqBody.use_controlnet_model = (isXl || isFlux)? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
+        //}
       }
       newTaskRequest.reqBody.control_alpha = 0.3;
       newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : (isXl? 0.45:0.5);
@@ -735,11 +742,11 @@ function onScaleUpMAXClick(origRequest, image) {
   }
 
   //Grab the prompt from the user-input area instead of the original image.
-  if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
+ // if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
     if (ScaleUpSettings.useChangedPrompt ) {
       newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
     };
-  }
+ // }
 
   if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
     newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
@@ -924,9 +931,10 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     // }
     if(ScaleUpSettings.animeControlnet) {
       newTaskRequest.reqBody.control_filter_to_apply= 'lineart_anime'; //works better than the canny filter
-      newTaskRequest.reqBody.use_controlnet_model = isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny";
+      newTaskRequest.reqBody.use_controlnet_model = isFlux?"flux-canny-controlnet-v3.safetensors":(isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny");
     }
     else {
+      //Flux can also use SDXL Tile.
       newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
     }
     newTaskRequest.reqBody.control_alpha = 0.3;
@@ -1265,7 +1273,7 @@ function  onScaleUpMultiFilter(origRequest, image) {
           <li class="pl-5"><div class="input-toggle">
           <input id="scaleup_animeControlnet" name="scaleup_animeControlnet" type="checkbox" value="`+ScaleUpSettings.animeControlnet+`"  onchange="setScaleUpSettings()"> <label for="scaleup_animeControlnet"></label>
           </div>
-          <label for="scaleup_animeControlnet">Use Canny for controlnet, not Tile<small>(better for Anime)</small></label>
+          <label for="scaleup_animeControlnet">Use Canny/lineart for controlnet, not Tile<small> (better for Anime)</small></label>
           </li>
         </ul></div>
         </div>`;
