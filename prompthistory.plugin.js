@@ -13,6 +13,8 @@
 (function() { "use strict"
 
 
+const numberPrompts = 20;  //number of prompts to keep in history
+
 //setup field one time
 
 // Insert prompt history dropdown after negative prompt
@@ -21,7 +23,7 @@ const promptHistoryDropdown = document.createElement('select');
 promptHistoryDropdown.id = 'prompt_history';
 promptHistoryDropdown.className = 'form-select row';
 promptHistoryDropdown.name = 'prompt_history';
-promptHistoryDropdown.innerHTML = '<option value="">Select from history...</option>';
+promptHistoryDropdown.innerHTML = '<option value="">Select prompt from history...</option>';
 
 // Insert the dropdown after the negative prompt element
 //negativePromptField.parentNode.insertBefore(promptHistoryDropdown, negativePromptField.nextSibling);
@@ -37,7 +39,7 @@ updatePromptHistoryDropdown();
 // Modify the storage structure to include negative prompts
 //If prompt and negative prompt have already been saved, replace earlier entry (remove), then add this one.
 function savePromptToHistory(prompt, negativePrompt) {
-    const history = JSON.parse(localStorage.getItem('promptHistory') || '[]');
+    let history = JSON.parse(localStorage.getItem('promptHistory') || '[]');
     
     // Find and remove any existing entry with the same prompt and negative prompt
     const existingIndex = history.findIndex(entry => 
@@ -55,7 +57,10 @@ function savePromptToHistory(prompt, negativePrompt) {
         negativePrompt: negativePrompt,
         timestamp: Date.now()
     });
-    
+
+    // Keep only last numberPrompts prompts
+    history = history.slice(0, numberPrompts);
+
     localStorage.setItem('promptHistory', JSON.stringify(history));
     updatePromptHistoryDropdown();
 }
