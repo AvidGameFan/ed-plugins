@@ -252,6 +252,11 @@ delete newTaskRequest.reqBody.mask
     }
   }
 
+  //Beta makes stronger changes, so reduce the prompt_strength to compensate
+  if ( newTaskRequest.reqBody.scheduler_name == 'beta') {
+    newTaskRequest.reqBody.prompt_strength -= .08;
+  }
+
 createTask(newTaskRequest)
 }
 

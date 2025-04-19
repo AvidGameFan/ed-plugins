@@ -985,8 +985,18 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     // if switching to flux, force GS to 1
     else if (!isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && isFlux /*calculated with UI prompt*/) {
         newTaskRequest.reqBody.guidance_scale=1;
-        //May want to switch the sampler (and scheduler) at the same time.
+        
     }
+    //Switch the sampler (and scheduler) at the same time, if switching to a new model.  Some Sampler/scheduler combinations don't work with Flux and vice-versa.
+
+     newTaskRequest.reqBody.sampler_name = $("#sampler_name")[0].value;
+     newTaskRequest.reqBody.scheduler_name = $("#scheduler_name")[0].value;
+  }
+
+
+  //Beta makes stronger changes, so reduce the prompt_strength to compensate
+  if ( newTaskRequest.reqBody.scheduler_name == 'beta') {
+    newTaskRequest.reqBody.prompt_strength -= .08;
   }
 
   delete newTaskRequest.reqBody.mask
