@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.10.0, last updated: 3/26/2025
+ * v.2.10.1, last updated: 4/19/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -970,6 +970,11 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
 
   //special case where you use Flux to do an initial generate, but want to use a smaller model for later generates
   if (ScaleUpSettings.useChangedModel ) {
+
+    //Use the user's new guidance first, but if it doesn't match Flux/SDXL's requirements, then change as needed, below.
+    newTaskRequest.reqBody.guidance_scale=$("#guidance_scale").val();
+
+
     //If old model (from image) is flux and new desired model is not
     if (isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && !isFlux /*calculated with UI prompt*/) {
       let guidance = $("#guidance_scale").val();
@@ -996,7 +1001,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
 
   //Beta makes stronger changes, so reduce the prompt_strength to compensate
   if ( newTaskRequest.reqBody.scheduler_name == 'beta') {
-    newTaskRequest.reqBody.prompt_strength -= .08;
+    newTaskRequest.reqBody.prompt_strength = Math.round((newTaskRequest.reqBody.prompt_strength - .08)*100)/100;
   }
 
   delete newTaskRequest.reqBody.mask
@@ -1258,7 +1263,7 @@ function  onScaleUpMultiFilter(origRequest, image) {
           <li class="pl-5"><div class="input-toggle">
           <input id="scaleup_change_model" name="scaleup_change_model" type="checkbox" value="`+ScaleUpSettings.useChangedModel+`"  onchange="setScaleUpSettings()"> <label for="scaleup_change_model"></label>
           </div>
-          <label for="scaleup_change_model">Use model selected above <small>(not the original model)</small></label>
+          <label for="scaleup_change_model">Use model selected above <small>(not the original model) Also changes guidance, sampler, and scheduler</small></label>
           </li>
           <li class="pl-5"><div class="input-toggle">
           <input id="scaleup_change_prompt" name="scaleup_change_prompt" type="checkbox" value="`+ScaleUpSettings.useChangedPrompt+`"  onchange="setScaleUpSettings()"> <label for="scaleup_change_prompt"></label>
