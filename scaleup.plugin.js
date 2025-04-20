@@ -972,12 +972,12 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   if (ScaleUpSettings.useChangedModel ) {
 
     //Use the user's new guidance first, but if it doesn't match Flux/SDXL's requirements, then change as needed, below.
-    newTaskRequest.reqBody.guidance_scale=$("#guidance_scale").val();
+    newTaskRequest.reqBody.guidance_scale=parseFloat(guidanceScaleField.value); 
 
 
     //If old model (from image) is flux and new desired model is not
     if (isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && !isFlux /*calculated with UI prompt*/) {
-      let guidance = $("#guidance_scale").val();
+      let guidance = parseFloat(guidanceScaleField.value); //$("#guidance_scale").val();
       //Change Guidance Scale of new image -- it's assumed that the flux run used <= 1.1
       //  If GuidanceScale in UI is still 1, change it to 6
       if (guidance <= 1.1) {
