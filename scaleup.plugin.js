@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.10.1, last updated: 4/19/2025
+ * v.2.10.2, last updated: 5/24/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -493,6 +493,11 @@ style.textContent = `
 `;
 document.head.append(style);
 
+function scaleupRound(value) {
+  return Math.round((value - .05)*100)/100;
+}
+const reduceFluxPromptStrength = 0.03;
+
 //Javascript doesn't have enums
 const SCALEUP_NORMAL = 0;
 const SCALEUP_PRESERVE = 1;
@@ -650,7 +655,7 @@ function onScaleUpMAXClick(origRequest, image) {
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: (origRequest.scaleUpSplit || isXl)? (scaleUpPreserve ? 0.11 : 0.22):(scaleUpPreserve ? 0.15 : 0.3),  //Lower this number to make results closer to the original
+    prompt_strength: scaleupRound(((origRequest.scaleUpSplit || isXl || isFlux)? (scaleUpPreserve ? 0.11 : 0.22):(scaleUpPreserve ? 0.15 : 0.3)) - (isFlux? reduceFluxPromptStrength:0)),  //Lower this number to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
 
@@ -721,7 +726,7 @@ function onScaleUpMAXClick(origRequest, image) {
         //}
       }
       newTaskRequest.reqBody.control_alpha = 0.3;
-      newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : (isXl? 0.45:0.5);
+      newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : (isXl? 0.45:0.5)) - (isFlux? reduceFluxPromptStrength:0));
     }
 
 
@@ -856,7 +861,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
 
   var isXl=false;
   var isTurbo=isModelTurbo(desiredModel, origRequest.use_lora_model);
-  var isFlux = isModelFlux(desiredModel);  //Flux can handle fewer steps
+  var isFlux = isModelFlux(desiredModel) || origRequest.guidance_scale==1;  //Flux can handle fewer steps
   //var maxRes=maxTotalResolution;
   if (isModelXl(desiredModel)) {
     //maxRes=maxTotalResolutionXL;
@@ -866,8 +871,8 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: ((origRequest.scaleUpSplit || isXl)? (scaleUpPreserve ? 0.11 : 0.25):(scaleUpPreserve ? 0.15 : 0.33))
-      + (doScaleUp?.05:0), // + (ScaleUpSettings.resizeImage?.03:0), 
+    prompt_strength: scaleupRound(((origRequest.scaleUpSplit || isXl || isFlux)? (scaleUpPreserve ? 0.11 : 0.25):(scaleUpPreserve ? 0.15 : 0.33))
+      + (doScaleUp?.05:0) - (isFlux? reduceFluxPromptStrength:0)), // + (ScaleUpSettings.resizeImage?.03:0), 
     //Lower prompt_strength to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
@@ -935,10 +940,10 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     }
     else {
       //Flux can also use SDXL Tile.
-      newTaskRequest.reqBody.use_controlnet_model = isXl? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
+      newTaskRequest.reqBody.use_controlnet_model = (isXl || isFlux)? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
     }
     newTaskRequest.reqBody.control_alpha = 0.3;
-    newTaskRequest.reqBody.prompt_strength = scaleUpPreserve ? 0.3 : (isXl? 0.45:0.5);
+    newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : ((isXl || isFlux)? 0.45:0.5)) - (isFlux?reduceFluxPromptStrength:0));
   }
 
   newTaskRequest.seed = newTaskRequest.reqBody.seed
@@ -1001,7 +1006,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
 
   //Beta makes stronger changes, so reduce the prompt_strength to compensate
   if ( newTaskRequest.reqBody.scheduler_name == 'beta') {
-    newTaskRequest.reqBody.prompt_strength = Math.round((newTaskRequest.reqBody.prompt_strength - .08)*100)/100;
+    newTaskRequest.reqBody.prompt_strength = scaleupRound(newTaskRequest.reqBody.prompt_strength - .04);
   }
 
   delete newTaskRequest.reqBody.mask
