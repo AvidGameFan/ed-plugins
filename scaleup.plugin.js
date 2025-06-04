@@ -193,14 +193,16 @@ var exactResTable = [
   [512,896,640],  //1.75 
   [1120,640,1344],  //1.75   exact (nonstandard, not 64)
   [640,1120,768],  //1.75  (could also do 1288x736, but this one matches a SDXL starting res)
+  [768,432,1024],  // 1.77  Standard monitor resolution
+  [432,768,576],  // 1.77  Standard monitor resolution
   [1920,1080,2560],  // 1.77  Standard monitor resolution
   [1080,1920,1440],  // 1.77 
   [1024,576,1280],  //1.78   exact (nonstandard, not 64)
   [576,1024,720],  //1.78 
-  [1280,720,1408],  //1.78   exact (nonstandard, not 64)
-  [720,1280,792],  //1.78 
-  [1408,792,1536],  //1.78   exact (nonstandard, not 64)
-  [792,1408,864],  //1.78 
+  [1280,720,1536],  //1.78   exact (nonstandard, not 64)
+  [720,1280,864],  //1.78 
+  [1408,792,1920],  //1.78   exact (nonstandard, not 64)
+  [792,1408,1080],  //1.78 
   [1344,768,1456],  //1.75    exact (nonstandard, not 64)
   [768,1344,832],  //1.75 (non-ED-standard resolution choice)
   [960,512,1320],  //1.875   exact (nonstandard, not 64)
