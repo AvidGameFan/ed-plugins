@@ -48,6 +48,11 @@ Just for fun -- screws up your image with random glitch effects, before sending 
 As of April 2025, the Easy Diffusion Draw editor does not handle large resolutions well.  This plugin will override the behavior and allow use of large resolutions, however, this only works well if your browser is running on a monitor with a large resolution.  Consider this as a somewhat temporary patch.  This plugin may need to be removed or replaced if ED is modified in this area.
 [Editor Override](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/editoroverride.plugin.js)
 
+### Ratios
+
+Adds buttons to allow easy selection of starting values at the selected ratio.  It uses smaller values for SD 1.x, larger for SDXL, and largest for Flux.
+[Ratios](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/ratios.plugin.js)
+
 ## Other
 
 ### Custom Modifiers
