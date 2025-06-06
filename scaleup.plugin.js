@@ -391,7 +391,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { text: 'Scale Up MAX', on_click: onScaleUpMAXClick, filter: onScaleUpMAXFilter },
   { text: '2X', on_click: onScaleUp2xClick, filter: onScaleUp2xFilter },
   { html: '<i class="fa fa-list-ol"></i>', on_click: onScaleUpMultiClick, filter: onScaleUpMultiFilter  },
-  { html: '<i class="fa-solid fa-th-large"></i>', on_click: onScaleUpSplitClick, filter: onScaleUpSplitFilter  }
+  { html: '<i class="fa-solid fa-th-large"></i>', on_click: onScaleUpSplitClick, filter: onScaleUpSplitFilter  },
+  { html: '<i class="fa-solid fa-object-group"></i>', on_click: onCombineSplitClick, filter: onCombineSplitFilter }
 ])
 /* Note: Tooltip will be removed once the label is clicked. */
 
@@ -644,6 +645,8 @@ function onScaleUpMAXClick(origRequest, image) {
 
   var isXl=false;
   var isTurbo=isModelTurbo(desiredModel, origRequest.use_lora_model);
+  var isFlux = isModelFlux(desiredModel) || origRequest.guidance_scale==1;  //Flux can handle fewer steps
+
   var maxRes=maxTotalResolution;
   if (isModelXl(desiredModel)) {
     maxRes=maxTotalResolutionXL;
@@ -1241,6 +1244,162 @@ function  onScaleUpMultiFilter(origRequest, image) {
   }
 
   return true;
+}
+
+//________________________________________________________________________________________________________________________________________
+function onCombineSplitClick(origRequest, image) {
+  // Find all images from the same split operation
+  const images = findSplitImages(image, false);
+  if (images.length !== 4) {
+    alert('Could not find all 4 split images. Make sure all images from the split operation are still visible.');
+    return;
+  }
+
+  // Create canvas for combined image
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  // Calculate dimensions
+  const pieceWidth = image.naturalWidth; //images[0].naturalWidth;
+  const pieceHeight = image.naturalHeight; //images[0].naturalHeight;
+  
+  const overlap = splitOverlap*2;
+
+  // Set canvas size to accommodate all pieces
+  canvas.width = pieceWidth * 2 - overlap * 2;
+  canvas.height = pieceHeight * 2 - overlap * 2;
+
+  // Draw each piece in its position
+  // Upper left
+  ctx.drawImage(images[0], 0, 0);
+  
+  // Lower left - blend with upper left
+  ctx.globalCompositeOperation = 'source-over';
+  // Draw only the non-overlapping part first
+  ctx.globalAlpha = 1;
+  ctx.drawImage(images[1], 0,  overlap*2 /*pieceHeight*/, pieceWidth, pieceHeight - overlap*2, 0, pieceHeight, pieceWidth, pieceHeight - overlap*2);
+  // Then blend the overlap region
+  for (let y = 0; y < overlap*2; y++) {
+    const alpha = (y / (overlap*2)); // Linear gradient from 0 to 1
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(images[1], 0, y, pieceWidth, 1, 0, pieceHeight - overlap*2 + y, pieceWidth, 1);
+  }
+  ctx.globalAlpha = 1;
+  
+  // Upper right - blend with upper left
+  ctx.globalCompositeOperation = 'source-over';
+  // Draw only the non-overlapping part first
+  ctx.globalAlpha = 1;
+  ctx.drawImage(images[2], overlap*2 /*pieceWidth*/, 0, pieceWidth - overlap*2, pieceHeight, pieceWidth, 0, pieceWidth - overlap*2, pieceHeight);
+  // Then blend the overlap region
+  for (let x = 0; x < overlap*2; x++) {
+    const alpha = (x / (overlap*2)); // Linear gradient from 0 to 1
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(images[2], x, 0, 1, pieceHeight, pieceWidth - overlap*2 + x, 0, 1, pieceHeight);
+  }
+  ctx.globalAlpha = 1;
+  
+  // Lower right - blend with all three
+  ctx.globalCompositeOperation = 'source-over';
+  // Draw only the non-overlapping part first
+  ctx.globalAlpha = 1;
+  ctx.drawImage(images[3], overlap*2 /*pieceWidth*/, overlap*2 /*pieceHeight*/, pieceWidth - overlap*2, pieceHeight - overlap*2, 
+               pieceWidth, pieceHeight, pieceWidth - overlap*2, pieceHeight - overlap*2);
+  // Then blend the overlap regions
+  //This only does the center "corner"
+  for (let y = 0; y < overlap*2; y++) {
+    for (let x = 0; x < overlap*2; x++) {
+      const alphaY = (y / (overlap*2)); // Vertical gradient from 0 to 1
+      const alphaX = (x / (overlap*2)); // Horizontal gradient from 0 to 1
+      ctx.globalAlpha = Math.min(alphaX, alphaY); // Use min to ensure proper blending with both edges
+      ctx.drawImage(images[3], x, y, 1, 1, pieceWidth - overlap*2 + x, pieceHeight - overlap*2 + y, 1, 1);
+    }
+  }
+  // Blend the remaining overlap region from top to bottom
+  for (let y = 0; y < overlap*2; y++) {
+    const alpha = (y / (overlap*2)); // Linear gradient from 0 to 1
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(images[3], overlap*2, y, pieceWidth - (overlap*2), 1, pieceWidth, pieceHeight - overlap*2 + y, pieceWidth - (overlap*2), 1);
+  }
+  // Blend the remaining overlap region from left to right
+  for (let x = 0; x < overlap*2; x++) {
+    const alpha = (x / (overlap*2)); // Linear gradient from 0 to 1
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(images[3], x, overlap*2, 1, pieceHeight - (overlap*2), pieceWidth - overlap*2 + x, pieceHeight, 1, pieceHeight - (overlap*2));
+  }
+  ctx.globalAlpha = 1;
+
+  // Reset composite operation
+  ctx.globalCompositeOperation = 'source-over';
+
+  // Create new image from canvas
+  const combinedImage = new Image();
+  combinedImage.src = canvas.toDataURL('image/png');
+
+  // Create a temporary link element to trigger download
+  const link = document.createElement('a');
+  link.href = combinedImage.src;
+  link.download = 'combined-split-' + new Date().getTime() + '.png';
+  
+  // Add link to DOM temporarily
+  document.body.appendChild(link);
+  
+  // Trigger download
+  link.click();
+  
+  // Clean up
+  document.body.removeChild(link);
+}
+
+function onCombineSplitFilter(origRequest, image) {
+  // Only show button if we can find split images
+  const images = findSplitImages(image, true);
+  return images.length === 4;
+}
+
+function findSplitImages(image, filter) {
+  // Get all image containers
+  const containers = document.querySelectorAll('[id^="imageTaskContainer-"]');
+  const images = [];
+
+  // Get the seed and timestamp of the selected image
+  const selectedContainer = image.closest('[id^="imageTaskContainer-"]');
+  const selectedTimestamp = parseInt(selectedContainer.id.split('-')[1]);
+  const selectedSeed = selectedContainer.querySelector('.seed-value')?.textContent;
+
+  // Find images that were generated close together in time
+  const timestamps = Array.from(containers).map(container => {
+    const timestamp = parseInt(container.id.split('-')[1]);
+    return { container, timestamp };
+  }).sort((a, b) => a.timestamp - b.timestamp);
+
+  // Look for groups of 4 images generated within 5 seconds of each other
+  for (let i = 0; i < timestamps.length - 3; i++) {
+    const group = timestamps.slice(i, i + 4);
+    if (group[3].timestamp - group[0].timestamp < 5000) {
+      // Found a potential group, check if they have similar dimensions
+      const groupImages = group.map(g => {
+        // Get all images in the container and select the second one (full-size image)
+        const imgs = g.container.querySelectorAll('img');
+        return (filter)?imgs[1]:imgs[2]; // Third image is the full-size one, but it's not ready for the filter yet
+      });
+      
+      // Check if the selected image is in this group
+      const selectedImageInGroup = group.some(g => 
+        g.timestamp === selectedTimestamp && 
+        g.container.querySelector('.seed-value')?.textContent === selectedSeed
+      );
+
+      if (selectedImageInGroup && groupImages.every(img => img && 
+          Math.abs(img.naturalWidth - groupImages[0].naturalWidth) < 10 &&
+          Math.abs(img.naturalHeight - groupImages[0].naturalHeight) < 10)) {
+        images.push(...groupImages);
+        break;
+      }
+    }
+  }
+
+  return images;
 }
 //________________________________________________________________________________________________________________________________________
 
