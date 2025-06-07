@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.10.2, last updated: 5/24/2025
+ * v.2.11.1, last updated: 6/7/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -496,8 +496,9 @@ style.textContent = `
 `;
 document.head.append(style);
 
+//round to 2 decimal places
 function scaleupRound(value) {
-  return Math.round((value - .05)*100)/100;
+  return Math.round(value * 100) / 100;
 }
 const reduceFluxPromptStrength = 0.03;
 
@@ -1379,9 +1380,9 @@ function findSplitImages(image, filter) {
     if (group[3].timestamp - group[0].timestamp < 5000) {
       // Found a potential group, check if they have similar dimensions
       const groupImages = group.map(g => {
-        // Get all images in the container and select the second one (full-size image)
+        // Get all images in the container and select the last one (full-size image)
         const imgs = g.container.querySelectorAll('img');
-        return (filter)?imgs[1]:imgs[2]; // Third image is the full-size one, but it's not ready for the filter yet
+        return (filter) ? imgs[1] : imgs[imgs.length - 1]; // Last image is the full-size one
       });
       
       // Check if the selected image is in this group
