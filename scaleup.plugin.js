@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.11.1, last updated: 6/7/2025
+ * v.2.11.2, last updated: 6/7/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -640,7 +640,6 @@ function ScaleUpMax(dimension, ratio) {
   return Math.round(((dimension*ratio)+pixelChunkSize/2)/pixelChunkSize)*pixelChunkSize-pixelChunkSize;
 }
 
-
 function onScaleUpMAXClick(origRequest, image) {
   var desiredModel=desiredModelName(origRequest);
 
@@ -657,7 +656,8 @@ function onScaleUpMAXClick(origRequest, image) {
   const imageWidth = image.naturalWidth==0?origRequest.width:image.naturalWidth;
   const imageHeight = image.naturalHeight==0?origRequest.height:image.naturalHeight;
   //Only if using "split" and not using max split size, use a ratio of 1 to use current image size.
-  var ratio=(origRequest.scaleUpSplit && !ScaleUpSettings.useMaxSplitSize)? 2: Math.sqrt(maxRes/(imageHeight*imageWidth));
+  var ratio=origRequest.scaleUpSplit ? ((ScaleUpSettings.useMaxSplitSize)? Math.min(2.5, maxRatio(maxRes,imageHeight,imageWidth)):2):   //for the tile split
+    maxRatio(imageHeight,imageWidth);                                                                                       //for max size click
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
@@ -677,6 +677,9 @@ function onScaleUpMAXClick(origRequest, image) {
     //Using a new seed will allow some variation as it up-sizes; if results are not ideal, rerunning will give different results.
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
+
+  //For the split, we need to know the ratio for stitching.
+  newTaskRequest.reqBody.ScaleUpSplitRatio = ratio;
 
   //May want to delete the original controlnet, as it's normally not neccessary once scaling-up,
   //but it can be useful to carry-forward while scaling-up (such as to preserve fingers), so it's left as a user option.
@@ -1264,11 +1267,16 @@ function onCombineSplitClick(origRequest, image) {
   const pieceWidth = image.naturalWidth; //images[0].naturalWidth;
   const pieceHeight = image.naturalHeight; //images[0].naturalHeight;
   
+  var ratio=2;
+  if (origRequest.ScaleUpSplitRatio != undefined) {
+    ratio = origRequest.ScaleUpSplitRatio;
+  }
+  
   const overlap = splitOverlap*2;
 
   // Set canvas size to accommodate all pieces
-  canvas.width = pieceWidth * 2 - overlap * 2;
-  canvas.height = pieceHeight * 2 - overlap * 2;
+  canvas.width = pieceWidth * 2 - overlap * ratio;
+  canvas.height = pieceHeight * 2 - overlap * ratio;
 
   // Draw each piece in its position
   // Upper left
@@ -1278,12 +1286,12 @@ function onCombineSplitClick(origRequest, image) {
   ctx.globalCompositeOperation = 'source-over';
   // Draw only the non-overlapping part first
   ctx.globalAlpha = 1;
-  ctx.drawImage(images[1], 0,  overlap*2 /*pieceHeight*/, pieceWidth, pieceHeight - overlap*2, 0, pieceHeight, pieceWidth, pieceHeight - overlap*2);
+  ctx.drawImage(images[1], 0,  overlap*ratio /*pieceHeight*/, pieceWidth, pieceHeight - overlap*ratio, 0, pieceHeight, pieceWidth, pieceHeight - overlap*ratio);
   // Then blend the overlap region
-  for (let y = 0; y < overlap*2; y++) {
-    const alpha = (y / (overlap*2)); // Linear gradient from 0 to 1
+  for (let y = 0; y < overlap*ratio; y++) {
+    const alpha = (y / (overlap*ratio)); // Linear gradient from 0 to 1
     ctx.globalAlpha = alpha;
-    ctx.drawImage(images[1], 0, y, pieceWidth, 1, 0, pieceHeight - overlap*2 + y, pieceWidth, 1);
+    ctx.drawImage(images[1], 0, y, pieceWidth, 1, 0, pieceHeight - overlap*ratio + y, pieceWidth, 1);
   }
   ctx.globalAlpha = 1;
   
@@ -1291,12 +1299,12 @@ function onCombineSplitClick(origRequest, image) {
   ctx.globalCompositeOperation = 'source-over';
   // Draw only the non-overlapping part first
   ctx.globalAlpha = 1;
-  ctx.drawImage(images[2], overlap*2 /*pieceWidth*/, 0, pieceWidth - overlap*2, pieceHeight, pieceWidth, 0, pieceWidth - overlap*2, pieceHeight);
+  ctx.drawImage(images[2], overlap*ratio /*pieceWidth*/, 0, pieceWidth - overlap*ratio, pieceHeight, pieceWidth, 0, pieceWidth - overlap*ratio, pieceHeight);
   // Then blend the overlap region
-  for (let x = 0; x < overlap*2; x++) {
-    const alpha = (x / (overlap*2)); // Linear gradient from 0 to 1
+  for (let x = 0; x < overlap*ratio; x++) {
+    const alpha = (x / (overlap*ratio)); // Linear gradient from 0 to 1
     ctx.globalAlpha = alpha;
-    ctx.drawImage(images[2], x, 0, 1, pieceHeight, pieceWidth - overlap*2 + x, 0, 1, pieceHeight);
+    ctx.drawImage(images[2], x, 0, 1, pieceHeight, pieceWidth - overlap*ratio + x, 0, 1, pieceHeight);
   }
   ctx.globalAlpha = 1;
   
@@ -1304,29 +1312,29 @@ function onCombineSplitClick(origRequest, image) {
   ctx.globalCompositeOperation = 'source-over';
   // Draw only the non-overlapping part first
   ctx.globalAlpha = 1;
-  ctx.drawImage(images[3], overlap*2 /*pieceWidth*/, overlap*2 /*pieceHeight*/, pieceWidth - overlap*2, pieceHeight - overlap*2, 
-               pieceWidth, pieceHeight, pieceWidth - overlap*2, pieceHeight - overlap*2);
+  ctx.drawImage(images[3], overlap*ratio /*pieceWidth*/, overlap*ratio /*pieceHeight*/, pieceWidth - overlap*ratio, pieceHeight - overlap*ratio, 
+               pieceWidth, pieceHeight, pieceWidth - overlap*ratio, pieceHeight - overlap*ratio);
   // Then blend the overlap regions
   //This only does the center "corner"
-  for (let y = 0; y < overlap*2; y++) {
-    for (let x = 0; x < overlap*2; x++) {
-      const alphaY = (y / (overlap*2)); // Vertical gradient from 0 to 1
-      const alphaX = (x / (overlap*2)); // Horizontal gradient from 0 to 1
+  for (let y = 0; y < overlap*ratio; y++) {
+    for (let x = 0; x < overlap*ratio; x++) {
+      const alphaY = (y / (overlap*ratio)); // Vertical gradient from 0 to 1
+      const alphaX = (x / (overlap*ratio)); // Horizontal gradient from 0 to 1
       ctx.globalAlpha = Math.min(alphaX, alphaY); // Use min to ensure proper blending with both edges
-      ctx.drawImage(images[3], x, y, 1, 1, pieceWidth - overlap*2 + x, pieceHeight - overlap*2 + y, 1, 1);
+      ctx.drawImage(images[3], x, y, 1, 1, pieceWidth - overlap*ratio + x, pieceHeight - overlap*ratio + y, 1, 1);
     }
   }
   // Blend the remaining overlap region from top to bottom
-  for (let y = 0; y < overlap*2; y++) {
-    const alpha = (y / (overlap*2)); // Linear gradient from 0 to 1
+  for (let y = 0; y < overlap*ratio; y++) {
+    const alpha = (y / (overlap*ratio)); // Linear gradient from 0 to 1
     ctx.globalAlpha = alpha;
-    ctx.drawImage(images[3], overlap*2, y, pieceWidth - (overlap*2), 1, pieceWidth, pieceHeight - overlap*2 + y, pieceWidth - (overlap*2), 1);
+    ctx.drawImage(images[3], overlap*ratio, y, pieceWidth - (overlap*ratio), 1, pieceWidth, pieceHeight - overlap*ratio + y, pieceWidth - (overlap*ratio), 1);
   }
   // Blend the remaining overlap region from left to right
-  for (let x = 0; x < overlap*2; x++) {
-    const alpha = (x / (overlap*2)); // Linear gradient from 0 to 1
+  for (let x = 0; x < overlap*ratio; x++) {
+    const alpha = (x / (overlap*ratio)); // Linear gradient from 0 to 1
     ctx.globalAlpha = alpha;
-    ctx.drawImage(images[3], x, overlap*2, 1, pieceHeight - (overlap*2), pieceWidth - overlap*2 + x, pieceHeight, 1, pieceHeight - (overlap*2));
+    ctx.drawImage(images[3], x, overlap*ratio, 1, pieceHeight - (overlap*ratio), pieceWidth - overlap*ratio + x, pieceHeight, 1, pieceHeight - (overlap*ratio));
   }
   ctx.globalAlpha = 1;
 
@@ -1440,7 +1448,7 @@ function findSplitImages(image, filter) {
           <li class="pl-5"><div class="input-toggle">
           <input id="scaleup_split_size" name="scaleup_split_size" type="checkbox" value="`+ScaleUpSettings.useMaxSplitSize+`"  onchange="setScaleUpSettings()"> <label for="scaleup_split_size"></label>
           </div>
-          <label for="scaleup_split_size">Use maximum image size for all 4 split (tiled) images <small>(else, use current size x4)</small></label>
+          <label for="scaleup_split_size">Use larger image size for all 4 split (tiled) images <small>(else, use current size x4)</small></label>
           </li>
           <li class="pl-5"><div class="input-toggle">
           <input id="scaleup_resize_sharpen" name="scaleup_resize_sharpen" type="checkbox" value="`+ScaleUpSettings.resizeImage+`"  onchange="setScaleUpSettings()"> <label for="scaleup_resize_sharpen"></label>
