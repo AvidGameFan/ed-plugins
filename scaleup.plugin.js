@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.11.3, last updated: 6/7/2025
+ * v.2.11.4, last updated: 6/9/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -500,7 +500,7 @@ document.head.append(style);
 function scaleupRound(value) {
   return Math.round(value * 100) / 100;
 }
-const reduceFluxPromptStrength = 0.03;
+const reduceFluxPromptStrength = 0.0; //was: 0.03;
 
 //Javascript doesn't have enums
 const SCALEUP_NORMAL = 0;
@@ -692,47 +692,47 @@ function onScaleUpMAXClick(origRequest, image) {
   //If using controlnet --SDXL now supported
   if (scaleUpControlNet /* && !isXl*/)
     {
-      delete newTaskRequest.reqBody.control_filter_to_apply;
-      //to avoid "halo" artifacts, need to soften the image before passing to control image.
-    
-        //create working canvas
-        let canvasSoft = document.createElement("canvas");
-        canvasSoft.width = image.naturalWidth; //*1.75;
-        canvasSoft.height = image.naturalHeight; //*1.75;
-        let ctx2 = canvasSoft.getContext("2d", {willReadFrequently: true});
-        ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
-        // get the image data of the canvasSoft  -- we only need the part we're going to resize
-        //x,y -- upper-left, width & height
-        ctx2.drawImage( image,
-          0, 0, image.naturalWidth, image.naturalHeight, //source 
-          0, 0, canvasSoft.width, canvasSoft.height //destination
-        );
-   //      sharpen(ctx2, canvasSoft.width, canvasSoft.height, .8, true);
-   //  document.querySelector('body').appendChild(canvasSoft);   //Testing -- let's see what we have
-        var img2 =  ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
-        ctx2.putImageData(img2, 0, 0);
-        var newImage2 = new Image;
-        newImage2.src = canvasSoft.toDataURL('image/png');
-        newTaskRequest.reqBody.control_image = newImage2.src;
-      //TODO: Only for SDXL, search for an appropriate model
-      //let xlCnModel = "diffusers_xl_canny_full"; //default -- canny doesn't work that well
-      // if (isXl)  {
-          // if (inCnList("TTPLANET_Controlnet_Tile_realistic_v2_fp16")); 
-          //document.getElementById('controlnet_model-model-list').getElementsByTagName("li"); -- can cycle through to find available models
-      // }
-      if(ScaleUpSettings.animeControlnet) {
-        newTaskRequest.reqBody.control_filter_to_apply= 'lineart_anime'; //works better than the canny filter
-        newTaskRequest.reqBody.use_controlnet_model = isFlux?"flux-canny-controlnet-v3.safetensors":(isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny");
-      }
-      else {
-        //if (isFlux) {
-        //  newTaskRequest.reqBody.control_filter_to_apply= 'canny'; //canny works better than lineart_anime for realistic.  Tile controlnet not yet available.
-        //  newTaskRequest.reqBody.use_controlnet_model = "flux-canny-controlnet-v3.safetensors";
-        //}
-        //else {
-        //Flux works fine with SDXL controlnet tile method (but not with XL canny)
-          newTaskRequest.reqBody.use_controlnet_model = (isXl || isFlux)? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
-        //}
+    delete newTaskRequest.reqBody.control_filter_to_apply;
+    //to avoid "halo" artifacts, need to soften the image before passing to control image.
+  
+    //create working canvas
+    let canvasSoft = document.createElement("canvas");
+    canvasSoft.width = image.naturalWidth; //*1.75;
+    canvasSoft.height = image.naturalHeight; //*1.75;
+    let ctx2 = canvasSoft.getContext("2d", {willReadFrequently: true});
+    ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
+    // get the image data of the canvasSoft  -- we only need the part we're going to resize
+    //x,y -- upper-left, width & height
+    ctx2.drawImage( image,
+      0, 0, image.naturalWidth, image.naturalHeight, //source 
+      0, 0, canvasSoft.width, canvasSoft.height //destination
+    );
+  //      sharpen(ctx2, canvasSoft.width, canvasSoft.height, .8, true);
+  //  document.querySelector('body').appendChild(canvasSoft);   //Testing -- let's see what we have
+      var img2 =  ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
+      ctx2.putImageData(img2, 0, 0);
+      var newImage2 = new Image;
+      newImage2.src = canvasSoft.toDataURL('image/png');
+      newTaskRequest.reqBody.control_image = newImage2.src;
+    //TODO: Only for SDXL, search for an appropriate model
+    //let xlCnModel = "diffusers_xl_canny_full"; //default -- canny doesn't work that well
+    // if (isXl)  {
+        // if (inCnList("TTPLANET_Controlnet_Tile_realistic_v2_fp16")); 
+        //document.getElementById('controlnet_model-model-list').getElementsByTagName("li"); -- can cycle through to find available models
+    // }
+    if(ScaleUpSettings.animeControlnet) {
+      newTaskRequest.reqBody.control_filter_to_apply= 'lineart_anime'; //works better than the canny filter
+      newTaskRequest.reqBody.use_controlnet_model = isFlux?"flux-canny-controlnet-v3.safetensors":(isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny");
+    }
+    else {
+      //if (isFlux) {
+      //  newTaskRequest.reqBody.control_filter_to_apply= 'canny'; //canny works better than lineart_anime for realistic.  Tile controlnet not yet available.
+      //  newTaskRequest.reqBody.use_controlnet_model = "flux-canny-controlnet-v3.safetensors";
+      //}
+      //else {
+      //Flux works fine with SDXL controlnet tile method (but not with XL canny)
+        newTaskRequest.reqBody.use_controlnet_model = (isXl || isFlux)? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
+      //}
       }
       newTaskRequest.reqBody.control_alpha = 0.3;
       newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : (isXl? 0.45:0.5)) - (isFlux? reduceFluxPromptStrength:0));
@@ -757,9 +757,9 @@ function onScaleUpMAXClick(origRequest, image) {
 
   //Grab the prompt from the user-input area instead of the original image.
  // if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
-    if (ScaleUpSettings.useChangedPrompt ) {
-      newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
-    };
+  if (ScaleUpSettings.useChangedPrompt ) {
+    newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
+  };
  // }
 
   if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
@@ -921,27 +921,27 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
 
     //to avoid "halo" artifacts, need to soften the image before passing to control image.
   
-      //create working canvas
-      let canvasSoft = document.createElement("canvas");
-      canvasSoft.width = image.naturalWidth; //*1.75;
-      canvasSoft.height = image.naturalHeight; //*1.75;
-      let ctx2 = canvasSoft.getContext("2d", {willReadFrequently: true});
+    //create working canvas
+    let canvasSoft = document.createElement("canvas");
+    canvasSoft.width = image.naturalWidth; //*1.75;
+    canvasSoft.height = image.naturalHeight; //*1.75;
+    let ctx2 = canvasSoft.getContext("2d", {willReadFrequently: true});
 
-      ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
+    ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
 
-      // get the image data of the canvasSoft  -- we only need the part we're going to resize
-      //x,y -- upper-left, width & height
-      ctx2.drawImage( image,
-        0, 0, image.naturalWidth, image.naturalHeight, //source 
-        0, 0, canvasSoft.width, canvasSoft.height //destination
-      );
+    // get the image data of the canvasSoft  -- we only need the part we're going to resize
+    //x,y -- upper-left, width & height
+    ctx2.drawImage( image,
+      0, 0, image.naturalWidth, image.naturalHeight, //source 
+      0, 0, canvasSoft.width, canvasSoft.height //destination
+    );
 //      sharpen(ctx2, canvasSoft.width, canvasSoft.height, .8, true);
 //  document.querySelector('body').appendChild(canvasSoft);   //Testing -- let's see what we have
-      var img2 =  ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
-      ctx2.putImageData(img2, 0, 0);
-      var newImage2 = new Image;
-      newImage2.src = canvasSoft.toDataURL('image/png');
-      newTaskRequest.reqBody.control_image = newImage2.src;
+    var img2 =  ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
+    ctx2.putImageData(img2, 0, 0);
+    var newImage2 = new Image;
+    newImage2.src = canvasSoft.toDataURL('image/png');
+    newTaskRequest.reqBody.control_image = newImage2.src;
 
     //TODO: Only for SDXL, search for an appropriate model
     //let xlCnModel = "diffusers_xl_canny_full"; //default -- canny doesn't work that well
@@ -1292,11 +1292,11 @@ function onCombineSplitClick(origRequest, image) {
   ctx.globalCompositeOperation = 'source-over';
   // Draw only the non-overlapping part first
   ctx.globalAlpha = 1;
-  ctx.drawImage(images[1], 0,  overlap*ratio /*pieceHeight*/, pieceWidth, pieceHeight - overlap*ratio, 0, pieceHeight, pieceWidth, pieceHeight - overlap*ratio);
+  ctx.drawImage(images[1], 0, overlap*ratio /*pieceHeight*/, pieceWidth, pieceHeight - overlap*ratio, 0, pieceHeight, pieceWidth, pieceHeight - overlap*ratio);
   // Then blend the overlap region
   for (let y = 0; y < overlap*ratio; y++) {
-    const alpha = (y / (overlap*ratio)); // Linear gradient from 0 to 1
-    ctx.globalAlpha = alpha;
+    const alpha = parseFloat(y) / parseFloat(overlap*ratio); // Ensure floating point division
+    ctx.globalAlpha = alpha; //scaleupRound(alpha); // Use our rounding function
     ctx.drawImage(images[1], 0, y, pieceWidth, 1, 0, pieceHeight - overlap*ratio + y, pieceWidth, 1);
   }
   ctx.globalAlpha = 1;
@@ -1308,8 +1308,8 @@ function onCombineSplitClick(origRequest, image) {
   ctx.drawImage(images[2], overlap*ratio /*pieceWidth*/, 0, pieceWidth - overlap*ratio, pieceHeight, pieceWidth, 0, pieceWidth - overlap*ratio, pieceHeight);
   // Then blend the overlap region
   for (let x = 0; x < overlap*ratio; x++) {
-    const alpha = (x / (overlap*ratio)); // Linear gradient from 0 to 1
-    ctx.globalAlpha = alpha;
+    const alpha = parseFloat(x) / parseFloat(overlap*ratio); // Ensure floating point division
+    ctx.globalAlpha = alpha; //scaleupRound(alpha); // Use our rounding function
     ctx.drawImage(images[2], x, 0, 1, pieceHeight, pieceWidth - overlap*ratio + x, 0, 1, pieceHeight);
   }
   ctx.globalAlpha = 1;
@@ -1320,26 +1320,25 @@ function onCombineSplitClick(origRequest, image) {
   ctx.globalAlpha = 1;
   ctx.drawImage(images[3], overlap*ratio /*pieceWidth*/, overlap*ratio /*pieceHeight*/, pieceWidth - overlap*ratio, pieceHeight - overlap*ratio, 
                pieceWidth, pieceHeight, pieceWidth - overlap*ratio, pieceHeight - overlap*ratio);
-  // Then blend the overlap regions
-  //This only does the center "corner"
+  // This only does the center "corner"
   for (let y = 0; y < overlap*ratio; y++) {
     for (let x = 0; x < overlap*ratio; x++) {
-      const alphaY = (y / (overlap*ratio)); // Vertical gradient from 0 to 1
-      const alphaX = (x / (overlap*ratio)); // Horizontal gradient from 0 to 1
-      ctx.globalAlpha = Math.min(alphaX, alphaY); // Use min to ensure proper blending with both edges
+      const alphaY = parseFloat(y) / parseFloat(overlap*ratio); // Ensure floating point division
+      const alphaX = parseFloat(x) / parseFloat(overlap*ratio); // Ensure floating point division
+      ctx.globalAlpha = Math.min(alphaX, alphaY); //scaleupRound(Math.min(alphaX, alphaY)); // Use our rounding function
       ctx.drawImage(images[3], x, y, 1, 1, pieceWidth - overlap*ratio + x, pieceHeight - overlap*ratio + y, 1, 1);
     }
   }
   // Blend the remaining overlap region from top to bottom
   for (let y = 0; y < overlap*ratio; y++) {
-    const alpha = (y / (overlap*ratio)); // Linear gradient from 0 to 1
-    ctx.globalAlpha = alpha;
+    const alpha = parseFloat(y) / parseFloat(overlap*ratio); // Ensure floating point division
+    ctx.globalAlpha = alpha; // scaleupRound(alpha); // Use our rounding function
     ctx.drawImage(images[3], overlap*ratio, y, pieceWidth - (overlap*ratio), 1, pieceWidth, pieceHeight - overlap*ratio + y, pieceWidth - (overlap*ratio), 1);
   }
   // Blend the remaining overlap region from left to right
   for (let x = 0; x < overlap*ratio; x++) {
-    const alpha = (x / (overlap*ratio)); // Linear gradient from 0 to 1
-    ctx.globalAlpha = alpha;
+    const alpha = parseFloat(x) / parseFloat(overlap*ratio); // Ensure floating point division
+    ctx.globalAlpha = alpha; //scaleupRound(alpha); // Use our rounding function
     ctx.drawImage(images[3], x, overlap*ratio, 1, pieceHeight - (overlap*ratio), pieceWidth - overlap*ratio + x, pieceHeight, 1, pieceHeight - (overlap*ratio));
   }
   ctx.globalAlpha = 1;
