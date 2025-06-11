@@ -756,11 +756,11 @@ function onScaleUpMAXClick(origRequest, image) {
   }
 
   //Grab the prompt from the user-input area instead of the original image.
- // if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
-  if (ScaleUpSettings.useChangedPrompt ) {
-    newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
-  };
- // }
+  if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
+    if (ScaleUpSettings.useChangedPrompt ) {
+      newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
+    };
+  }
 
   if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
     newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
@@ -769,6 +769,101 @@ function onScaleUpMAXClick(origRequest, image) {
   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
 
   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
+
+  //special case where you use Flux to do an initial generate, but want to use a smaller model for later generates
+  if (ScaleUpSettings.useChangedModel ) {
+
+    //Use the user's new guidance first, but if it doesn't match Flux/SDXL's requirements, then change as needed, below.
+    newTaskRequest.reqBody.guidance_scale=parseFloat(guidanceScaleField.value); 
+
+
+    //If old model (from image) is flux and new desired model is not
+    if (isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && !isFlux /*calculated with UI prompt*/) {
+      let guidance = parseFloat(guidanceScaleField.value); //$("#guidance_scale").val();
+      //Change Guidance Scale of new image -- it's assumed that the flux run used <= 1.1
+      //  If GuidanceScale in UI is still 1, change it to 6
+      if (guidance <= 1.1) {
+        newTaskRequest.reqBody.guidance_scale=6;
+      }
+      else {  //  If GuidanceScale in UI is >1.1, change it to the UI value
+        newTaskRequest.reqBody.guidance_scale=guidance;
+      }
+    }
+    // if switching to flux, force GS to 1
+    else if (!isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && isFlux /*calculated with UI prompt*/) {
+        newTaskRequest.reqBody.guidance_scale=1;
+        
+    }
+    //Switch the sampler (and scheduler) at the same time, if switching to a new model.  Some Sampler/scheduler combinations don't work with Flux and vice-versa.
+
+     newTaskRequest.reqBody.sampler_name = $("#sampler_name")[0].value;
+     newTaskRequest.reqBody.scheduler_name = $("#scheduler_name")[0].value;
+
+     /*
+    // Update lora settings if any are selected
+    const loraElements = document.querySelectorAll('#editor-settings [id^="lora_"] .model_name');
+    const selectedLoras = [];
+    
+    loraElements.forEach(element => {
+      if (element.dataset.path) {
+        selectedLoras.push(element.dataset.path);
+      }
+    });
+    
+    // Update the lora setting in the request
+    if (selectedLoras.length === 1 && selectedLoras[0] != '') {
+      newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
+    } else if (selectedLoras.length > 1) {
+      newTaskRequest.reqBody.use_lora_model = selectedLoras;
+    } else {
+      delete newTaskRequest.reqBody.use_lora_model;
+    }
+
+    //also need to update lora_alpha the same way
+    const loraElementWeights = document.querySelectorAll('#editor-settings [id^="lora_"] .model_name');
+    const selectedLoraWeights = [];
+    
+    loraElementWeights.forEach(element => {
+      if (element.dataset.path) {
+        selectedLoraWeights.push(element.dataset.path);
+      }
+    });
+    
+    // Update the lora setting in the request
+    if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
+      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
+    } else if (selectedLoraWeights.length > 1) {
+      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
+    } else {
+      delete newTaskRequest.reqBody.lora_alpha;
+    }
+      */
+    const loras = JSON.parse($('#lora_model')[0].dataset.path);
+    const selectedLoras = loras.modelNames;
+    const selectedLoraWeights = loras.modelWeights;
+
+    // Update the lora setting in the request
+    if (selectedLoras.length === 1 && selectedLoras[0] != '') {
+      newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
+    } else if (selectedLoras.length > 1) {
+      newTaskRequest.reqBody.use_lora_model = selectedLoras;
+    } else {
+      delete newTaskRequest.reqBody.use_lora_model;
+    }
+    // Update the lora weight setting in the request
+    if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
+      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
+    } else if (selectedLoraWeights.length > 1) {
+      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
+    } else {
+      delete newTaskRequest.reqBody.lora_alpha;
+    }
+  }
+
+  //Beta makes stronger changes, so reduce the prompt_strength to compensate
+  if ( newTaskRequest.reqBody.scheduler_name == 'beta') {
+    newTaskRequest.reqBody.prompt_strength = scaleupRound(newTaskRequest.reqBody.prompt_strength - .04);
+  }
 
   delete newTaskRequest.reqBody.mask
 
@@ -985,6 +1080,8 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
     if (ScaleUpSettings.useChangedPrompt ) {
       newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
+      
+
     };
   }
 
@@ -1016,6 +1113,67 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
 
      newTaskRequest.reqBody.sampler_name = $("#sampler_name")[0].value;
      newTaskRequest.reqBody.scheduler_name = $("#scheduler_name")[0].value;
+
+     /*
+    // Update lora settings if any are selected
+    const loraElements = document.querySelectorAll('#editor-settings [id^="lora_"] .model_name');
+    const selectedLoras = [];
+    
+    loraElements.forEach(element => {
+      if (element.dataset.path) {
+        selectedLoras.push(element.dataset.path);
+      }
+    });
+    
+    // Update the lora setting in the request
+    if (selectedLoras.length === 1 && selectedLoras[0] != '') {
+      newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
+    } else if (selectedLoras.length > 1) {
+      newTaskRequest.reqBody.use_lora_model = selectedLoras;
+    } else {
+      delete newTaskRequest.reqBody.use_lora_model;
+    }
+    
+    //also need to update lora_alpha the same way
+    const loraElementWeights = document.querySelectorAll('#editor-settings [id^="lora_"] .model_name');
+    const selectedLoraWeights = [];
+    
+    loraElementWeights.forEach(element => {
+      if (element.dataset.path) {
+        selectedLoraWeights.push(element.dataset.path);
+      }
+    });
+    
+    // Update the lora setting in the request
+    if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
+      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
+    } else if (selectedLoraWeights.length > 1) {
+      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
+    } else {
+      delete newTaskRequest.reqBody.lora_alpha;
+    }
+      */
+    const loras = JSON.parse($('#lora_model')[0].dataset.path);
+    const selectedLoras = loras.modelNames;
+    const selectedLoraWeights = loras.modelWeights;
+
+    // Update the lora setting in the request
+    if (selectedLoras.length === 1 && selectedLoras[0] != '') {
+      newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
+    } else if (selectedLoras.length > 1) {
+      newTaskRequest.reqBody.use_lora_model = selectedLoras;
+    } else {
+      delete newTaskRequest.reqBody.use_lora_model;
+    }
+    // Update the lora weight setting in the request
+    if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
+      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
+    } else if (selectedLoraWeights.length > 1) {
+      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
+    } else {
+      delete newTaskRequest.reqBody.lora_alpha;
+    }
+
   }
 
 
@@ -1164,8 +1322,8 @@ newTaskRequest.reqBody = Object.assign({}, origRequest, {})
 
 //create working canvas
 let canvas = document.createElement("canvas");
-canvas.width = image.naturalWidth/2+splitOverlap;
-canvas.height = image.naturalHeight/2+splitOverlap;
+canvas.width = Math.floor(image.naturalWidth/2)+splitOverlap;
+canvas.height = Math.floor(image.naturalHeight/2)+splitOverlap;
 
 newTaskRequest.reqBody.width=canvas.width;
 newTaskRequest.reqBody.height = canvas.height;
