@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.11.4, last updated: 6/9/2025
+ * v.2.11.5, last updated: 6/11/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
