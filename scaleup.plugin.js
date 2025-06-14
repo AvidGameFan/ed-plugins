@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.11.5, last updated: 6/11/2025
+ * v.2.11.6, last updated: 6/14/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -669,7 +669,8 @@ function onScaleUpMAXClick(origRequest, image) {
     width: ScaleUpMax(imageWidth,ratio),
     height: ScaleUpMax(imageHeight,ratio),
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
-    num_inference_steps: (isTurbo)? 25 : Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
+    //num_inference_steps: (isTurbo)? 25 : Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
+    num_inference_steps: (isTurbo)?  (isFlux)? 15:22  :  (isFlux)? 33:75,  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
     //?use_upscale: 'None',
