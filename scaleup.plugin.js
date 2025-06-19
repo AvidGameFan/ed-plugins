@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.11.6, last updated: 6/14/2025
+ * v.2.11.7, last updated: 6/18/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -670,7 +670,8 @@ function onScaleUpMAXClick(origRequest, image) {
     height: ScaleUpMax(imageHeight,ratio),
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
     //num_inference_steps: (isTurbo)? 25 : Math.min(parseInt(origRequest.num_inference_steps) + 50, 80),  //large resolutions combined with large steps can cause an error
-    num_inference_steps: (isTurbo)?  (isFlux)? 15:22  :  (isFlux)? 33:75,  //large resolutions combined with large steps can cause an error
+//    num_inference_steps: (isTurbo)?  (isFlux)? 15:22  :  (isFlux)? 33:75,  //large resolutions combined with large steps can cause an error
+    num_inference_steps: stepsToUse(origRequest.num_inference_steps, isFlux, isTurbo, isXl),
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
     //?use_upscale: 'None',
@@ -967,6 +968,40 @@ function onScaleUp2xClick(origRequest, image, e, tools) {
   asyncFunctionCall(origRequest, image, tools);
 };
 
+//Back in the days of SD 1.x, there was a benefit for increasing steps for larege img2img runs.
+//SDXL and Flux don't seem to require as much of a boost. 
+//Note that the "real" steps are reduced  by the prompt-strength, so  the actual steps run are fewer than it seems.
+function stepsToUse(defaultSteps, isFlux, isTurbo, isXl) {
+  let steps=parseInt(defaultSteps);
+  if (isFlux) {
+    if (isTurbo) {
+      steps = Math.min(steps+10, 15);
+    }
+    else {
+      steps = Math.min(steps+10, 33);
+    }
+  }
+  else if (isXl) {
+    if (isTurbo) {
+      steps = Math.min(steps+10, 22);
+    }
+    else {
+      steps = Math.min(steps+15, 50);
+    }
+  }
+  else /* SD 1.x */ {
+    //SD 1.x needs more steps to keep the quality up
+    if (isTurbo) {
+      steps = Math.min(steps+10, 25);
+    }
+    else {
+      steps = Math.min(steps+20, 75);
+    }
+  }
+  return steps;
+}
+
+
 function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   var desiredModel=desiredModelName(origRequest);
 
@@ -992,8 +1027,9 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     width: doScaleUp? scaleUp(image.naturalWidth, image.naturalHeight, scalingIncrease):image.naturalWidth,
     height: doScaleUp? scaleUp(image.naturalHeight, image.naturalWidth, scalingIncrease):image.naturalHeight,
     //guidance_scale: Math.max(origRequest.guidance_scale,10), //Some suggest that higher guidance is desireable for img2img processing
-    num_inference_steps: (isTurbo)?  Math.min(parseInt(origRequest.num_inference_steps) + 15, (isFlux)? 15:22)
-      : Math.min(parseInt(origRequest.num_inference_steps) + ((isFlux)? 15:25), (isFlux)? 33:75),  //large resolutions combined with large steps can cause an error
+    num_inference_steps: stepsToUse(origRequest.num_inference_steps, isFlux, isTurbo, isXl),
+//    num_inference_steps: (isTurbo)?  Math.min(parseInt(origRequest.num_inference_steps) + 15, (isFlux)? 15:22)
+//      : Math.min(parseInt(origRequest.num_inference_steps) + ((isFlux)? 15:25), (isFlux)? 33:75),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
     //??use_upscale: 'None',
