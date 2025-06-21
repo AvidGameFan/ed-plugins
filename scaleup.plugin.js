@@ -321,7 +321,7 @@ function isModelXl(modelName) {
 //If flux, can use fewer steps
 function isModelFlux(modelName) {
   let result = false;
-  if (modelName.search(/flux/i)>=0) {
+  if (modelName.search(/flux/i)>=0 || modelName.search(/lyhAnime_kor/i)>=0) {
     result = true;
   }  
   //If turbo model but not actually turbo, go ahead and call it flux, to do fewer steps
@@ -973,7 +973,7 @@ function onScaleUp2xClick(origRequest, image, e, tools) {
 //Note that the "real" steps are reduced  by the prompt-strength, so  the actual steps run are fewer than it seems.
 function stepsToUse(defaultSteps, isFlux, isTurbo, isXl) {
   let steps=parseInt(defaultSteps);
-  if (isFlux) {
+  if (isFlux) {  //need to test isFlux first
     if (isTurbo) {
       steps = Math.min(steps+10, 15);
     }
