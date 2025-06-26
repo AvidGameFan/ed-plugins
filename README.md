@@ -53,6 +53,11 @@ As of April 2025, the Easy Diffusion Draw editor does not handle large resolutio
 Adds buttons to allow easy selection of starting values at the selected ratio.  It uses smaller values for SD 1.x, larger for SDXL, and largest for Flux.
 [Ratios](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/ratios.plugin.js)
 
+### Magnifier
+
+Adds a circular magnifier to the image window, to aid in examining details.
+[Magnifier](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/magnifier.plugin.js)
+
 ## Other
 
 ### Custom Modifiers
