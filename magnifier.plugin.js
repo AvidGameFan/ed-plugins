@@ -1,6 +1,6 @@
 // Magnifier Plugin for Easy Diffusion
 // Adds a circular magnifier that appears on hover over images
-// v1.0.0, last updated: 6/25/2025
+// v1.1.0, last updated: 6/26/2025
 // Initial code from Cursor/Claude, modified by Gary W.
 
 (function() { 
@@ -58,9 +58,14 @@
         magnifier.appendChild(innerContainer);
         document.body.appendChild(magnifier);
         
+        // Optional: Show zoom level as a tooltip
+        //magnifier.title = `Zoom: ${config.magnification.toFixed(2)}x`;
+
+         
+       
         return magnifier;
     }
-    
+
     // Click handler for the magnifier button
     function onMagClick(origRequest, image) {
         // Toggle magnifier functionality for this specific image
@@ -73,7 +78,14 @@
                 image.removeEventListener('mouseenter', image.magnifierListeners.enter);
                 image.removeEventListener('mousemove', image.magnifierListeners.move);
                 image.removeEventListener('mouseleave', image.magnifierListeners.leave);
+                image.removeEventListener('wheel', image.magnifierListeners.wheel1);
+                image.removeEventListener('mousewheel', image.magnifierListeners.wheel2);
                 image.magnifierListeners = null;
+            }
+            // Hide magnifier if it's currently visible
+            const magnifier = document.getElementById('image-magnifier');
+            if (magnifier) {
+                magnifier.style.display = 'none';
             }
         } else {
             // Enable magnifier
@@ -85,6 +97,9 @@
     
     // Initialize magnifier functionality for a specific image
     function initMagnifier(origRequest, image) {
+        // Set the active flag
+        image.magnifierActive = true;
+        
         const magnifier = createMagnifier();
         const innerContainer = magnifier.querySelector('div');
         let isVisible = false;
@@ -166,18 +181,45 @@
                 }
             }, config.fadeOutDuration);
         };
-        
+
+        const handleWheel = function(e) {
+            if(e.ctrlKey == true) //Only do this if the control key is pressed
+            {
+            e.preventDefault();
+            // Adjust magnification
+            const step = 0.2;
+            if (e.deltaY < 0) {
+                config.magnification = Math.min(8, config.magnification + step);
+            } else {
+                config.magnification = Math.max(2.5, config.magnification - step);
+            }
+
+            // Update tooltip
+            //magnifier.title = `Zoom: ${config.magnification.toFixed(2)}x`;
+            mouseMoveHandler(e); //update the view with changes
+            }
+        } //, { passive: false }        
         // Store listeners for potential removal
         image.magnifierListeners = {
             enter: mouseEnterHandler,
             move: mouseMoveHandler,
-            leave: mouseLeaveHandler
+            leave: mouseLeaveHandler,
+            wheel1: handleWheel,
+            wheel2: handleWheel
         };
+
+        
+
+
         
         // Add event listeners to the specific image
         image.addEventListener('mouseenter', mouseEnterHandler);
         image.addEventListener('mousemove', mouseMoveHandler);
         image.addEventListener('mouseleave', mouseLeaveHandler);
+
+        // Add wheel event for zooming
+        image.addEventListener('wheel', handleWheel);
+        image.addEventListener('mousewheel', handleWheel); //some browsers may need this different event
         
         // Handle window resize
         const resizeHandler = function() {
@@ -196,6 +238,7 @@
         
         // Store resize handler for cleanup if needed
         image.magnifierResizeHandler = resizeHandler;
+        return true;
     }
     
     // Export for potential external use
