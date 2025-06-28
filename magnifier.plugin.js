@@ -1,7 +1,7 @@
 // Magnifier Plugin for Easy Diffusion
 // Adds a circular magnifier that appears on hover over images
-// v1.1.0, last updated: 6/26/2025
-// Initial code from Cursor/Claude, modified by Gary W.
+// v1.2.0, last updated: 6/28/2025
+// Initial code and some modifications from Cursor/Claude, modified by Gary W.
 
 (function() { 
     "use strict";
@@ -80,6 +80,28 @@
                 image.removeEventListener('mouseleave', image.magnifierListeners.leave);
                 image.removeEventListener('wheel', image.magnifierListeners.wheel1);
                 image.removeEventListener('mousewheel', image.magnifierListeners.wheel2);
+                
+
+                // Remove task buttons listener
+                const taskButtonsArea = image.parentElement.querySelector('.tasksBtns');
+                if (taskButtonsArea && image.magnifierListeners.taskButtons) {
+                    taskButtonsArea.removeEventListener('mouseenter', image.magnifierListeners.taskButtons);
+                    
+                    // Remove listeners from individual buttons
+                    const buttons = taskButtonsArea.querySelectorAll('button, .btn, [role="button"]');
+                    buttons.forEach(button => {
+                        button.removeEventListener('mouseenter', image.magnifierListeners.taskButtons);
+                    });
+                }
+                
+                // Remove imgItemInfo listeners
+                const imgItemInfo = image.parentElement.querySelector('div.imgItemInfo');
+                if (imgItemInfo && image.magnifierListeners) {
+                    imgItemInfo.removeEventListener('mouseenter', image.magnifierListeners.enter);
+                    imgItemInfo.removeEventListener('mousemove', image.magnifierListeners.move);
+                    imgItemInfo.removeEventListener('mouseleave', image.magnifierListeners.leave);
+                }
+                
                 image.magnifierListeners = null;
             }
             // Hide magnifier if it's currently visible
@@ -166,7 +188,10 @@
         
         const mouseLeaveHandler = function(e) {
             if (!isVisible) return;
-            
+
+            //allow entry into the div containing buttons, but disable over buttons
+            const entered = e.relatedTarget;
+
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
                 animationFrameId = null;
@@ -180,6 +205,22 @@
                     magnifier.style.display = 'none';
                 }
             }, config.fadeOutDuration);
+        };
+        
+        // Add handler to hide magnifier when hovering over task buttons
+        const taskButtonsHandler = function(e) {
+            //console.log('taskButtonsHandler triggered!', e.target);
+            if (isVisible) {
+                //console.log('Hiding magnifier due to task button hover');
+                magnifier.style.opacity = '0';
+                isVisible = false;
+                
+                setTimeout(() => {
+                    if (!isVisible) {
+                        magnifier.style.display = 'none';
+                    }
+                }, config.fadeOutDuration);
+            }
         };
 
         const handleWheel = function(e) {
@@ -205,7 +246,8 @@
             move: mouseMoveHandler,
             leave: mouseLeaveHandler,
             wheel1: handleWheel,
-            wheel2: handleWheel
+            wheel2: handleWheel,
+            taskButtons: taskButtonsHandler
         };
 
         
@@ -220,6 +262,29 @@
         // Add wheel event for zooming
         image.addEventListener('wheel', handleWheel);
         image.addEventListener('mousewheel', handleWheel); //some browsers may need this different event
+        
+        // Add event listener to task buttons area to hide magnifier
+        setTimeout(() => {
+            const imgItemInfo = image.parentElement.querySelector('div.imgItemInfo');
+            //console.log('Looking for .tasksBtns in:', image.parentElement);
+            //console.log('Found imgItemInfo:', imgItemInfo);
+            
+            // Add listeners to the imgItemInfo container
+            if (imgItemInfo) {
+                imgItemInfo.addEventListener('mouseenter', mouseEnterHandler);
+                imgItemInfo.addEventListener('mousemove', mouseMoveHandler);
+                imgItemInfo.addEventListener('mouseleave', mouseLeaveHandler);
+                //console.log('Added listeners to imgItemInfo');
+            }
+            
+            // Also loop through all buttons within taskButtonsArea
+            const buttons = imgItemInfo.querySelectorAll('button, .btn, [role="button"]');
+            //console.log('Found buttons:', buttons.length);
+            buttons.forEach(button => {
+                button.addEventListener('mouseenter', taskButtonsHandler);
+                //console.log('Added mouseenter listener to button:', button);
+            });
+        }, 200);
         
         // Handle window resize
         const resizeHandler = function() {
