@@ -7,7 +7,7 @@ These tools are intended for use with the Stable Diffusion UI, [Easy Diffusion](
 
 Adds options to easily scale-up to a slightly-higher resolution.  This will add detail, as well as increase resolution.
 
-Various settings are tweaked automatically, to get the best out of each model.  Click on the ScaleUp label to cycle through various options.  Avoid using the ControlNet option with higher resolutions.
+Various settings are tweaked automatically, to get the best out of each model.  Click on the ScaleUp label to cycle through various options.  Avoid using the ControlNet option with higher resolutions.  Eventually, you may hit a limit where the model is just too large for a given resolution on your video card; if you still want higher resolution, use the split/merge option that will generate 4 separate images and stitch them together.
 [ScaleUp](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/master/scaleup.plugin.js)
 
 ### OutpaintIt
@@ -75,3 +75,110 @@ Open a Windows PowerShell command prompt and enter:
 .\lora_keywords  -FileName "c:\my_lora.safetensors"
 
 [lora_keywords.ps1](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/lora_keywords.ps1)
+
+# JSON Prompt Extractor
+
+A utility to extract "prompt" elements from Easy Diffusion's sidecar JSON files from all subdirectories and save them to a text file.
+
+The resulting list can be cut-and-pasted into the Prompter! plugin by Duckface.
+
+## Features
+
+- Recursively searches all subdirectories for `.json` files
+- Extracts the "prompt" field from each JSON file
+- Handles both single objects and arrays of objects
+- Outputs prompts with quotes and comma separation
+- Error handling for malformed JSON files
+- Progress reporting
+
+## Requirements
+
+- Python 3.6 or higher
+- No external dependencies required
+
+## Usage
+
+### Method 1: Direct Python Script
+
+```bash
+python extract_prompts.py <root_directory> <output_file>
+```
+
+**Examples:**
+```bash
+# Search current directory and output to prompts.txt
+python extract_prompts.py . prompts.txt
+
+# Search specific directory and output to custom file
+python extract_prompts.py "C:\MyData" "C:\Output\my_prompts.txt"
+
+# Search relative path
+python extract_prompts.py ./data ./output/prompts.txt
+```
+
+### Method 2: Windows Batch File (Easier)
+
+```cmd
+# Use defaults (current directory, prompts.txt)
+extract_prompts.bat
+
+# Specify directory only
+extract_prompts.bat "C:\MyData"
+
+# Specify both directory and output file
+extract_prompts.bat "C:\MyData" "C:\Output\prompts.txt"
+```
+
+## Output Format
+
+The output file will contain all prompts in this format:
+```
+"prompt1", "prompt2", "prompt3", "prompt4"
+```
+
+## JSON File Formats Supported
+
+The utility handles these JSON structures:
+
+**Single object:**
+```json
+{
+  "prompt": "A beautiful landscape",
+  "other_field": "value"
+}
+```
+
+**Array of objects:**
+```json
+[
+  {
+    "prompt": "First prompt",
+    "other_field": "value"
+  },
+  {
+    "prompt": "Second prompt",
+    "other_field": "value"
+  }
+]
+```
+
+## Error Handling
+
+- Skips files that aren't valid JSON
+- Skips files without a "prompt" field
+- Skips empty prompts
+- Reports errors but continues processing other files
+- Provides summary of processed files and extracted prompts
+
+## Example Output
+
+```
+Searching for JSON files in: ./data
+Output will be written to: prompts.txt
+--------------------------------------------------
+Successfully processed 15 JSON files
+Extracted 12 prompts
+Output written to: prompts.txt
+
+✅ Extraction completed successfully!
+```
