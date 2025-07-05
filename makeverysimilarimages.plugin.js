@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.1.2.7, last updated: 4/19/2025
+ * v.1.2.8, last updated: 6/28/2025
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -138,13 +138,13 @@ function isModelLightning(modelName, loraList) {
 
 function isModelFlux(modelName) {
   let result = false;
-  if (modelName.search(/flux/i)>=0) {
+  if (modelName.search(/flux/i)>=0 || modelName.search(/lyhAnime_kor/i)>=0 || modelName.search(/chroma/i)>=0) {
     result = true;
   }  
   //If turbo model but not actually turbo, go ahead and call it flux, to do fewer steps
- // if (isModelTurbo(modelName) && modelName.search(/turbo/i)<0) {
- //   result = true;
- // }
+  if (isModelTurbo(modelName) && !modelName.search(/turbo/i)<0) {
+    result = true;
+  }
   return result;
 }
 
