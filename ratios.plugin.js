@@ -2,6 +2,9 @@
 // Adds ratio buttons for common aspect ratios, sets width/height fields based on model type
 // v1.0.0, last updated: 6/3/2025
 // Initial code from Cursor/Claude, modified by Gary W.
+//
+// Free to use with the CMDR2 Stable Diffusion UI.
+
 
 (function() { "use strict"
   // --- Ratio table: [label, {SD: [w,h], SDXL: [w,h], Flux: [w,h]}] ---
@@ -31,9 +34,9 @@
     return /xl|playground|disneyrealcartoonmix|mobius|flux|zovya/i.test(modelName);
   }
   function isModelFlux(modelName) {
-    if (/flux/i.test(modelName)) return true;
-    // If turbo model but not actually turbo, call it flux
-    if (/turbo/i.test(modelName) && !/turbo/i.test(modelName)) return true;
+    if (/flux|lyhAnime_kor|chroma/i.test(modelName)) return true;
+
+    //No need to check for turbo model, as we're not modifying steps, but selecting initial sizes.
     return false;
   }
   function getModelType() {
