@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.11.7, last updated: 6/18/2025
+ * v.2.11.8, last updated: 6/28/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -312,7 +312,7 @@ function isModelTurbo(modelName, loraList) {
 function isModelXl(modelName) {
   let result = false;
   if (modelName.search(/xl/i)>=0 || modelName.search(/playground/i)>=0 || modelName.search(/disneyrealcartoonmix/i)>=0  || modelName.search(/mobius/i)>=0 
-    || modelName.search(/flux/i)>=0  || modelName.search(/zovya/i)>=0) {  //Zovya models appear to mostly be Pony XL -- need to update if there are SD 1.5 models instead
+    || isModelFlux(modelName) || modelName.search(/zovya/i)>=0) {  //Zovya models appear to mostly be Pony XL -- need to update if there are SD 1.5 models instead
     result = true;
   }  
   return result;
@@ -321,7 +321,7 @@ function isModelXl(modelName) {
 //If flux, can use fewer steps
 function isModelFlux(modelName) {
   let result = false;
-  if (modelName.search(/flux/i)>=0 || modelName.search(/lyhAnime_kor/i)>=0) {
+  if (modelName.search(/flux/i)>=0 || modelName.search(/lyhAnime_kor/i)>=0 || modelName.search(/chroma/i)>=0) {
     result = true;
   }  
   //If turbo model but not actually turbo, go ahead and call it flux, to do fewer steps
@@ -779,67 +779,31 @@ function onScaleUpMAXClick(origRequest, image) {
     newTaskRequest.reqBody.guidance_scale=parseFloat(guidanceScaleField.value); 
 
 
-    //If old model (from image) is flux and new desired model is not
-    if (isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && !isFlux /*calculated with UI prompt*/) {
-      let guidance = parseFloat(guidanceScaleField.value); //$("#guidance_scale").val();
-      //Change Guidance Scale of new image -- it's assumed that the flux run used <= 1.1
-      //  If GuidanceScale in UI is still 1, change it to 6
-      if (guidance <= 1.1) {
-        newTaskRequest.reqBody.guidance_scale=6;
-      }
-      else {  //  If GuidanceScale in UI is >1.1, change it to the UI value
-        newTaskRequest.reqBody.guidance_scale=guidance;
-      }
-    }
-    // if switching to flux, force GS to 1
-    else if (!isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && isFlux /*calculated with UI prompt*/) {
-        newTaskRequest.reqBody.guidance_scale=1;
+    // //This could use some tweaking.
+    // //If old model (from image) is flux and new desired model is not
+    // if (isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && !isFlux /*calculated with UI prompt*/) {
+    //   let guidance = parseFloat(guidanceScaleField.value); //$("#guidance_scale").val();
+    //   //Change Guidance Scale of new image -- it's assumed that the flux run used <= 1.1
+    //   //  If GuidanceScale in UI is still 1, change it to 6
+    //   if (guidance <= 1.1) {
+    //     newTaskRequest.reqBody.guidance_scale=6;
+    //   }
+    //   else {  //  If GuidanceScale in UI is >1.1, change it to the UI value
+    //     newTaskRequest.reqBody.guidance_scale=guidance;
+    //   }
+    // }
+    // // if switching to flux, force GS to 1
+    // else if (!isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && isFlux /*calculated with UI prompt*/) {
+    //     newTaskRequest.reqBody.guidance_scale=1;
         
-    }
-    //Switch the sampler (and scheduler) at the same time, if switching to a new model.  Some Sampler/scheduler combinations don't work with Flux and vice-versa.
+    // }
+    //Because flux and SDXL have very different requirements for guidance, set it to the input in case it has changed.
+    newTaskRequest.reqBody.guidance_scale=parseFloat(guidanceScaleField.value); 
 
+    //Switch the sampler (and scheduler) at the same time, if switching to a new model.  Some Sampler/scheduler combinations don't work with Flux and vice-versa.
      newTaskRequest.reqBody.sampler_name = $("#sampler_name")[0].value;
      newTaskRequest.reqBody.scheduler_name = $("#scheduler_name")[0].value;
 
-     /*
-    // Update lora settings if any are selected
-    const loraElements = document.querySelectorAll('#editor-settings [id^="lora_"] .model_name');
-    const selectedLoras = [];
-    
-    loraElements.forEach(element => {
-      if (element.dataset.path) {
-        selectedLoras.push(element.dataset.path);
-      }
-    });
-    
-    // Update the lora setting in the request
-    if (selectedLoras.length === 1 && selectedLoras[0] != '') {
-      newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
-    } else if (selectedLoras.length > 1) {
-      newTaskRequest.reqBody.use_lora_model = selectedLoras;
-    } else {
-      delete newTaskRequest.reqBody.use_lora_model;
-    }
-
-    //also need to update lora_alpha the same way
-    const loraElementWeights = document.querySelectorAll('#editor-settings [id^="lora_"] .model_name');
-    const selectedLoraWeights = [];
-    
-    loraElementWeights.forEach(element => {
-      if (element.dataset.path) {
-        selectedLoraWeights.push(element.dataset.path);
-      }
-    });
-    
-    // Update the lora setting in the request
-    if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
-      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
-    } else if (selectedLoraWeights.length > 1) {
-      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
-    } else {
-      delete newTaskRequest.reqBody.lora_alpha;
-    }
-      */
     const loras = JSON.parse($('#lora_model')[0].dataset.path);
     const selectedLoras = loras.modelNames;
     const selectedLoraWeights = loras.modelWeights;
