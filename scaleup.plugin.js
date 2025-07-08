@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.11.8, last updated: 6/28/2025
+ * v.2.11.1, last updated: 7/7/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1512,7 +1512,13 @@ function onCombineSplitClick(origRequest, image) {
   // Create a temporary link element to trigger download
   const link = document.createElement('a');
   link.href = combinedImage.src;
-  link.download = 'combined-split-' + new Date().getTime() + '.png';
+  
+  let underscoreName = origRequest.prompt.replace(/[^a-zA-Z0-9]/g, "_");
+  underscoreName = underscoreName.substring(0, 50);
+
+  // name and the top level metadata
+  link.download = underscoreName + '-combined-split-'+ new Date().getTime() + '.png';
+  //link.download = //'combined-split-' + new Date().getTime() + '.png';
   
   // Add link to DOM temporarily
   document.body.appendChild(link);
