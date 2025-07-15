@@ -2,6 +2,8 @@
 // Adds a circular magnifier that appears on hover over images
 // v1.2.0, last updated: 6/28/2025
 // Initial code and some modifications from Cursor/Claude, modified by Gary W.
+//
+// Free to use with the CMDR2 Stable Diffusion UI.
 
 (function() { 
     "use strict";

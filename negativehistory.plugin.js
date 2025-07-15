@@ -1,11 +1,11 @@
 // Negative History
-// v. 0.9
+// v. 1.0
 //
 // Saves the negative prompt, and certain other settings, when generating.
 // Restores the negative prompt when selecting a new model.
 //
 // Created on 5/9/2025
-// Last Modified on 5/9/2025
+// Last Modified on 7/14/2025
 
 
 (function() { "use strict"
@@ -45,6 +45,11 @@
             negativePrompt: negativePrompt,
             steps: numInferenceStepsField.value, //document.querySelector("#num_inference_steps").value,
             guidance: guidanceScaleField.value, //document.querySelector("#guidance_scale").value,
+            use_vae_model: vaeModelField.value,
+            use_text_encoder_model: {
+                modelNames: textEncoderModelField.value.modelNames || [],
+                modelWeights: textEncoderModelField.value.modelWeights || []
+            },
             timestamp: Date.now()
         };
 
@@ -71,7 +76,27 @@
             negativePromptField.value = history.negativePrompt;
             guidanceScaleField.value = history.guidance;
             numInferenceStepsField.value = history.steps;
+            // Only assign if the field exists (for backward compatibility)
+            if (history.use_vae_model !== undefined) {
+                vaeModelField.value = history.use_vae_model;
+            }
+            if (history.use_text_encoder_model !== undefined) {
+                textEncoderModelField.value = history.use_text_encoder_model;
+            }
+            if (history.use_text_encoder_model !== undefined) {
+                let value = history.use_text_encoder_model;
+                if (typeof value === "string") {
+                    try { value = JSON.parse(value); } catch (e) { value = { modelNames: [], modelWeights: [] }; }
+                }
+                if (Array.isArray(value)) {
+                    value = { modelNames: value, modelWeights: [] };
+                }
+                if (!value.modelNames) value.modelNames = [];
+                if (!value.modelWeights) value.modelWeights = [];
+                textEncoderModelField.value = value;
+            }
         }
+
     }
     
     // Modify the existing saveImageStuff function to also save negative prompts

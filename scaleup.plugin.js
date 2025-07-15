@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.11.1, last updated: 7/7/2025
+ * v.2.11.2, last updated: 7/14/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -350,6 +350,23 @@ function desiredVaeName(origRequest) {
     return origRequest.use_vae_model; //for the original model
   }
 }
+function desiredTextEncoderName(origRequest) {
+  if (ScaleUpSettings.useChangedModel) {
+    // Get the JSON string from the UI
+    let data = $("#editor-settings #text_encoder_model")[0].dataset.path;
+    try {
+      let parsed = JSON.parse(data);
+      // Return the modelNames array, or an empty array if not found
+      return parsed.modelNames || [];
+    } catch (e) {
+      // If parsing fails, return an empty array
+      return [];
+    }
+  } else {
+    // Use the original request's value
+    return origRequest.use_text_encoder_model;
+  }
+}
 
 //Use the new image, if available. If unavailable (in the filters), just use the origRequest.  Unfortunately, these do not match after using Upscaler.
 //The filters don't have the image set.  Probably can revert them back to using origRequest directly.
@@ -674,6 +691,8 @@ function onScaleUpMAXClick(origRequest, image) {
     num_inference_steps: stepsToUse(origRequest.num_inference_steps, isFlux, isTurbo, isXl),
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
+    use_text_encoder_model : desiredTextEncoderName(origRequest),
+
     //?use_upscale: 'None',
     //tiling: "none", //if doing scaleUpSplit, don't want to double-tile.
     //Using a new seed will allow some variation as it up-sizes; if results are not ideal, rerunning will give different results.
@@ -996,6 +1015,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
 //      : Math.min(parseInt(origRequest.num_inference_steps) + ((isFlux)? 15:25), (isFlux)? 33:75),  //large resolutions combined with large steps can cause an error
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
+    use_text_encoder_model : desiredTextEncoderName(origRequest),
     //??use_upscale: 'None',
     //tiling: "none", //if doing scaleUpSplit, don't want to double-tile.
     //Using a new seed will allow some variation as it up-sizes; if results are not ideal, rerunning will give different results.
@@ -1703,4 +1723,5 @@ function scaleUpResetSettings(reset) {
   scaleup_reuse_controlnet.checked = ScaleUpSettings.reuseControlnet;
   scaleup_animeControlnet.checked = ScaleUpSettings.animeControlnet;
 }
+
 
