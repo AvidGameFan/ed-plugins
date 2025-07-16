@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.8.6, last updated: 3/22/2024
+ * v.1.8.7, last updated: 7/14/2025
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -168,7 +168,23 @@ function desiredSamplerName(origRequest) {
     return origRequest.sampler_name; //for the original model
   }
 }
-
+function desiredTextEncoderName(origRequest) {
+  if (ScaleUpSettings.useChangedModel) {
+    // Get the JSON string from the UI
+    let data = $("#editor-settings #text_encoder_model")[0].dataset.path;
+    try {
+      let parsed = JSON.parse(data);
+      // Return the modelNames array, or an empty array if not found
+      return parsed.modelNames || [];
+    } catch (e) {
+      // If parsing fails, return an empty array
+      return [];
+    }
+  } else {
+    // Use the original request's value
+    return origRequest.use_text_encoder_model;
+  }
+}
 
 function calcOutpaintSizeIncrease(image) {
   //For each 2mp, add another block of 64 to the outpaint size.  For larger images, the default value is a bit thin.
@@ -199,6 +215,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
     //num_inference_steps: (isTurbo)? 10 : parseInt(origRequest.num_inference_steps) ),
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
+    use_text_encoder_model : desiredTextEncoderName(origRequest),
     sampler_name: desiredSamplerName(origRequest),
     seed: Math.floor(Math.random() * 10000000),
   })
