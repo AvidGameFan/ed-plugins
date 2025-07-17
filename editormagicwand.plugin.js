@@ -1,9 +1,9 @@
 
 /* Editor Magic Wand
 
-Adds a Magic Wand selection feature to the inpaint editor.  Probably is not useful for the Draw editor.
+Adds a Magic Wand selection feature to the inpaint and drawing editors.   Replaces the Fill tool.
 
-Version: 0.5
+Version: 1.0
 
 */
 
@@ -14,14 +14,21 @@ IMAGE_EDITOR_TOOLS.push(
     icon: "fa-solid fa-magic-wand-sparkles",
     cursor: "crosshair",
     begin: (editor, ctx, x, y, is_overlay = false) => {
-        if (!is_overlay && editor.inpainter) {
+        if (!is_overlay /*&& editor.inpainter*/) {
+            let fillColor;
+            if (editor.inpainter) {
+                fillColor = { r: 255, g: 255, b: 255 }; // white for mask
+            } else {
+                fillColor = hexToRgb(editor.options.color || "#ffffff"); // selected color for draw editor
+            }
             // Read from background, write to drawing
             magicWandSelect(
                 editor,
                 editor.layers.background.ctx, // source: image
                 ctx, //editor.layers.drawing.ctx,    // target: mask
                 x, y,
-                editor.getMagicWandThreshold()
+                editor.getMagicWandThreshold(),
+                fillColor
             );
         }
     },
@@ -36,6 +43,11 @@ function waitForInpainterControls(callback) {
         if (inpainterControls) {
             clearInterval(interval);
             callback(inpainterControls);
+        }
+        const painterControls = document.querySelector('#image-editor .editor-controls-left');
+        if (painterControls) {
+            clearInterval(interval);
+            callback(painterControls);
         }
     }, 100);
 }
@@ -66,6 +78,7 @@ waitForInpainterControls(function(inpainterControls) {
     slider.addEventListener('input', function() {
         valueLabel.textContent = slider.value;
         imageInpainter.magicWandThreshold = parseInt(slider.value, 10);
+        imageEditor.magicWandThreshold = parseInt(slider.value, 10);
     });
 
     section.appendChild(slider);
@@ -76,11 +89,16 @@ waitForInpainterControls(function(inpainterControls) {
 
     // Set default threshold property
     imageInpainter.magicWandThreshold = parseInt(slider.value, 10);
+    imageEditor.magicWandThreshold = parseInt(slider.value, 10);
 
     // Patch getMagicWandThreshold if needed
     imageInpainter.getMagicWandThreshold = function() {
         return this.magicWandThreshold || 30;
     };
+    imageEditor.getMagicWandThreshold = function() {
+        return this.magicWandThreshold || 30;
+    };
+
 });
 
 //  Add magicWandSelect and colorDistance functions (encapsulated for easy moving)
@@ -92,7 +110,7 @@ function colorDistance(c1, c2) {
     );
 }
 
-function magicWandSelect(editor, srcCtx, tgtCtx, x, y, threshold) {
+function magicWandSelect(editor, srcCtx, tgtCtx, x, y, threshold, fillColor) {
     // Read from srcCtx, write mask to tgtCtx
     const width = editor.width;
     const height = editor.height;
@@ -125,10 +143,10 @@ function magicWandSelect(editor, srcCtx, tgtCtx, x, y, threshold) {
         };
         if (colorDistance(baseColor, color) > threshold) continue;
 
-        // Mark as selected in the mask
-        maskData[idx(x, y) + 0] = 255;
-        maskData[idx(x, y) + 1] = 255;
-        maskData[idx(x, y) + 2] = 255;
+        // Mark as selected in the mask or fill with color
+        maskData[idx(x, y) + 0] = fillColor.r;
+        maskData[idx(x, y) + 1] = fillColor.g;
+        maskData[idx(x, y) + 2] = fillColor.b;
         maskData[idx(x, y) + 3] = 255;
 
         // Add neighbors
@@ -157,13 +175,21 @@ function patchFillToolForInpainter() {
     fillTool.name = "Magic Wand";
     fillTool.icon = "fa-solid fa-magic-wand-sparkles";
     fillTool.begin = function(editor, ctx, x, y, is_overlay = false) {
-        if (editor.inpainter && !is_overlay) {
+        if (!is_overlay) {
+            let fillColor;
+            if (editor.inpainter) {
+                fillColor = { r: 255, g: 255, b: 255 }; // white for mask
+            } else {
+                fillColor = hexToRgb(editor.options.color || "#ffffff"); // selected color for draw editor
+            }
+
             magicWandSelect(
                 editor,
                 editor.layers.background.ctx, // source: image
                 editor.layers.drawing.ctx,    // target: mask
                 x, y,
-                editor.getMagicWandThreshold()
+                editor.getMagicWandThreshold(),
+                fillColor
             );
         } else {
             // fallback to original fill in draw mode
@@ -176,4 +202,21 @@ function patchFillToolForInpainter() {
 // Call this after IMAGE_EDITOR_TOOLS is defined
 patchFillToolForInpainter();
 
+function updateFillToolButtonUI() {
+    // Find all tool label elements
+    const labels = document.querySelectorAll('.image-editor-button-label');
+    labels.forEach(label => {
+        if (label.textContent.trim() === "Fill") {
+            // Update the label text
+            label.textContent = "Magic Wand";
+            // Update the icon
+            const icon = label.previousElementSibling;
+            if (icon && icon.classList.contains('fa-fill')) {
+                icon.classList.remove('fa-fill');
+                icon.classList.add('fa-magic-wand-sparkles');
+            }
+        }
+    });
+}
+setTimeout(updateFillToolButtonUI, 100); // or after a suitable event
 
