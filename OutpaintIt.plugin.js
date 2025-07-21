@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.8.7, last updated: 7/14/2025
+ * v.1.8.8, last updated: 7/20/2025
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -37,6 +37,11 @@ const maskFade = 0.07;
 const maskExtraOverlap = 0;
 const maskExtraOffset = -24;
 const blackColor = 'rgba(255,255,255,0)'; //'rgba(0,0,0,0)';
+
+//round to 3 decimal places
+function outpaintitRound(value) {
+  return Math.round(value * 1000) / 1000;
+}
 
 function outpaintSetPixels(imageData) {
   function guassianRand() {  //approximation of Gaussian, from Stackoverflow
@@ -206,7 +211,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
       
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: initialPromptStrength+Math.random()*(1-initialPromptStrength) - (OutpaintItSettings.useExtendImage ? 0.09 : 0.0), //be sure the values add up to 1 or less
+    prompt_strength: outpaintitRound(initialPromptStrength+Math.random()*(1-initialPromptStrength) - (OutpaintItSettings.useExtendImage ? 0.09 : 0.0)), //be sure the values add up to 1 or less
     width: image.naturalWidth + ((widen || all)?calcOutpaintSizeIncrease(image):0),
     height: image.naturalHeight + ((!widen || all)?calcOutpaintSizeIncrease(image):0),
     //guidance_scale: Math.max(origRequest.guidance_scale,15), //Some suggest that higher guidance is desireable for img2img processing
@@ -629,91 +634,124 @@ function onOutpaintRightFilter(origRequest, image) {
 
 function  onOutpaintAllClick(origRequest, image) {
     let newTaskRequest = outpaintGetTaskRequest(origRequest, image, true, true);
-    
-    //create working canvas
+    const ext = calcOutpaintSizeIncrease(image);
+    const srcW = image.naturalWidth;
+    const srcH = image.naturalHeight;
+    const newW = srcW + ext;
+    const newH = srcH + ext;
+    // Create new canvas
     let canvas = document.createElement("canvas");
-    canvas.width = newTaskRequest.reqBody.width;
-    canvas.height = newTaskRequest.reqBody.height;
+    canvas.width = newW;
+    canvas.height = newH;
     let ctx = canvas.getContext("2d");
-
-    //fill with noise here
-    // get the image data of the canvas  -- we only need the part we're going to outpaint
-    var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
+    // 1. Draw the original image in the center
+    ctx.drawImage(image, ext/2, ext/2);
+    // 2. Reflect top
+    ctx.save();
+    ctx.scale(1, -1);
+    ctx.drawImage(image, 0, 0, srcW, ext/2, ext/2, -ext/2, srcW, ext/2);
+    ctx.restore();
+    // 3. Reflect bottom (fixed)
+    ctx.save();
+    ctx.translate(0, newH);
+    ctx.scale(1, -1);
+    ctx.drawImage(image, 0, srcH - ext/2, srcW, ext/2, ext/2, 0, srcW, ext/2);
+    ctx.restore();
+    // 4. Reflect left
+    ctx.save();
+    ctx.scale(-1, 1);
+    ctx.drawImage(image, 0, 0, ext/2, srcH, -ext/2, ext/2, ext/2, srcH);
+    ctx.restore();
+    // 5. Reflect right (fixed)
+    ctx.save();
+    ctx.translate(newW, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(image, srcW - ext/2, 0, ext/2, srcH, 0, ext/2, ext/2, srcH);
+    ctx.restore();
+    // 6. Corners: reflect diagonally
+    // Top-left
+    ctx.save();
+    ctx.translate(0, 0);
+    ctx.scale(-1, -1);
+    ctx.drawImage(image, 0, 0, ext/2, ext/2, -ext/2, -ext/2, ext/2, ext/2);
+    ctx.restore();
+    // Top-right
+    ctx.save();
+    ctx.translate(newW, 0);
+    ctx.scale(-1, -1);
+    ctx.drawImage(image, srcW - ext/2, 0, ext/2, ext/2, 0, -ext/2, ext/2, ext/2);
+    ctx.restore();
+    // Bottom-left
+    ctx.save();
+    ctx.translate(0, newH);
+    ctx.scale(-1, -1);
+    ctx.drawImage(image, 0, srcH - ext/2, ext/2, ext/2, -ext/2, 0, ext/2, ext/2);
+    ctx.restore();
+    // Bottom-right
+    ctx.save();
+    ctx.translate(newW, newH);
+    ctx.scale(-1, -1);
+    ctx.drawImage(image, srcW - ext/2, srcH - ext/2, ext/2, ext/2, 0, 0, ext/2, ext/2);
+    ctx.restore();
+    // 7. Add noise/contrast to the new border areas only
+    // Top border
+    let imageData = ctx.getImageData(ext/2, 0, srcW, ext/2);
+    imageData = contrastImage(imageData, contrastAmount);
     outpaintSetPixels(imageData);
-
-    // put the modified image data back to the context
-    ctx.putImageData(imageData, 0, 0); //put it at the top-left of our context, which will be the right-side
-
-    ctx.drawImage( image,
-      0, 0,image.naturalWidth,image.naturalHeight, //source 
-      calcOutpaintSizeIncrease(image)/2, calcOutpaintSizeIncrease(image)/2,image.naturalWidth,image.naturalHeight //destination
-    );
-
+    ctx.putImageData(imageData, ext/2, 0);
+    // Bottom border
+    imageData = ctx.getImageData(ext/2, newH - ext/2, srcW, ext/2);
+    imageData = contrastImage(imageData, contrastAmount);
+    outpaintSetPixels(imageData);
+    ctx.putImageData(imageData, ext/2, newH - ext/2);
+    // Left border
+    imageData = ctx.getImageData(0, ext/2, ext/2, srcH);
+    imageData = contrastImage(imageData, contrastAmount);
+    outpaintSetPixels(imageData);
+    ctx.putImageData(imageData, 0, ext/2);
+    // Right border
+    imageData = ctx.getImageData(newW - ext/2, ext/2, ext/2, srcH);
+    imageData = contrastImage(imageData, contrastAmount);
+    outpaintSetPixels(imageData);
+    ctx.putImageData(imageData, newW - ext/2, ext/2);
+    // Corners
+    // Top-left
+    imageData = ctx.getImageData(0, 0, ext/2, ext/2);
+    imageData = contrastImage(imageData, contrastAmount);
+    outpaintSetPixels(imageData);
+    ctx.putImageData(imageData, 0, 0);
+    // Top-right
+    imageData = ctx.getImageData(newW - ext/2, 0, ext/2, ext/2);
+    imageData = contrastImage(imageData, contrastAmount);
+    outpaintSetPixels(imageData);
+    ctx.putImageData(imageData, newW - ext/2, 0);
+    // Bottom-left
+    imageData = ctx.getImageData(0, newH - ext/2, ext/2, ext/2);
+    imageData = contrastImage(imageData, contrastAmount);
+    outpaintSetPixels(imageData);
+    ctx.putImageData(imageData, 0, newH - ext/2);
+    // Bottom-right
+    imageData = ctx.getImageData(newW - ext/2, newH - ext/2, ext/2, ext/2);
+    imageData = contrastImage(imageData, contrastAmount);
+    outpaintSetPixels(imageData);
+    ctx.putImageData(imageData, newW - ext/2, newH - ext/2);
+    // 8. Draw the mask (white border, black center)
     let maskcanvas = document.createElement("canvas");
-    maskcanvas.width = newTaskRequest.reqBody.width;
-    maskcanvas.height = newTaskRequest.reqBody.height;
+    maskcanvas.width = newW;
+    maskcanvas.height = newH;
     let maskctx = maskcanvas.getContext("2d");
-
-    // Save the current state of the context
-    maskctx.save();
-    // Start a new path
-    maskctx.beginPath();
-    // Define an outer rectangle that covers the whole canvas
-    maskctx.rect(0, 0,  maskcanvas.width, maskcanvas.height);
-    // Define an inner rectangle that you want to mask out
-    // Use a negative value for anticlockwise parameter
-    maskctx.rect(maskcanvas.width-(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2), calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2, -(image.naturalWidth-maskExtraOverlap),image.naturalHeight-maskExtraOverlap, true);
-    // Create a clipping region from the current path
-    maskctx.clip();
+    // Fill the whole mask white
     maskctx.fillStyle = 'white';
-    maskctx.fillRect(0, 0, maskcanvas.width, maskcanvas.height);
-    // Restore the previous state of the context
-    maskctx.restore();
-
-    //let's feather the mask on the transition. Still need 8 hard pixels, though.
-
-    //Draw 4 thin, grey rectangles, with gradient
-    //Top box
-    var gradient = ctx.createLinearGradient(0, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2+maskExtraOffset, 0,image.naturalHeight-maskExtraOverlap);
-    // Add three color stops
-    gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
-    gradient.addColorStop(maskFade, blackColor); //"black");
-    gradient.addColorStop(1, blackColor); //"black");
-    maskctx.fillStyle = gradient; 
-    //maskctx.fillStyle = 'rgba(255,255,255,0.5)'; //'lightgrey'; 
-    maskctx.fillRect(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2,image.naturalWidth-maskExtraOverlap,image.naturalHeight-maskExtraOverlap-maskExtraOffset); 
-    //bottom
-    gradient = ctx.createLinearGradient(0, maskcanvas.height-(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2)-maskExtraOffset, 0, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2);
-    gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
-    gradient.addColorStop(maskFade, blackColor); //"black");
-    gradient.addColorStop(1, blackColor); //"black");
-    maskctx.fillStyle = gradient; 
-    maskctx.fillRect(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2-maskExtraOffset,image.naturalWidth-maskExtraOverlap,image.naturalHeight-maskExtraOverlap+maskExtraOffset);
-    //left box
-    gradient = ctx.createLinearGradient((calcOutpaintSizeIncrease(image)/2)+(maskExtraOverlap/2)+maskExtraOffset, 0,image.naturalWidth-maskExtraOverlap, 0);
-    gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
-    gradient.addColorStop(maskFade, blackColor); //"black");
-    gradient.addColorStop(1, blackColor); //"black");
-    maskctx.fillStyle = gradient; 
-    maskctx.fillRect(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2,image.naturalWidth-maskExtraOverlap+maskExtraOffset,image.naturalHeight-maskExtraOverlap);
-    //right box
-    gradient = ctx.createLinearGradient(maskcanvas.width-(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2)-maskExtraOffset, 0, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2, 0);
-    gradient.addColorStop(0, 'rgba(255,255,255,1)'); //"white");
-    gradient.addColorStop(maskFade, blackColor); //"black");
-    gradient.addColorStop(1, blackColor); //"black");
-    maskctx.fillStyle = gradient; 
-    maskctx.fillRect(calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2-maskExtraOffset, calcOutpaintSizeIncrease(image)/2+maskExtraOverlap/2,image.naturalWidth-maskExtraOverlap+maskExtraOffset,image.naturalHeight-maskExtraOverlap);
-
-    //document.querySelector('body').appendChild(canvas);   //TEsting -- let's see what we have
-    //document.querySelector('body').appendChild(maskcanvas);   //TEsting -- let's see what we have   
-
+    maskctx.fillRect(0, 0, newW, newH);
+    // Cut out the center (original image area)
+    maskctx.globalCompositeOperation = 'destination-out';
+    maskctx.fillRect(ext/2, ext/2, srcW, srcH);
+    maskctx.globalCompositeOperation = 'source-over';
+    // 9. Assign to task
     newTaskRequest.reqBody.mask = maskcanvas.toDataURL('image/png');
     newTaskRequest.reqBody.init_image = canvas.toDataURL('image/png');
-
-    var id=createTask(newTaskRequest)  //task ID - can be used to find location in document
-
-  }
+    createTask(newTaskRequest);
+}
   function onOutpaintAllFilter(origRequest, image) {
     // this is an optional function. return true/false to show/hide the button
     // if this function isn't set, the button will always be visible
