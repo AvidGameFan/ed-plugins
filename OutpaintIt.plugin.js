@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.8.8, last updated: 7/20/2025
+ * v.1.8.9, last updated: 7/21/2025
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -174,7 +174,7 @@ function desiredSamplerName(origRequest) {
   }
 }
 function desiredTextEncoderName(origRequest) {
-  if (ScaleUpSettings.useChangedModel) {
+  if (OutpaintItSettings.useChangedModel) {
     // Get the JSON string from the UI
     let data = $("#editor-settings #text_encoder_model")[0].dataset.path;
     try {
