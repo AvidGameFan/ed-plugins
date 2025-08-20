@@ -678,7 +678,7 @@ function onScaleUpMAXClick(origRequest, image) {
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: scaleupRound(((origRequest.scaleUpSplit || isXl || isFlux)? (scaleUpPreserve ? 0.11 : 0.22):(scaleUpPreserve ? 0.15 : 0.3)) - (isFlux? reduceFluxPromptStrength:0)),  //Lower this number to make results closer to the original
+    prompt_strength: scaleupRound(((origRequest.scaleUpSplit || isXl || isFlux)? (scaleUpPreserve ? 0.13 : 0.25):(scaleUpPreserve ? 0.15 : 0.3)) - (isFlux? reduceFluxPromptStrength:0)),  //Lower this number to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
 
