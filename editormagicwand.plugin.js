@@ -2,7 +2,7 @@
 /* 
  * Magic Wand Plugin
  *
- * v.1.0, last updated: 8/22/2025
+ * v.1.0.2, last updated: 8/22/2025
  * By Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -14,7 +14,7 @@
 (function() { 
     "use strict";
 
-    // Magic Wand tool implementation
+    // Magic Wand tool implementation with feathering and tinting
     function magicWandSelect(editor, srcCtx, tgtCtx, x, y, threshold, fillColor) {
         // Read from srcCtx, write mask to tgtCtx
         const width = editor.width;
@@ -34,6 +34,19 @@
             b: srcData[baseIdx + 2]
         };
 
+        // Get sharpness and opacity settings for feathering and tinting
+        const sharpness = editor.options.sharpness || 0;
+        const opacity = editor.options.opacity || 0;
+        
+        // Calculate feathering radius based on sharpness
+        const featherRadius = Math.max(1, Math.round(sharpness * 10)); // Convert sharpness to pixel radius
+        
+        // Calculate tinting strength based on opacity
+        const tintStrength = 1 - opacity; // 0 = no tinting, 1 = full tinting
+
+        // First pass: collect all selected pixels
+        const selectedPixels = [];
+        
         while (stack.length) {
             const {x, y} = stack.pop();
             if (x < 0 || y < 0 || x >= width || y >= height) continue;
@@ -48,18 +61,65 @@
             };
             if (colorDistance(baseColor, color) > threshold) continue;
 
-            // Mark as selected in the mask or fill with color
-            maskData[idx(x, y) + 0] = fillColor.r;
-            maskData[idx(x, y) + 1] = fillColor.g;
-            maskData[idx(x, y) + 2] = fillColor.b;
-            maskData[idx(x, y) + 3] = 255;
-
+            selectedPixels.push({x, y, color});
+            
             // Add neighbors
             stack.push({x: x+1, y});
             stack.push({x: x-1, y});
             stack.push({x, y: y+1});
             stack.push({x, y: y-1});
         }
+
+        // Second pass: apply feathering and tinting
+        selectedPixels.forEach(pixel => {
+            const {x, y, color} = pixel;
+            
+            // Calculate distance from edge for feathering
+            let minDistanceToEdge = Infinity;
+            for (let dx = -featherRadius; dx <= featherRadius; dx++) {
+                for (let dy = -featherRadius; dy <= featherRadius; dy++) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        minDistanceToEdge = Math.min(minDistanceToEdge, dist);
+                    } else {
+                        const neighborColor = {
+                            r: srcData[idx(nx, ny)],
+                            g: srcData[idx(nx, ny) + 1],
+                            b: srcData[idx(nx, ny) + 2]
+                        };
+                        if (colorDistance(baseColor, neighborColor) > threshold) {
+                            const dist = Math.sqrt(dx*dx + dy*dy);
+                            minDistanceToEdge = Math.min(minDistanceToEdge, dist);
+                        }
+                    }
+                }
+            }
+            
+            // Calculate feathering factor (0 = edge, 1 = center)
+            const featherFactor = Math.min(1, minDistanceToEdge / featherRadius);
+            
+            // Apply tinting: blend between original color and fill color
+            const tintedColor = {
+                r: Math.round(color.r * (1 - tintStrength) + fillColor.r * tintStrength),
+                g: Math.round(color.g * (1 - tintStrength) + fillColor.g * tintStrength),
+                b: Math.round(color.b * (1 - tintStrength) + fillColor.b * tintStrength)
+            };
+            
+            // Apply feathering: blend between original and tinted based on feather factor
+            const finalColor = {
+                r: Math.round(color.r * (1 - featherFactor) + tintedColor.r * featherFactor),
+                g: Math.round(color.g * (1 - featherFactor) + tintedColor.g * featherFactor),
+                b: Math.round(color.b * (1 - featherFactor) + tintedColor.b * featherFactor)
+            };
+            
+            // Set the pixel
+            maskData[idx(x, y) + 0] = finalColor.r;
+            maskData[idx(x, y) + 1] = finalColor.g;
+            maskData[idx(x, y) + 2] = finalColor.b;
+            maskData[idx(x, y) + 3] = 255;
+        });
 
         tgtCtx.putImageData(maskImageData, 0, 0);
     }
