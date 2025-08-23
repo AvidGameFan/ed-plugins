@@ -48,6 +48,11 @@ Just for fun -- screws up your image with random glitch effects, before sending 
 As of April 2025, the Easy Diffusion Draw editor does not handle large resolutions well.  This plugin will override the behavior and allow use of large resolutions, however, this only works well if your browser is running on a monitor with a large resolution.  Consider this as a somewhat temporary patch.  This plugin may need to be removed or replaced if ED is modified in this area.
 [Editor Override](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/editoroverride.plugin.js)
 
+### Clone Brush
+
+Adds a clone brush/tool to the editor.  Right-click to set the source texture, and left-click to draw with the pattern.  Draw over odd objects, 3rd legs, etc., leaving a texture, rather than the Draw tool's solid colors.
+[Clone Brush](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/clonebrush.plugin.js)
+
 ### Ratios
 
 Adds buttons to allow easy selection of starting values at the selected ratio.  It uses smaller values for SD 1.x, larger for SDXL, and largest for Flux.
@@ -57,6 +62,14 @@ Adds buttons to allow easy selection of starting values at the selected ratio.  
 
 Adds a circular magnifier to the image window, to aid in examining details.
 [Magnifier](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/magnifier.plugin.js)
+
+### LLM Prompt Generation
+
+This plugin adds a button that calls a local LLM using an OpenAI API endpoint, requesting a more detailed prompt.  Either make the prompt field blank, in which case the LLM will create its own, or use an existing prompt which the LLM will expand upon.  This may be useful for newer models that seem to work better with more detail in their prompting.
+
+[LLM Prompt Generation](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/llm-image-generator.plugin.js)
+
+Tested using Oobabooga's text-generation UI, but other LLM UIs may work if they support the same OpenAI API call.
 
 ## Other
 

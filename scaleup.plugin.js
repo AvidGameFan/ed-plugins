@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.11.2, last updated: 7/14/2025
+ * v.2.11.3, last updated: 8/21/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -289,7 +289,7 @@ function scaleUp(height,width,scalingIncrease) {
 
 //Model needs to have "turbo" in the filename to be recognized as a turbo model.
 function isModelTurbo(modelName, loraList) {
-  if (modelName.search(/turbo/i)>=0 || modelName.search(/lightning/i)>=0 || modelName.search(/hyper/i)>=0 || modelName.search(/schnell/i)>=0) {
+  if (modelName.search(/turbo/i)>=0 || modelName.search(/lightning/i)>=0 || modelName.search(/hyper/i)>=0 || modelName.search(/schnell/i)>=0 || modelName.search(/flash/i)>=0) {
     return true;
   }
   //if any of the Loras contains "lcm", assume turbo lora -- fewer steps needed
@@ -321,7 +321,7 @@ function isModelXl(modelName) {
 //If flux, can use fewer steps
 function isModelFlux(modelName) {
   let result = false;
-  if (modelName.search(/flux/i)>=0 || modelName.search(/lyhAnime_kor/i)>=0 || modelName.search(/chroma/i)>=0) {
+  if (modelName.search(/flux/i)>=0 || modelName.search(/lyhAnime_kor/i)>=0 || modelName.search(/chroma/i)>=0 || modelName.search(/sd3/i)>=0 || modelName.search(/qwen/i)>=0) {
     result = true;
   }  
   //If turbo model but not actually turbo, go ahead and call it flux, to do fewer steps

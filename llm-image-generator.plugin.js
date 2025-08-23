@@ -1,7 +1,7 @@
 /* 
  * LLM Prompt Generator Plugin
  *
- * v.1.0, last updated: 8/22/2025
+ * v.1.0.1, last updated: 8/22/2025
  * By Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -17,7 +17,7 @@
     // Configuration
     const config = {
         // apiEndpoint is resolved dynamically based on current host, forcing port 5000
-        timeout: 50000, // 50 seconds
+        timeout: 90000, // 90 seconds
         maxRetries: 2
     };
 
@@ -124,7 +124,8 @@
         // Create a system prompt that instructs the LLM to generate detailed image prompts
         const systemPrompt = `You are an expert at creating detailed, artistic prompts for AI image generation. 
 Generate creative, descriptive prompts that include artistic terms, lighting, composition, style, and technical details.
-Focus on visual elements and avoid extraneous information. Keep prompts concise but detailed.`;
+Focus on visual elements and avoid extraneous information. Keep prompts concise but detailed.
+Do not include any other text than the prompt.`;
 
         // Use the current prompt as context if provided, otherwise start fresh
         const userPrompt = currentPrompt 

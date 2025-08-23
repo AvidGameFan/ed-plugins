@@ -19,11 +19,10 @@
     ["1:1",    { SD: [512, 512], SDXL: [1024, 1024], Flux: [1280, 1280] }],
     ["21:9",   { SD: [672, 288], SDXL: [1344, 576], Flux: [1680, 720] }],
     ["32:9",   { SD: [1280, 360], SDXL: [1536, 432], Flux: [1820, 512] }], //2560, 720
-//    ["9:16",   { SD: [396, 704], SDXL: [684, 1216], Flux: [468, 832] }],
 //    ["2:3",    { SD: [384, 576], SDXL: [768, 1152], Flux: [512, 768] }],
-//   ["3:4",    { SD: [384, 512], SDXL: [768, 1024], Flux: [528, 704] }],
-  //  ["9:21",   { SD: [288, 672], SDXL: [576, 1344], Flux: [336, 784] }],
-  ];
+    ["3:4",    { SD: [576, 768], SDXL: [960, 1280], Flux: [960, 1280]}],
+//   ["3:4",    { SD: [384, 512], SDXL: [768, 1024], Flux: [960, 1280] }],
+];
 
   // --- Model type detection ---
   function getModelName() {
@@ -34,15 +33,15 @@
     return /xl|playground|disneyrealcartoonmix|mobius|flux|zovya/i.test(modelName);
   }
   function isModelFlux(modelName) {
-    if (/flux|lyhAnime_kor|chroma/i.test(modelName)) return true;
+    if (/flux|lyhAnime_kor|chroma|sd3|qwen/i.test(modelName)) return true;
 
     //No need to check for turbo model, as we're not modifying steps, but selecting initial sizes.
     return false;
   }
   function getModelType() {
     const name = getModelName();
-    if (isModelXl(name)) return "SDXL";
     if (isModelFlux(name)) return "Flux";
+    if (isModelXl(name)) return "SDXL";
     return "SD";
   }
 
