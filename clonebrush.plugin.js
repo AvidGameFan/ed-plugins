@@ -1,6 +1,6 @@
 /* Clone Brush Plugin
 
- v. 1.0, last updated: 8/19/2025
+ v. 1.0.1, last updated: 8/23/2025
  By Gary W.
 
  Inital version created with the help of Cursor/Claude AI.
@@ -191,6 +191,7 @@ if (typeof IMAGE_EDITOR_TOOLS !== 'undefined') {
 // --- UI wiring and right-click source selection ---
 function addCloneButtonToEditor(editor) {
 	try {
+		if (editor.inpainter) return // Only work in draw editor
 		var section = IMAGE_EDITOR_SECTIONS && IMAGE_EDITOR_SECTIONS.find((s) => s.name === 'tool')
 		if (!section) return
 		if (!section.options.includes('clone')) {
@@ -219,6 +220,7 @@ function addCloneButtonToEditor(editor) {
 
 function attachRightClickSourceSetter(editor) {
 	if (!editor || !editor.container) return
+	if (editor.inpainter) return // Only work in draw editor
 	// Avoid duplicate listeners
 	if (editor._cloneRightClickBound) return
 	editor._cloneRightClickBound = true
@@ -259,9 +261,9 @@ function waitForEditorsAndWire() {
 			clearInterval(interval)
 			// Add button and listeners to both editors
 			addCloneButtonToEditor(imageEditor)
-			addCloneButtonToEditor(imageInpainter)
+			//addCloneButtonToEditor(imageInpainter)
 			attachRightClickSourceSetter(imageEditor)
-			attachRightClickSourceSetter(imageInpainter)
+			//attachRightClickSourceSetter(imageInpainter)
 		}
 		// Give up after some time
 		if (tries > 200) {

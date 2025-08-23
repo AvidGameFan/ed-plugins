@@ -165,7 +165,7 @@
         end: (editor, ctx, x, y, is_overlay = false) => {
             // Magic wand is a single-click tool
         },
-        hotkey: 'w',
+        hotkey: 'm',
     }
 
     // Insert tool into the registry immediately if available
