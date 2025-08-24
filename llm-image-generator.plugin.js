@@ -1,7 +1,7 @@
 /* 
  * LLM Prompt Generator Plugin
  *
- * v.1.0.1, last updated: 8/22/2025
+ * v.1.1.0, last updated: 8/24/2025
  * By Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -94,29 +94,97 @@
         button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
         button.disabled = true;
 
-        try {
-            const generatedPrompt = await generatePromptWithLLM(currentPrompt);
-            
-            if (generatedPrompt) {
-                // Insert the generated prompt into the field
-                promptField.value = generatedPrompt;
+        // Get the appropriate line ending for the current platform
+        const lineEnding = getLineEnding();
+        
+        // Parse existing prompts to get count
+        const existingPrompts = currentPrompt ? currentPrompt.split(/\r?\n/).filter(p => p.trim()) : [];
+        const numExistingPrompts = existingPrompts.length;
+        
+        // Generate multiple prompts (1 by default, or based on existing count)
+        const numToGenerate = Math.max(1, numExistingPrompts);
+        const generatedPrompts = [];
+        let successCount = 0;
+
+        for (let i = 0; i < numToGenerate; i++) {
+            try {
+                const generatedPrompt = await generatePromptWithLLM(existingPrompts[i]);
                 
-                // Trigger any change events that might be needed
-                promptField.dispatchEvent(new Event('input', { bubbles: true }));
-                promptField.dispatchEvent(new Event('change', { bubbles: true }));
-                
-                showNotification('Prompt generated successfully!', 'success');
-            } else {
-                showNotification('No prompt generated', 'warning');
+                if (generatedPrompt) {
+                    // Clean up the generated prompt
+                    const cleanedPrompt = cleanPromptText(generatedPrompt, lineEnding);
+                    generatedPrompts.push(cleanedPrompt);
+                    successCount++;
+                }
+            } catch (error) {
+                console.error(`Error generating prompt ${i + 1}:`, error);
+                // Continue with other generations even if one fails
             }
-        } catch (error) {
-            console.error('Error generating prompt:', error);
-            showNotification(`Failed to generate prompt: ${error.message}`, 'error');
-        } finally {
-            // Restore button state
-            button.innerHTML = originalText;
-            button.disabled = false;
         }
+
+        if (generatedPrompts.length > 0) {
+            // Combine existing and new prompts
+            let finalPrompt = ''; //currentPrompt;
+            
+            // if (finalPrompt && !finalPrompt.endsWith(lineEnding)) {
+            //     finalPrompt += lineEnding;
+            // }
+            
+            finalPrompt += generatedPrompts.join(lineEnding);
+            
+            // Insert the combined prompts into the field
+            promptField.value = finalPrompt;
+            
+            // Trigger any change events that might be needed
+            promptField.dispatchEvent(new Event('input', { bubbles: true }));
+            promptField.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            showNotification(`Generated ${successCount} prompt${successCount !== 1 ? 's' : ''} successfully!`, 'success');
+        } else {
+            showNotification('No prompts generated', 'warning');
+        }
+        
+        // Restore button state
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+
+    // Get the appropriate line ending for the current platform
+    function getLineEnding() {
+        // Detect platform line ending
+        if (typeof navigator !== 'undefined' && navigator.platform) {
+            if (navigator.platform.indexOf('Win') !== -1) {
+                return '\r\n'; // Windows
+            }
+        }
+        return '\n'; // Unix/Linux/Mac (default)
+    }
+
+    // Clean up prompt text by removing extra line endings and normalizing
+    function cleanPromptText(text, lineEnding) {
+        if (!text) return '';
+        
+        // Remove all line endings and replace with spaces
+        let cleaned = text.replace(/\r?\n/g, ' ');
+        
+        // Remove extra whitespace
+        cleaned = cleaned.replace(/\s+/g, ' ').trim();
+        
+        // Handle quoted text - if there's a leading quote, find the matching end quote
+        if (cleaned.startsWith('"') || cleaned.startsWith("'")) {
+            const startQuote = cleaned[0];
+            const endQuoteIndex = cleaned.indexOf(startQuote, 1);
+            
+            if (endQuoteIndex !== -1) {
+                // Extract content between quotes
+                cleaned = cleaned.substring(1, endQuoteIndex);
+            } else {
+                // No matching end quote found, use the entire string after the opening quote
+                cleaned = cleaned.substring(1);
+            }
+        }
+        
+        return cleaned;
     }
 
     // Call the LLM API to generate a prompt
@@ -134,7 +202,7 @@ Do not include any other text than the prompt.`;
 
         const requestPayload = {
             prompt: `${systemPrompt}\n\nUser: ${userPrompt}\n\nAssistant:`,
-            max_tokens: 200,
+            max_tokens: 235,
             temperature: 0.7,
             top_p: 0.95,
             top_k: 20,
