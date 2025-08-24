@@ -1,6 +1,6 @@
 /* Clone Brush Plugin
 
- v. 1.1, last updated: 8/23/2025
+ v. 1.1.1, last updated: 8/23/2025
  By Gary W.
 
  Inital version created with the help of Cursor/Claude AI.
@@ -310,11 +310,11 @@ function attachRightClickSourceSetter(editor) {
 				cursor.style.opacity = '1'
 				
 				// Hide cursor after a short delay to show the selection
-				setTimeout(() => {
-					if (editor.tool && editor.tool.id === 'clone') {
-						hideCloneSourceCursor(editor)
-					}
-				}, 1000)
+				// setTimeout(() => {
+				// 	if (editor.tool && editor.tool.id === 'clone') {
+				// 		hideCloneSourceCursor(editor)
+				// 	}
+				// }, 1000)
 				
 				console.log('Clone source set at:', editor.cloneSourcePoint.x, editor.cloneSourcePoint.y)
 				
