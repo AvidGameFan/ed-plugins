@@ -1,6 +1,6 @@
 /* Clone Brush Plugin
 
- v. 1.0.1, last updated: 8/23/2025
+ v. 1.1, last updated: 8/23/2025
  By Gary W.
 
  Inital version created with the help of Cursor/Claude AI.
@@ -30,23 +30,84 @@ the source sampling point moves in parallel.
 */
 
 
-// --- Tool implementation helpers ---
-function ensureOffscreen(editor, size) {
-	if (!editor._cloneOffscreen) {
-		editor._cloneOffscreen = document.createElement('canvas')
-		editor._cloneOffscreenCtx = editor._cloneOffscreen.getContext('2d')
+	// --- Tool implementation helpers ---
+	function ensureOffscreen(editor, size) {
+		if (!editor._cloneOffscreen) {
+			editor._cloneOffscreen = document.createElement('canvas')
+			editor._cloneOffscreenCtx = editor._cloneOffscreen.getContext('2d')
+		}
+		if (editor._cloneOffscreen.width !== size || editor._cloneOffscreen.height !== size) {
+			editor._cloneOffscreen.width = size
+			editor._cloneOffscreen.height = size
+		}
 	}
-	if (editor._cloneOffscreen.width !== size || editor._cloneOffscreen.height !== size) {
-		editor._cloneOffscreen.width = size
-		editor._cloneOffscreen.height = size
+
+	// Clone source cursor management
+	function createCloneSourceCursor(editor) {
+		if (editor._cloneSourceCursor) return editor._cloneSourceCursor
+		
+		const cursor = document.createElement('div')
+		cursor.id = 'clone-source-cursor'
+		cursor.style.cssText = `
+			position: absolute;
+			pointer-events: none;
+			z-index: 1000;
+			border: 2px solid #00ff00;
+			border-radius: 50%;
+			background: rgba(0, 255, 0, 0.0);  /* change the alpha to tint the cursor */
+			box-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+			transition: all 0.1s ease;
+			opacity: 0;
+		`
+		
+		editor.container.appendChild(cursor)
+		editor._cloneSourceCursor = cursor
+		return cursor
 	}
-}
+
+	function updateCloneSourceCursor(editor, currentX, currentY) {
+		if (!editor.cloneSourcePoint || !editor._cloneOffset) return
+		
+		const cursor = createCloneSourceCursor(editor)
+		const radius = Math.max(1, Math.round(editor.options.brush_size / 2))
+		
+		// Calculate source position
+		const sourceX = currentX + editor._cloneOffset.dx
+		const sourceY = currentY + editor._cloneOffset.dy
+		
+		// Get canvas position relative to viewport
+		//const canvasRect = editor.layers.overlay.canvas.getBoundingClientRect()
+		
+		// Position cursor at source location
+		cursor.style.left = (/*canvasRect.left +*/ sourceX - radius) + 'px'
+		cursor.style.top = (/*canvasRect.top + */ sourceY - radius) + 'px'
+		cursor.style.width = (radius * 2) + 'px'
+		cursor.style.height = (radius * 2) + 'px'
+		cursor.style.opacity = '1'
+	}
+
+	function hideCloneSourceCursor(editor) {
+		if (editor._cloneSourceCursor) {
+			editor._cloneSourceCursor.style.opacity = '0'
+		}
+	}
+
+	function showCloneSourceCursor(editor) {
+		if (editor.cloneSourcePoint && editor._cloneOffset && editor.tool && editor.tool.id === 'clone') {
+			// Show cursor at current mouse position or last known position
+			const lastPoint = editor._clonePrevPoint || { x: editor.width / 2, y: editor.height / 2 }
+			updateCloneSourceCursor(editor, lastPoint.x, lastPoint.y)
+		}
+	}
 
 function stampClone(editor, ctx, x, y) {
 	if (!editor.cloneSourcePoint || !editor._cloneOffset) {
 		console.log('Missing clone source or offset:', { source: editor.cloneSourcePoint, offset: editor._cloneOffset })
 		return
 	}
+	
+	// Update source cursor position
+	updateCloneSourceCursor(editor, x, y)
 	// Select source canvas:
 	// - draw editor: snapshot of (background + drawing) captured at stroke begin
 	// - inpainter: background image only (clone shape becomes white for mask)
@@ -163,18 +224,23 @@ var cloneTool = {
 		editor._clonePrevPoint = { x: x, y: y }
 		stampClone(editor, ctx, x, y)
 	},
-	move: (editor, ctx, x, y, is_overlay = false) => {
-		if (is_overlay) return
-		if (!editor._clonePrevPoint || !editor._cloneOffset) return
-		
-		// Draw along the line from previous point to current point
-		stampAlongLine(editor, ctx, editor._clonePrevPoint, { x: x, y: y })
-		editor._clonePrevPoint = { x: x, y: y }
-	},
-	end: (editor, ctx, x, y, is_overlay = false) => {
-		if (is_overlay) return
-		editor._clonePrevPoint = null
-	},
+			move: (editor, ctx, x, y, is_overlay = false) => {
+			if (is_overlay) return
+			if (!editor._clonePrevPoint || !editor._cloneOffset) return
+			
+			// Update source cursor position during move
+			updateCloneSourceCursor(editor, x, y)
+			
+			// Draw along the line from previous point to current point
+			stampAlongLine(editor, ctx, editor._clonePrevPoint, { x: x, y: y })
+			editor._clonePrevPoint = { x: x, y: y }
+		},
+			end: (editor, ctx, x, y, is_overlay = false) => {
+			if (is_overlay) return
+			editor._clonePrevPoint = null
+			// Hide source cursor when stroke ends
+			hideCloneSourceCursor(editor)
+		},
 	hotkey: 'c',
 }
 
@@ -224,23 +290,38 @@ function attachRightClickSourceSetter(editor) {
 	// Avoid duplicate listeners
 	if (editor._cloneRightClickBound) return
 	editor._cloneRightClickBound = true
-	// Capture phase to prevent the default editor mouse handler from firing on right-click
-	editor.container.addEventListener('mousedown', function(e) {
-		if (e.button === 2 && editor.tool && editor.tool.id === 'clone') {
-			var bbox = editor.layers.overlay.canvas.getBoundingClientRect()
-			editor.cloneSourcePoint = { x: (e.clientX || 0) - bbox.left, y: (e.clientY || 0) - bbox.top }
-			
-			// Clear any existing offset to ensure fresh start
-			editor._cloneOffset = null
-			editor._clonePrevPoint = null
-			
-			// Visual feedback - you could add a temporary indicator here
-			console.log('Clone source set at:', editor.cloneSourcePoint.x, editor.cloneSourcePoint.y)
-			
-			e.preventDefault()
-			e.stopPropagation()
-		}
-	}, true)
+			// Capture phase to prevent the default editor mouse handler from firing on right-click
+		editor.container.addEventListener('mousedown', function(e) {
+			if (e.button === 2 && editor.tool && editor.tool.id === 'clone') {
+				var bbox = editor.layers.overlay.canvas.getBoundingClientRect()
+				editor.cloneSourcePoint = { x: (e.clientX || 0) - bbox.left, y: (e.clientY || 0) - bbox.top }
+				
+				// Clear any existing offset to ensure fresh start
+				editor._cloneOffset = null
+				editor._clonePrevPoint = null
+				
+				// Show source cursor at the selected point
+				const radius = Math.max(1, Math.round(editor.options.brush_size / 2))
+				const cursor = createCloneSourceCursor(editor)
+				cursor.style.left = (/*bbox.left +*/ editor.cloneSourcePoint.x - radius) + 'px'
+				cursor.style.top = (/*bbox.top +*/ editor.cloneSourcePoint.y - radius) + 'px'
+				cursor.style.width = (radius * 2) + 'px'
+				cursor.style.height = (radius * 2) + 'px'
+				cursor.style.opacity = '1'
+				
+				// Hide cursor after a short delay to show the selection
+				setTimeout(() => {
+					if (editor.tool && editor.tool.id === 'clone') {
+						hideCloneSourceCursor(editor)
+					}
+				}, 1000)
+				
+				console.log('Clone source set at:', editor.cloneSourcePoint.x, editor.cloneSourcePoint.y)
+				
+				e.preventDefault()
+				e.stopPropagation()
+			}
+		}, true)
 	// Disable context menu while using clone tool
 	editor.container.addEventListener('contextmenu', function(e) {
 		if (editor.tool && editor.tool.id === 'clone') {
@@ -248,6 +329,23 @@ function attachRightClickSourceSetter(editor) {
 			e.stopPropagation()
 		}
 	}, true)
+	
+	// Track mouse movement to show source cursor when hovering
+	editor.container.addEventListener('mousemove', function(e) {
+		if (editor.tool && editor.tool.id === 'clone' && editor.cloneSourcePoint && editor._cloneOffset) {
+			var bbox = editor.layers.overlay.canvas.getBoundingClientRect()
+			var x = (e.clientX || 0) - bbox.left
+			var y = (e.clientY || 0) - bbox.top
+			updateCloneSourceCursor(editor, x, y)
+		}
+	})
+	
+	// Hide source cursor when mouse leaves canvas
+	editor.container.addEventListener('mouseleave', function(e) {
+		if (editor.tool && editor.tool.id === 'clone') {
+			hideCloneSourceCursor(editor)
+		}
+	})
 }
 
 function waitForEditorsAndWire() {
@@ -264,12 +362,37 @@ function waitForEditorsAndWire() {
 			//addCloneButtonToEditor(imageInpainter)
 			attachRightClickSourceSetter(imageEditor)
 			//attachRightClickSourceSetter(imageInpainter)
+			
+			// Patch the selectOption method to handle clone tool cursor
+			patchSelectOptionForCloneCursor(imageEditor)
+			//patchSelectOptionForCloneCursor(imageInpainter)
 		}
 		// Give up after some time
 		if (tries > 200) {
 			clearInterval(interval)
 		}
 	}, 100)
+}
+
+function patchSelectOptionForCloneCursor(editor) {
+	const originalSelectOption = editor.selectOption
+	editor.selectOption = function(section_name, option_index) {
+		originalSelectOption.call(this, section_name, option_index)
+		
+		// Handle clone tool cursor visibility
+		if (section_name === 'tool') {
+			const tool_id = this.getOptionValue('tool')
+			if (tool_id === 'clone') {
+				// Show source cursor if source is set
+				if (this.cloneSourcePoint && this._cloneOffset) {
+					showCloneSourceCursor(this)
+				}
+			} else {
+				// Hide source cursor when switching away from clone tool
+				hideCloneSourceCursor(this)
+			}
+		}
+	}
 }
 
 waitForEditorsAndWire()
