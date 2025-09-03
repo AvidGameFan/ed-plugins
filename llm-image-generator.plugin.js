@@ -1,7 +1,7 @@
 /* 
  * LLM Prompt Generator Plugin
  *
- * v.1.1.0, last updated: 8/24/2025
+ * v.1.1.1, last updated: 9/2/2025
  * By Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -187,13 +187,25 @@
         return cleaned;
     }
 
+    //Model needs to have "xl" in the filename to be recognized as an xl model.
+    //add any special cases as needed.
+    function isModelXl(modelName) {
+        let result = false;
+        if (modelName.search(/xl/i)>=0 || modelName.search(/playground/i)>=0 || modelName.search(/disneyrealcartoonmix/i)>=0  || modelName.search(/mobius/i)>=0 
+        || modelName.search(/zovya/i)>=0) {  //Zovya models appear to mostly be Pony XL -- need to update if there are SD 1.5 models instead
+        result = true;
+        }  
+        return result;
+    }
+
     // Call the LLM API to generate a prompt
     async function generatePromptWithLLM(currentPrompt = '') {
         // Create a system prompt that instructs the LLM to generate detailed image prompts
         const systemPrompt = `You are an expert at creating detailed, artistic prompts for AI image generation. 
 Generate creative, descriptive prompts that include artistic terms, lighting, composition, style, and technical details.
 Focus on visual elements and avoid extraneous information. Keep prompts concise but detailed.
-Do not include any other text than the prompt.`;
+Do not include any other text than the prompt.` + 
+(isModelXl($("#editor-settings #stable_diffusion_model")[0].dataset.path)?" Please keep it brief.  It's an SDXL model with a 75 token limit.":"");
 
         // Use the current prompt as context if provided, otherwise start fresh
         const userPrompt = currentPrompt 
