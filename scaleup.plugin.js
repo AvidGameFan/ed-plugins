@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.11.3, last updated: 8/21/2025
+ * v.2.12.0, last updated: 9/8/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -38,7 +38,8 @@ var ScaleUpSettings = {
   useChangedModel: false,
   resizeImage: true,
   reuseControlnet: false,
-  animeControlnet: false
+  animeControlnet: false,
+  useFewerSteps: false
   //useControlNet: false,
 };
 
@@ -954,33 +955,50 @@ function onScaleUp2xClick(origRequest, image, e, tools) {
 //Back in the days of SD 1.x, there was a benefit for increasing steps for larege img2img runs.
 //SDXL and Flux don't seem to require as much of a boost. 
 //Note that the "real" steps are reduced  by the prompt-strength, so  the actual steps run are fewer than it seems.
+//For SDXL, 50 steps is a bit more refined than 30.  8 steps still shows a lot of latant noise.
+//For SDXL Lightning, 5 vs 15, the eyes are more refined, but otherwise, very subtle changes.
+//For Flux Schnell, 8 steps looks OK, but 15 has a bit more detail.
 function stepsToUse(defaultSteps, isFlux, isTurbo, isXl) {
   let steps=parseInt(defaultSteps);
-  if (isFlux) {  //need to test isFlux first
-    if (isTurbo) {
-      steps = Math.min(steps+10, 15);
+    
+  // Apply fewer steps setting if enabled
+  if (ScaleUpSettings.useFewerSteps) {
+    if (isFlux) {
+      steps = Math.max(steps, (isTurbo)?8:15);
     }
-    else {
-      steps = Math.min(steps+10, 33);
-    }
-  }
-  else if (isXl) {
-    if (isTurbo) {
-      steps = Math.min(steps+10, 22);
-    }
-    else {
-      steps = Math.min(steps+15, 50);
+    else /* SD 1.x & SDXL*/ {
+      steps = Math.max(steps, (isTurbo)?8:25);
     }
   }
-  else /* SD 1.x */ {
-    //SD 1.x needs more steps to keep the quality up
-    if (isTurbo) {
-      steps = Math.min(steps+10, 25);
+  else { //more steps for quality (default)
+    if (isFlux) {  //need to test isFlux first
+      if (isTurbo) {
+        steps = Math.min(steps+10, 15);
+      }
+      else {
+        steps = Math.min(steps+10, 33);
+      }
     }
-    else {
-      steps = Math.min(steps+20, 75);
+    else if (isXl) {
+      if (isTurbo) {
+        steps = Math.min(steps+10, 22);
+      }
+      else {
+        steps = Math.min(steps+15, 50);
+      }
+    }
+    else /* SD 1.x */ {
+      //SD 1.x needs more steps to keep the quality up
+      if (isTurbo) {
+        steps = Math.min(steps+10, 25);
+      }
+      else {
+        steps = Math.min(steps+20, 75);
+      }
     }
   }
+
+  
   return steps;
 }
 
@@ -1655,6 +1673,11 @@ function findSplitImages(image, filter) {
           </div>
           <label for="scaleup_animeControlnet">Use Canny/lineart for controlnet, not Tile<small> (better for Anime)</small></label>
           </li>
+          <li class="pl-5"><div class="input-toggle">
+          <input id="scaleup_use_fewer_steps" name="scaleup_use_fewer_steps" type="checkbox" value="`+ScaleUpSettings.useFewerSteps+`"  onchange="setScaleUpSettings()"> <label for="scaleup_use_fewer_steps"></label>
+          </div>
+          <label for="scaleup_use_fewer_steps">Use Fewer Steps<small> (reduce inference steps for faster processing, with slight quality loss)</small></label>
+          </li>
         </ul></div>
         </div>`;
     outpaintSettings.innerHTML = tempHTML;
@@ -1681,6 +1704,7 @@ function setScaleUpSettings() {
   ScaleUpSettings.resizeImage = scaleup_resize_sharpen.checked;
   ScaleUpSettings.reuseControlnet = scaleup_reuse_controlnet.checked;
   ScaleUpSettings.animeControlnet = scaleup_animeControlnet.checked;
+  ScaleUpSettings.useFewerSteps = scaleup_use_fewer_steps.checked;
 
   localStorage.setItem('ScaleUp_Plugin_Settings', JSON.stringify(ScaleUpSettings));  //Store settings
 }
@@ -1700,6 +1724,7 @@ function scaleUpResetSettings(reset) {
     ScaleUpSettings.resizeImage = true;
     ScaleUpSettings.reuseControlnet = true;
     ScaleUpSettings.animeControlnet = false;
+    ScaleUpSettings.useFewerSteps = false;
 
     //useControlNet = false;
   }
@@ -1711,6 +1736,7 @@ function scaleUpResetSettings(reset) {
     ScaleUpSettings.resizeImage =settings.resizeImage ?? true;
     ScaleUpSettings.reuseControlnet =settings.reuseControlnet ?? false;
     ScaleUpSettings.animeControlnet =settings.animeControlnet ?? false;
+    ScaleUpSettings.useFewerSteps =settings.useFewerSteps ?? false;
     }
   localStorage.setItem('ScaleUp_Plugin_Settings', JSON.stringify(ScaleUpSettings));  //Store settings
 
@@ -1722,6 +1748,7 @@ function scaleUpResetSettings(reset) {
   scaleup_resize_sharpen.checked = ScaleUpSettings.resizeImage;
   scaleup_reuse_controlnet.checked = ScaleUpSettings.reuseControlnet;
   scaleup_animeControlnet.checked = ScaleUpSettings.animeControlnet;
+  scaleup_use_fewer_steps.checked = ScaleUpSettings.useFewerSteps;
 }
 
 
