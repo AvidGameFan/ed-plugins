@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.12.0, last updated: 9/8/2025
+ * v.2.12.1, last updated: 9/10/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -325,10 +325,10 @@ function isModelFlux(modelName) {
   if (modelName.search(/flux/i)>=0 || modelName.search(/lyhAnime_kor/i)>=0 || modelName.search(/chroma/i)>=0 || modelName.search(/sd3/i)>=0 || modelName.search(/qwen/i)>=0) {
     result = true;
   }  
-  //If turbo model but not actually turbo, go ahead and call it flux, to do fewer steps
-  if (isModelTurbo(modelName) && modelName.search(/turbo/i)<0) {
-    result = true;
-  }
+  // //If turbo model but not actually turbo, go ahead and call it flux, to do fewer steps
+  // if (isModelTurbo(modelName) && modelName.search(/turbo/i)<0) {
+  //   result = true;
+  // }
   return result;
 }
 
@@ -960,9 +960,15 @@ function onScaleUp2xClick(origRequest, image, e, tools) {
 //For Flux Schnell, 8 steps looks OK, but 15 has a bit more detail.
 function stepsToUse(defaultSteps, isFlux, isTurbo, isXl) {
   let steps=parseInt(defaultSteps);
+  
+  // If using changed model, use the input steps field value instead of original image steps
+  if (ScaleUpSettings.useChangedModel) {
+    steps = parseInt(numInferenceStepsField.value);
+  }
     
   // Apply fewer steps setting if enabled
   if (ScaleUpSettings.useFewerSteps) {
+    //just use given steps, but don't let the steps fall too low.
     if (isFlux) {
       steps = Math.max(steps, (isTurbo)?8:15);
     }
@@ -973,7 +979,7 @@ function stepsToUse(defaultSteps, isFlux, isTurbo, isXl) {
   else { //more steps for quality (default)
     if (isFlux) {  //need to test isFlux first
       if (isTurbo) {
-        steps = Math.min(steps+10, 15);
+        steps = Math.min(steps+10, 18);
       }
       else {
         steps = Math.min(steps+10, 33);
@@ -981,7 +987,7 @@ function stepsToUse(defaultSteps, isFlux, isTurbo, isXl) {
     }
     else if (isXl) {
       if (isTurbo) {
-        steps = Math.min(steps+10, 22);
+        steps = Math.min(steps+10, 25);
       }
       else {
         steps = Math.min(steps+15, 50);
