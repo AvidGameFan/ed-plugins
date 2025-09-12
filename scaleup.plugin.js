@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.12.1, last updated: 9/10/2025
+ * v.2.12.2, last updated: 9/11/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -39,7 +39,7 @@ var ScaleUpSettings = {
   resizeImage: true,
   reuseControlnet: false,
   animeControlnet: false,
-  useFewerSteps: false
+  useInputSteps: false
   //useControlNet: false,
 };
 
@@ -961,13 +961,10 @@ function onScaleUp2xClick(origRequest, image, e, tools) {
 function stepsToUse(defaultSteps, isFlux, isTurbo, isXl) {
   let steps=parseInt(defaultSteps);
   
-  // If using changed model, use the input steps field value instead of original image steps
-  if (ScaleUpSettings.useChangedModel) {
-    steps = parseInt(numInferenceStepsField.value);
-  }
     
-  // Apply fewer steps setting if enabled
-  if (ScaleUpSettings.useFewerSteps) {
+  // If using input steps, use the input steps field value instead of original image steps
+  if (ScaleUpSettings.useInputSteps) {
+    steps = parseInt(numInferenceStepsField.value);
     //just use given steps, but don't let the steps fall too low.
     if (isFlux) {
       steps = Math.max(steps, (isTurbo)?8:15);
@@ -1680,9 +1677,9 @@ function findSplitImages(image, filter) {
           <label for="scaleup_animeControlnet">Use Canny/lineart for controlnet, not Tile<small> (better for Anime)</small></label>
           </li>
           <li class="pl-5"><div class="input-toggle">
-          <input id="scaleup_use_fewer_steps" name="scaleup_use_fewer_steps" type="checkbox" value="`+ScaleUpSettings.useFewerSteps+`"  onchange="setScaleUpSettings()"> <label for="scaleup_use_fewer_steps"></label>
+          <input id="scaleup_use_input_steps" name="scaleup_use_input_steps" type="checkbox" value="`+ScaleUpSettings.useInputSteps+`"  onchange="setScaleUpSettings()"> <label for="scaleup_use_input_steps"></label>
           </div>
-          <label for="scaleup_use_fewer_steps">Use Fewer Steps<small> (reduce inference steps for faster processing, with slight quality loss)</small></label>
+          <label for="scaleup_use_input_steps">Use Steps from Input<small> (instead of the original image + modifier; lower steps may reduce quality)</small></label>
           </li>
         </ul></div>
         </div>`;
@@ -1710,7 +1707,7 @@ function setScaleUpSettings() {
   ScaleUpSettings.resizeImage = scaleup_resize_sharpen.checked;
   ScaleUpSettings.reuseControlnet = scaleup_reuse_controlnet.checked;
   ScaleUpSettings.animeControlnet = scaleup_animeControlnet.checked;
-  ScaleUpSettings.useFewerSteps = scaleup_use_fewer_steps.checked;
+  ScaleUpSettings.useInputSteps = scaleup_use_input_steps.checked;
 
   localStorage.setItem('ScaleUp_Plugin_Settings', JSON.stringify(ScaleUpSettings));  //Store settings
 }
@@ -1730,7 +1727,7 @@ function scaleUpResetSettings(reset) {
     ScaleUpSettings.resizeImage = true;
     ScaleUpSettings.reuseControlnet = true;
     ScaleUpSettings.animeControlnet = false;
-    ScaleUpSettings.useFewerSteps = false;
+    ScaleUpSettings.useInputSteps = false;
 
     //useControlNet = false;
   }
@@ -1742,7 +1739,7 @@ function scaleUpResetSettings(reset) {
     ScaleUpSettings.resizeImage =settings.resizeImage ?? true;
     ScaleUpSettings.reuseControlnet =settings.reuseControlnet ?? false;
     ScaleUpSettings.animeControlnet =settings.animeControlnet ?? false;
-    ScaleUpSettings.useFewerSteps =settings.useFewerSteps ?? false;
+    ScaleUpSettings.useInputSteps =settings.useInputSteps ?? false;
     }
   localStorage.setItem('ScaleUp_Plugin_Settings', JSON.stringify(ScaleUpSettings));  //Store settings
 
@@ -1754,7 +1751,7 @@ function scaleUpResetSettings(reset) {
   scaleup_resize_sharpen.checked = ScaleUpSettings.resizeImage;
   scaleup_reuse_controlnet.checked = ScaleUpSettings.reuseControlnet;
   scaleup_animeControlnet.checked = ScaleUpSettings.animeControlnet;
-  scaleup_use_fewer_steps.checked = ScaleUpSettings.useFewerSteps;
+  scaleup_use_input_steps.checked = ScaleUpSettings.useInputSteps;
 }
 
 
