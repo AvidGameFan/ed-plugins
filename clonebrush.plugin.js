@@ -1,6 +1,6 @@
 /* Clone Brush Plugin
 
- v. 1.1.1, last updated: 8/23/2025
+ v. 1.1.2, last updated: 9/11/2025
  By Gary W.
 
  Inital version created with the help of Cursor/Claude AI.
@@ -26,6 +26,9 @@ Left-click and drag to start cloning:
 - The key insight is that the offset (dx, dy) represents the vector from the current cursor position
 to the source point. This offset remains constant throughout the stroke, so as you move the cursor, 
 the source sampling point moves in parallel.
+
+
+Also supports a pen/stylus.
 
 */
 
@@ -289,39 +292,56 @@ function attachRightClickSourceSetter(editor) {
 	if (editor.inpainter) return // Only work in draw editor
 	// Avoid duplicate listeners
 	if (editor._cloneRightClickBound) return
-	editor._cloneRightClickBound = true
-			// Capture phase to prevent the default editor mouse handler from firing on right-click
-		editor.container.addEventListener('mousedown', function(e) {
-			if (e.button === 2 && editor.tool && editor.tool.id === 'clone') {
-				var bbox = editor.layers.overlay.canvas.getBoundingClientRect()
-				editor.cloneSourcePoint = { x: (e.clientX || 0) - bbox.left, y: (e.clientY || 0) - bbox.top }
-				
-				// Clear any existing offset to ensure fresh start
-				editor._cloneOffset = null
-				editor._clonePrevPoint = null
-				
-				// Show source cursor at the selected point
-				const radius = Math.max(1, Math.round(editor.options.brush_size / 2))
-				const cursor = createCloneSourceCursor(editor)
-				cursor.style.left = (/*bbox.left +*/ editor.cloneSourcePoint.x - radius) + 'px'
-				cursor.style.top = (/*bbox.top +*/ editor.cloneSourcePoint.y - radius) + 'px'
-				cursor.style.width = (radius * 2) + 'px'
-				cursor.style.height = (radius * 2) + 'px'
-				cursor.style.opacity = '1'
-				
-				// Hide cursor after a short delay to show the selection
-				// setTimeout(() => {
-				// 	if (editor.tool && editor.tool.id === 'clone') {
-				// 		hideCloneSourceCursor(editor)
-				// 	}
-				// }, 1000)
-				
-				console.log('Clone source set at:', editor.cloneSourcePoint.x, editor.cloneSourcePoint.y)
-				
-				e.preventDefault()
-				e.stopPropagation()
-			}
-		}, true)
+	editor._cloneRightClickBound = true;
+
+	// Helper function to set clone source point
+	function setCloneSourcePoint(e) {
+		if (editor.tool && editor.tool.id === 'clone') {
+			var bbox = editor.layers.overlay.canvas.getBoundingClientRect()
+			editor.cloneSourcePoint = { x: (e.clientX || 0) - bbox.left, y: (e.clientY || 0) - bbox.top }
+			
+			// Clear any existing offset to ensure fresh start
+			editor._cloneOffset = null
+			editor._clonePrevPoint = null
+			
+			// Show source cursor at the selected point
+			const radius = Math.max(1, Math.round(editor.options.brush_size / 2))
+			const cursor = createCloneSourceCursor(editor)
+			cursor.style.left = (/*bbox.left +*/ editor.cloneSourcePoint.x - radius) + 'px'
+			cursor.style.top = (/*bbox.top +*/ editor.cloneSourcePoint.y - radius) + 'px'
+			cursor.style.width = (radius * 2) + 'px'
+			cursor.style.height = (radius * 2) + 'px'
+			cursor.style.opacity = '1'
+			
+			// Hide cursor after a short delay to show the selection
+			// setTimeout(() => {
+			// 	if (editor.tool && editor.tool.id === 'clone') {
+			// 		hideCloneSourceCursor(editor)
+			// 	}
+			// }, 1000)
+			
+			console.log('Clone source set at:', editor.cloneSourcePoint.x, editor.cloneSourcePoint.y)
+			
+			e.preventDefault()
+			e.stopPropagation()
+		}
+	}
+	
+	// Capture phase to prevent the default editor mouse handler from firing on right-click
+	editor.container.addEventListener('mousedown', function(e) {
+		if (e.button === 2) {
+			setCloneSourcePoint(e)
+		}
+	}, true)
+	
+	// Handle Microsoft Surface Pen button (button 1) via pointer events
+	editor.container.addEventListener('pointerdown', function(e) {
+		// Check if it's a Surface Pen button (button 1)
+		if (e.pointerType === 'pen' && e.button === 1) {
+			setCloneSourcePoint(e)
+		}
+	}, true)
+	
 	// Disable context menu while using clone tool
 	editor.container.addEventListener('contextmenu', function(e) {
 		if (editor.tool && editor.tool.id === 'clone') {
