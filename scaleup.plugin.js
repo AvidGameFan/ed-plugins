@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.12.2, last updated: 9/11/2025
+ * v.2.12.3, last updated: 9/11/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1638,6 +1638,35 @@ function findSplitImages(image, filter) {
           </span>
           </i>
         </h4>
+        <!-- internal CSS like this outside of the <head> is not standards-compliant, but seems to work -->
+        <style>
+          .simple-tooltip.top-right {
+              top: 0px;
+              right: 0px;
+              transform: translate(calc(100% - 15%), calc(-100% + 15%));
+          }
+          :hover > .simple-tooltip.top-right {
+              transform: translate(80%, -100%);
+          }
+
+          .simple-tooltip.bottom-right {
+              bottom: 0px;
+              right: 0px;
+              transform: translate(calc(100% - 15%), calc(100% - 15%));
+          }
+          :hover > .simple-tooltip.bottom-right {
+              transform: translate(80%, 100%);
+          }
+
+          .simple-tooltip.bottom-left {
+              bottom: 0px;
+              left: 0px;
+              transform: translate(calc(-100% + 15%), calc(100% - 15%));
+          }
+          :hover > .simple-tooltip.bottom-left {
+              transform: translate(-80%, 100%);
+          }
+        </style>
         <div id="scaleup-settings-entries" class="collapsible-content" style="display: block;margin-top:15px;">
         <div><ul style="padding-left:0px">
           <li><b class="settings-subheader">ScaleUp Settings</b></li>
@@ -1677,9 +1706,12 @@ function findSplitImages(image, filter) {
           <label for="scaleup_animeControlnet">Use Canny/lineart for controlnet, not Tile<small> (better for Anime)</small></label>
           </li>
           <li class="pl-5"><div class="input-toggle">
-          <input id="scaleup_use_input_steps" name="scaleup_use_input_steps" type="checkbox" value="`+ScaleUpSettings.useInputSteps+`"  onchange="setScaleUpSettings()"> <label for="scaleup_use_input_steps"></label>
+          <input id="scaleup_use_input_steps" name="scaleup_use_input_steps" type="checkbox" value="`+ScaleUpSettings.useInputSteps+`" onchange="setScaleUpSettings()"> <label for="scaleup_use_input_steps">
+          <!--<span class="simple-tooltip bottom-right">When enabled, uses the steps value from the input field above instead of that from the original image plus modifiers.</span>-->
+          </label>
           </div>
-          <label for="scaleup_use_input_steps">Use Steps from Input<small> (instead of the original image + modifier; lower steps may reduce quality)</small></label>
+          <label for="scaleup_use_input_steps">Use steps from above <small>(instead of computed increased steps)</small></label>
+          <i class="fa-solid fa-circle-question help-btn"><span class="simple-tooltip bottom-right">When enabled, uses the steps value from the input field above instead of the steps from the original image plus modifiers.  Lower steps may reduce the detail quality.</span></i>
           </li>
         </ul></div>
         </div>`;
