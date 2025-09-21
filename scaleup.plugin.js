@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.12.3, last updated: 9/11/2025
+ * v.2.12.4, last updated: 9/20/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -675,7 +675,7 @@ function onScaleUpMAXClick(origRequest, image) {
   const imageHeight = image.naturalHeight==0?origRequest.height:image.naturalHeight;
   //Only if using "split" and not using max split size, use a ratio of 1 to use current image size.
   var ratio=origRequest.scaleUpSplit ? ((ScaleUpSettings.useMaxSplitSize)? Math.min(2.5, maxRatio(maxRes,imageHeight,imageWidth)):2):   //for the tile split
-    maxRatio(imageHeight,imageWidth);                                                                                       //for max size click
+    maxRatio(maxRes,imageHeight,imageWidth);                                                                                       //for max size click
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
