@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.12.4, last updated: 9/20/2025
+ * v.2.12.5, last updated: 10/4/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -290,46 +290,60 @@ function scaleUp(height,width,scalingIncrease) {
 
 //Model needs to have "turbo" in the filename to be recognized as a turbo model.
 function isModelTurbo(modelName, loraList) {
-  if (modelName.search(/turbo/i)>=0 || modelName.search(/lightning/i)>=0 || modelName.search(/hyper/i)>=0 || modelName.search(/schnell/i)>=0 || modelName.search(/flash/i)>=0) {
+  // Combined regex for all turbo-related terms
+  if (/turbo|lightning|hyper|schnell|flash/i.test(modelName)) {
     return true;
   }
+  
   //if any of the Loras contains "lcm", assume turbo lora -- fewer steps needed
   if (loraList != undefined) {
-    if (loraList[0].length>1) { //it's an array of strings >1
-      if (loraList.some(element => element.search(/lcm/i)>=0) ||
-          loraList.some(element => element.search(/hyper/i)>=0) )
-          return true;
+    if (Array.isArray(loraList) && loraList.length > 0) {
+      // Check if any element in the array contains turbo-related terms
+      return loraList.some(element => /lcm|hyper/i.test(element));
+    } else if (typeof loraList === 'string') {
+      // Single string check
+      return /lcm|hyper/i.test(loraList);
     }
-    else {  //it's a string
-      if (loraList.search(/lcm/i)>=0 || loraList.search(/hyper/i)>=0)
-      return true;
-    }
+    // else, error!
   }
   return false;
+}
+
+
+function isSdxlModel() {
+  if (!modelsDB) {
+    return false;  //if the new functionality is not present, default to false, as we don't know if sdxl
+  }
+  let sdModel = stableDiffusionModelField.value
+  let tags = modelsDB["stable-diffusion"][sdModel]?.tags || []  // newer ED function added around 10/2025
+  let isSdxl = tags.some(tag => tag.startsWith("sd_xl"))
+  return isSdxl
 }
 
 //Model needs to have "xl" in the filename to be recognized as an xl model.
 //add any special cases as needed.
 function isModelXl(modelName) {
-  let result = false;
-  if (modelName.search(/xl/i)>=0 || modelName.search(/playground/i)>=0 || modelName.search(/disneyrealcartoonmix/i)>=0  || modelName.search(/mobius/i)>=0 
-    || isModelFlux(modelName) || modelName.search(/zovya/i)>=0) {  //Zovya models appear to mostly be Pony XL -- need to update if there are SD 1.5 models instead
-    result = true;
-  }  
-  return result;
+  if (modelName == stableDiffusionModelField.value  // These model-check functions are only accurate if using the same model that's in the input field
+    && isSdxlModel()) {
+    return true;
+  }
+  //if we're unsure from the internal check, use the filename as a fall-back.
+  
+  // Combined regex for all XL-related terms
+  return /xl|playground|disneyrealcartoonmix|mobius|zovya/i.test(modelName) || isModelFlux(modelName); //Zovya models appear to mostly be Pony XL -- need to update if there are SD 1.5 models instead
 }
 
 //If flux, can use fewer steps
 function isModelFlux(modelName) {
-  let result = false;
-  if (modelName.search(/flux/i)>=0 || modelName.search(/lyhAnime_kor/i)>=0 || modelName.search(/chroma/i)>=0 || modelName.search(/sd3/i)>=0 || modelName.search(/qwen/i)>=0) {
-    result = true;
-  }  
-  // //If turbo model but not actually turbo, go ahead and call it flux, to do fewer steps
-  // if (isModelTurbo(modelName) && modelName.search(/turbo/i)<0) {
-  //   result = true;
-  // }
-  return result;
+  if (modelName == stableDiffusionModelField.value  // These model-check functions are only accurate if using the same model that's in the input field
+    && typeof isFluxModel === 'function' && isFluxModel()
+    || typeof isChromaModel === 'function' && isChromaModel()) {  // newer ED functions added around 10/2025
+    return true;
+  }
+  //if we're unsure from the internal check, use the filename as a fall-back.
+  
+  // Combined regex for all Flux-related terms
+  return /flux|lyhAnime_kor|chroma|sd3|qwen/i.test(modelName);
 }
 
 
