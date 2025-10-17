@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.1.2.8, last updated: 6/28/2025
+ * v.1.2.9, last updated: 10/4/2025
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -104,13 +104,10 @@ function isModelTurbo(modelName, loraList) {
   //if any of the Loras contains "lcm", assume turbo lora -- fewer steps needed
   if (loraList != undefined) {
     if (loraList[0].length>1) { //it's an array of strings >1
-      if (loraList.some(element => element.search(/lcm/i)>=0) ||
-          loraList.some(element => element.search(/hyper/i)>=0) )
-          return true;
+      return loraList.some(element => /lcm|hyper/i.test(element));
     }
     else {  //it's a string
-      if (loraList.search(/lcm/i)>=0 || loraList.search(/hyper/i)>=0)
-      return true;
+      return /lcm|hyper/i.test(loraList);
     }
   }
   return false;
