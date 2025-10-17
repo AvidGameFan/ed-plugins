@@ -1,7 +1,7 @@
 /* 
  * LLM Prompt Generator Plugin
  *
- * v.1.1.1, last updated: 9/2/2025
+ * v.1.2.0, last updated: 10/16/2025
  * By Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -48,19 +48,46 @@
             gap: 5px;
         `;
         
-        llmButton.addEventListener('click', onLLMButtonClick);
+        llmButton.addEventListener('click', () => onLLMButtonClick(false));
         return llmButton;
     }
 
-    // Insert the LLM button next to the prompt history dropdown if present,
-    // otherwise append it after the negative prompt section
+    // Create the LLM Variation button
+    function createLLMVariationButton() {
+        const llmVariationButton = document.createElement('button');
+        llmVariationButton.id = 'llm_prompt_variation';
+        llmVariationButton.className = 'btn btn-secondary';
+        llmVariationButton.innerHTML = '<i class="fa-solid fa-shuffle"></i> LLM Var';
+        llmVariationButton.title = 'Generate varied prompt with creative differences using LLM';
+        llmVariationButton.style.cssText = `
+            margin-left: 5px;
+            padding: 6px 12px;
+            font-size: 12px;
+            height: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background-color: #6c757d;
+            border-color: #6c757d;
+        `;
+        
+        llmVariationButton.addEventListener('click', () => onLLMButtonClick(true));
+        return llmVariationButton;
+    }
+
+    // Insert the LLM buttons next to the prompt history dropdown if present,
+    // otherwise append them after the negative prompt section
     function insertLLMButton() {
         if (document.querySelector('#llm_prompt_generator')) return;
         const promptHistoryDropdown = document.querySelector('#prompt_history');
         const llmButton = createLLMButton();
+        const llmVariationButton = createLLMVariationButton();
+        
         if (promptHistoryDropdown) {
+            // Insert both buttons after the prompt history dropdown
+            promptHistoryDropdown.parentNode.insertBefore(llmVariationButton, promptHistoryDropdown.nextSibling);
             promptHistoryDropdown.parentNode.insertBefore(llmButton, promptHistoryDropdown.nextSibling);
-            console.log('LLM Prompt Generator button added next to prompt history');
+            console.log('LLM Prompt Generator buttons added next to prompt history');
             return;
         }
         // Fallback: place after negative prompt section
@@ -69,8 +96,9 @@
                 ? negativePromptField
                 : document.querySelector('#negative_prompt');
             if (negField && negField.parentNode && negField.parentNode.parentNode) {
+                negField.parentNode.parentNode.insertBefore(llmVariationButton, null);
                 negField.parentNode.parentNode.insertBefore(llmButton, null);
-                console.log('LLM Prompt Generator button added after negative prompt');
+                console.log('LLM Prompt Generator buttons added after negative prompt');
             }
         } catch (e) {
             // noop
@@ -78,20 +106,27 @@
     }
 
     // Click handler for the LLM button
-    async function onLLMButtonClick() {
+    async function onLLMButtonClick(variation) {
         const promptField = document.querySelector('#prompt');
         if (!promptField) {
             showNotification('Prompt field not found', 'error');
             return;
         }
 
-        // Get current prompt as context (optional)
+        // Get current prompt as context (optional for normal, required for variations)
         const currentPrompt = promptField.value.trim();
-        
+        if (variation && !currentPrompt) {
+            showNotification('Please enter a prompt first to create variations', 'warning');
+            return;
+        }
         // Show loading state
-        const button = document.querySelector('#llm_prompt_generator');
+        const button = document.querySelector(variation ? '#llm_prompt_variation' : '#llm_prompt_generator');
         const originalText = button.innerHTML;
-        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+        if (!variation) {
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+        } else {
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Varying...';
+        }
         button.disabled = true;
 
         // Get the appropriate line ending for the current platform
@@ -108,7 +143,7 @@
 
         for (let i = 0; i < numToGenerate; i++) {
             try {
-                const generatedPrompt = await generatePromptWithLLM(existingPrompts[i]);
+                const generatedPrompt = await (variation ? generateVariationPromptWithLLM : generatePromptWithLLM)(existingPrompts[i]);
                 
                 if (generatedPrompt) {
                     // Clean up the generated prompt
@@ -148,6 +183,74 @@
         button.innerHTML = originalText;
         button.disabled = false;
     }
+
+    // // Click handler for the LLM Variation button
+    // async function onLLMVariationButtonClick() {
+    //     const promptField = document.querySelector('#prompt');
+    //     if (!promptField) {
+    //         showNotification('Prompt field not found', 'error');
+    //         return;
+    //     }
+
+    //     // Get current prompt as context (required for variations)
+    //     const currentPrompt = promptField.value.trim();
+    //     if (!currentPrompt) {
+    //         showNotification('Please enter a prompt first to create variations', 'warning');
+    //         return;
+    //     }
+        
+    //     // Show loading state
+    //     const button = document.querySelector('#llm_prompt_variation');
+    //     const originalText = button.innerHTML;
+    //     button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Varying...';
+    //     button.disabled = true;
+
+    //     // Get the appropriate line ending for the current platform
+    //     const lineEnding = getLineEnding();
+        
+    //     // Parse existing prompts to get count
+    //     const existingPrompts = currentPrompt.split(/\r?\n/).filter(p => p.trim());
+    //     const numExistingPrompts = existingPrompts.length;
+        
+    //     // Generate multiple variation prompts (1 by default, or based on existing count)
+    //     const numToGenerate = Math.max(1, numExistingPrompts);
+    //     const generatedPrompts = [];
+    //     let successCount = 0;
+
+    //     for (let i = 0; i < numToGenerate; i++) {
+    //         try {
+    //             const generatedPrompt = await generateVariationPromptWithLLM(existingPrompts[i]);
+                
+    //             if (generatedPrompt) {
+    //                 // Clean up the generated prompt
+    //                 const cleanedPrompt = cleanPromptText(generatedPrompt, lineEnding);
+    //                 generatedPrompts.push(cleanedPrompt);
+    //                 successCount++;
+    //             }
+    //         } catch (error) {
+    //             console.error(`Error generating variation ${i + 1}:`, error);
+    //             // Continue with other generations even if one fails
+    //         }
+    //     }
+
+    //     if (generatedPrompts.length > 0) {
+    //         // Replace the prompt field with variations
+    //         const finalPrompt = generatedPrompts.join(lineEnding);
+    //         promptField.value = finalPrompt;
+            
+    //         // Trigger any change events that might be needed
+    //         promptField.dispatchEvent(new Event('input', { bubbles: true }));
+    //         promptField.dispatchEvent(new Event('change', { bubbles: true }));
+            
+    //         showNotification(`Generated ${successCount} variation${successCount !== 1 ? 's' : ''} successfully!`, 'success');
+    //     } else {
+    //         showNotification('No variations generated', 'warning');
+    //     }
+    //    
+    //     // Restore button state
+    //     button.innerHTML = originalText;
+    //     button.disabled = false;
+    // }
 
     // Get the appropriate line ending for the current platform
     function getLineEnding() {
@@ -198,6 +301,18 @@
         return result;
     }
 
+    function isModelFlux(modelName) {
+        if (modelName == stableDiffusionModelField.value  // These model-check functions are only accurate if using the same model that's in the input field
+          && ((typeof isFluxModel === 'function' && isFluxModel())
+          || (typeof isChromaModel === 'function' && isChromaModel()))) {  // newer ED functions added around 10/2025
+          return true;
+        }
+        //if we're unsure from the internal check, use the filename as a fall-back.
+        
+        // Combined regex for all Flux-related terms
+        return /flux|lyhAnime_kor|chroma|sd3|qwen/i.test(modelName);
+      }
+
     // Call the LLM API to generate a prompt
     async function generatePromptWithLLM(currentPrompt = '') {
         // Create a system prompt that instructs the LLM to generate detailed image prompts
@@ -205,7 +320,7 @@
 Generate creative, descriptive prompts that include artistic terms, lighting, composition, style, and technical details.
 Focus on visual elements and avoid extraneous information. Keep prompts concise but detailed.
 Do not include any other text than the prompt.` + 
-(isModelXl($("#editor-settings #stable_diffusion_model")[0].dataset.path)?" Please keep it brief.  It's an SDXL model with a 75 token limit.":"");
+(!isModelFlux($("#editor-settings #stable_diffusion_model")[0].dataset.path)?" Please keep it brief.  It's an SDXL model with a 75 token limit.":"");
 
         // Use the current prompt as context if provided, otherwise start fresh
         const userPrompt = currentPrompt 
@@ -218,7 +333,7 @@ Do not include any other text than the prompt.` +
             temperature: 0.7,
             top_p: 0.95,
             top_k: 20,
-            stop: ["\n\nUser:", "\n\nHuman:", "\n\nAssistant:", "\n\nAI:"]
+            stop: ["\nUser:", "\nHuman:", "\nAssistant:", "\nAI:"]
         };
 
         let lastError;
@@ -261,6 +376,80 @@ Do not include any other text than the prompt.` +
             } catch (error) {
                 lastError = error;
                 console.warn(`LLM API attempt ${attempt} failed:`, error.message);
+                
+                if (attempt < config.maxRetries) {
+                    // Wait before retrying (exponential backoff)
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                }
+            }
+        }
+
+        throw lastError || new Error('All retry attempts failed');
+    }
+
+    // Call the LLM API to generate a variation prompt
+    async function generateVariationPromptWithLLM(currentPrompt = '') {
+        // Create a system prompt that encourages creative variations and divergence
+        const systemPrompt = `You are an expert at creating creative variations of AI image generation prompts. 
+Your goal is to take an existing prompt and create a NEW, DIFFERENT prompt that explores alternative artistic directions, styles, compositions, or interpretations.
+Be creative and divergent - change the mood, style, lighting, composition, artistic approach, or subject interpretation.  Or, change the subject and use the same artistic style.
+Focus on visual elements and avoid extraneous information. Keep prompts concise but detailed, adding elements as needed.
+Do not include any other text than the prompt.` + 
+(!isModelFlux($("#editor-settings #stable_diffusion_model")[0].dataset.path)?" Please keep it brief.  It's an SDXL model with a 75 token limit.":"");
+
+        // Create a variation-focused user prompt
+        const userPrompt = `Create a creative variation of this image prompt. Make it significantly different while maintaining artistic quality: "${currentPrompt}"
+Think about: different art styles, alternative lighting, new compositions, different moods, creative reinterpretations, or artistic techniques.`;
+
+        const requestPayload = {
+            prompt: `${systemPrompt}\n\nUser: ${userPrompt}\n\nAssistant:`,
+            max_tokens: 235,
+            temperature: 0.8, // Higher temperature for more creativity
+            top_p: 0.95,
+            top_k: 20,
+            stop: ["\nUser:", "\nHuman:", "\nAssistant:", "\nAI:"]
+        };
+
+        let lastError;
+        
+        for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), config.timeout);
+
+                const response = await fetch(resolveApiEndpoint(), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestPayload),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    console.error(`HTTP error! status: ${response.status}`);
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Handle OpenAI-compatible completions response
+                if (data.choices && data.choices.length > 0) {
+                    const generatedText = data.choices[0].text.trim();
+                    if (generatedText) {
+                        return generatedText;
+                    }
+                    console.error(`No Choices found in data response`);
+                }
+
+                console.error(`No completion found in response`);
+                throw new Error('No completion found in response');
+
+            } catch (error) {
+                lastError = error;
+                console.warn(`LLM Variation API attempt ${attempt} failed:`, error.message);
                 
                 if (attempt < config.maxRetries) {
                     // Wait before retrying (exponential backoff)
