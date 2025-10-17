@@ -134,15 +134,15 @@ function isModelLightning(modelName, loraList) {
 }
 
 function isModelFlux(modelName) {
-  let result = false;
-  if (modelName.search(/flux/i)>=0 || modelName.search(/lyhAnime_kor/i)>=0 || modelName.search(/chroma/i)>=0) {
-    result = true;
-  }  
-  //If turbo model but not actually turbo, go ahead and call it flux, to do fewer steps
-  if (isModelTurbo(modelName) && !modelName.search(/turbo/i)<0) {
-    result = true;
+  if (modelName == stableDiffusionModelField.value  // These model-check functions are only accurate if using the same model that's in the input field
+    && ((typeof isFluxModel === 'function' && isFluxModel())
+    || (typeof isChromaModel === 'function' && isChromaModel()))) {  // newer ED functions added around 10/2025
+    return true;
   }
-  return result;
+  //if we're unsure from the internal check, use the filename as a fall-back.
+  
+  // Combined regex for all Flux-related terms
+  return /flux|lyhAnime_kor|chroma|sd3|qwen/i.test(modelName);
 }
 
 function onMakeVerySimilarClick(origRequest, image) {

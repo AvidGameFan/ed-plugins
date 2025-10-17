@@ -336,8 +336,8 @@ function isModelXl(modelName) {
 //If flux, can use fewer steps
 function isModelFlux(modelName) {
   if (modelName == stableDiffusionModelField.value  // These model-check functions are only accurate if using the same model that's in the input field
-    && typeof isFluxModel === 'function' && isFluxModel()
-    || typeof isChromaModel === 'function' && isChromaModel()) {  // newer ED functions added around 10/2025
+    && ((typeof isFluxModel === 'function' && isFluxModel())
+    || (typeof isChromaModel === 'function' && isChromaModel()))) {  // newer ED functions added around 10/2025
     return true;
   }
   //if we're unsure from the internal check, use the filename as a fall-back.
