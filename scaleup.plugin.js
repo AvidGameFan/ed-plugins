@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.12.5, last updated: 10/4/2025
+ * v.2.12.6, last updated: 10/22/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -735,7 +735,10 @@ function onScaleUpMAXClick(origRequest, image) {
     let canvasSoft = document.createElement("canvas");
     canvasSoft.width = image.naturalWidth; //*1.75;
     canvasSoft.height = image.naturalHeight; //*1.75;
-    let ctx2 = canvasSoft.getContext("2d", {willReadFrequently: true});
+    let ctx2 = canvasSoft.getContext("2d", {
+      willReadFrequently: true,
+      alpha: false  // Firefox optimization
+    });
     ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
     // get the image data of the canvasSoft  -- we only need the part we're going to resize
     //x,y -- upper-left, width & height
@@ -874,7 +877,9 @@ function onScaleUpMAXClick(origRequest, image) {
     canvas.width = Math.round(imageWidth*1.25);
     canvas.height = Math.round(imageHeight*1.25);
 
-    let ctx = canvas.getContext("2d");
+    let ctx = canvas.getContext("2d", {
+      alpha: false  // Firefox optimization
+    });
 
     // get the image data of the canvas  -- we only need the part we're going to resize
     //x,y -- upper-left, width & height
@@ -1076,7 +1081,10 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     let canvasSoft = document.createElement("canvas");
     canvasSoft.width = image.naturalWidth; //*1.75;
     canvasSoft.height = image.naturalHeight; //*1.75;
-    let ctx2 = canvasSoft.getContext("2d", {willReadFrequently: true});
+    let ctx2 = canvasSoft.getContext("2d", {
+      willReadFrequently: true,
+      alpha: false  // Firefox optimization
+    });
 
     ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
 
@@ -1247,7 +1255,10 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     canvas.width = Math.round(image.naturalWidth*1.25);
     canvas.height = Math.round(image.naturalHeight*1.25);
 
-    let ctx = canvas.getContext("2d", {willReadFrequently: true});
+    let ctx = canvas.getContext("2d", {
+      willReadFrequently: true,
+      alpha: false  // Firefox optimization
+    });
 
     // get the image data of the canvas  -- we only need the part we're going to resize
     //x,y -- upper-left, width & height
@@ -1266,12 +1277,26 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
       sharpen(ctx, canvas.width, canvas.height, .33);
     }
     
-    var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
-    img = contrastImage(img, contrastAmount);
-    ctx.putImageData(img, 0, 0);
+    // Firefox-compatible image data handling
+    var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    
+    // Create a copy to avoid Firefox issues with direct modification
+    var imgCopy = ctx.createImageData(img.width, img.height);
+    imgCopy.data.set(img.data);
+    
+    imgCopy = contrastImage(imgCopy, contrastAmount);
+    ctx.putImageData(imgCopy, 0, 0);
 
     var newImage = new Image;
-    newImage.src = canvas.toDataURL('image/png');
+    
+    // Firefox compatibility: ensure canvas is properly flushed before toDataURL
+    try {
+      newImage.src = canvas.toDataURL('image/png');
+    } catch (error) {
+      console.warn('Firefox: toDataURL failed, trying alternative method:', error);
+      // Alternative method for Firefox
+      newImage.src = canvas.toDataURL('image/jpeg', 0.95);
+    }
    
     newTaskRequest.reqBody.init_image = newImage.src;
   }
@@ -1301,6 +1326,12 @@ function sharpen(ctx, width, height, amount) {
   const srcPixels = src.data;
   const output = ctx.createImageData(sw, sh);
   const dstPixels = output.data;
+  
+  // Firefox compatibility: ensure we have valid data
+  if (!srcPixels || srcPixels.length === 0) {
+    console.warn('Firefox: Invalid image data in sharpen function');
+    return;
+  }
 
   for (let y = 0; y < sh; y++) {
       for (let x = 0; x < sw; x++) {
@@ -1337,14 +1368,22 @@ function sharpen(ctx, width, height, amount) {
 
 function contrastImage(imageData, contrast) {  // contrast as an integer percent  
   var data = imageData.data;  // original array modified, but canvas not updated
+  
+  // Firefox compatibility: validate data
+  if (!data || data.length === 0) {
+    console.warn('Firefox: Invalid image data in contrast function');
+    return imageData;
+  }
+  
   contrast *= 2.55; // or *= 255 / 100; scale integer percent to full range
   var factor = (255 + contrast) / (255.01 - contrast);  //add .1 to avoid /0 error
 
   for(var i=0;i<data.length;i+=4)  //pixel values in 4-byte blocks (r,g,b,a)
   {
-      data[i] = factor * (data[i] - 128) + 128;     //r value
-      data[i+1] = factor * (data[i+1] - 128) + 128; //g value
-      data[i+2] = factor * (data[i+2] - 128) + 128; //b value
+      // Firefox compatibility: ensure values are within bounds
+      data[i] = Math.max(0, Math.min(255, factor * (data[i] - 128) + 128));     //r value
+      data[i+1] = Math.max(0, Math.min(255, factor * (data[i+1] - 128) + 128)); //g value
+      data[i+2] = Math.max(0, Math.min(255, factor * (data[i+2] - 128) + 128)); //b value
   }
   return imageData;  //optional (e.g. for filter function chaining)
 }
