@@ -1,7 +1,7 @@
 /* 
  * LLM Prompt Generator Plugin
  *
- * v.1.2.0, last updated: 10/16/2025
+ * v.1.2.1, last updated: 10/16/2025
  * By Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -280,7 +280,7 @@ Do not include any other text than the prompt.`,
             userPromptTemplate: (currentPrompt) => 
                 currentPrompt 
                     ? `Improve and expand this image prompt with more artistic and technical details: "${currentPrompt}"`
-                    : 'Generate a detailed, creative prompt for AI image generation',
+                    : 'Create an image prompt using a subject and artistic and technical details',
             temperature: 0.7,
             requiresInput: false
         },
@@ -289,11 +289,11 @@ Do not include any other text than the prompt.`,
             description: 'Create creative variations with somewhat different artistic directions',
             systemPrompt: `You are an expert at creating creative variations of AI image generation prompts. 
 Your goal is to take an existing prompt and create a slightly different prompt that explores alternative artistic directions, styles, compositions, or interpretations.
-Or, change the subject and use the same artistic style. Do not change all elements of the prompt, just make it slightly different.
+Or, change the subject and use the same artistic style. Do not change all elements of the prompt, just make it slightly different. Maintain most elements of the original prompt.
 Focus on visual elements and avoid extraneous information. Keep prompts concise but detailed, adding elements as needed.
 Do not include any other text than the prompt.`,
             userPromptTemplate: (currentPrompt) => 
-                `Create a creative variation of this image prompt. Make it significantly different while maintaining artistic quality: "${currentPrompt}"
+                `Create a creative variation of this image prompt. Make it somewhat different while maintaining artistic quality: "${currentPrompt}"
 Think about: different art styles, alternative lighting, new compositions, different moods, creative reinterpretations, or artistic techniques.`,
             temperature: 0.8,
             requiresInput: true
@@ -303,7 +303,9 @@ Think about: different art styles, alternative lighting, new compositions, diffe
             description: 'Create creative, large variations with different artistic directions',
             systemPrompt: `You are an expert at creating creative variations of AI image generation prompts. 
 Your goal is to take an existing prompt and create a NEW, DIFFERENT prompt that explores alternative artistic directions, styles, compositions, or interpretations.
+Consider, what is the character?  What is the character doing and interacting with? 
 Be creative and divergent - change the mood, style, lighting, composition, artistic approach, or subject interpretation. Or, change the subject and use the same artistic style.
+Not all elements need to be changed - sometimes it's better to change only one or two elements to create a new and interesting variation.
 Focus on visual elements and avoid extraneous information. Keep prompts concise but detailed, adding elements as needed.
 Do not include any other text than the prompt.`,
             userPromptTemplate: (currentPrompt) => 
@@ -311,6 +313,28 @@ Do not include any other text than the prompt.`,
 Think about: different art styles, alternative lighting, new compositions, different moods, creative reinterpretations, or artistic techniques.`,
             temperature: 0.8,
             requiresInput: true
+        },
+        booru: {
+            name: 'Booru',
+            description: 'Improve and expand existing prompt with more details and booru tags',
+            systemPrompt: `You are an expert at creating creative variations of AI image generation prompts. 
+Your goal is to take an existing prompt and embellish it using a few booru-style tags. This is more commonly used for anime prompts.
+Focus on visual elements and avoid extraneous information. Keep prompts concise but detailed, adding elements as needed. 
+Not all elements of the prompt need to be turned into booru tags.
+Use tags appropriately, taking care not to mix styles and types haphazardly nor randomly. For example, don't mix anime-related tags with painterly or brush stroke.
+Keep most of the prompt descriptive, only adding a few booru tags. Some booru tags can be varied by color or other minor changes.
+Do not include any other text than the prompt. Here is an example (partial) list of possible tags (comma-separated): 1girl, 1boy, female, solo, from above, from side, holding sword,
+battoujutsu stance, fighting stance, ready to draw, shirt, long sleeves, jacket, white shirt, necktie, collared shirt, pants, miniskirt, skirt, black jacket, floating hair,
+unsheathing, katana, hair between eyes, looking at viewer, looking away, parted lips, absurdres, fingerless gloves, thighhighs, full body, cowboy shot, hand on own hip, contrapposto,
+painterly, brush stroke, masterpiece, portrait, landscape, digitigrade, furry, feral, sidelocks, ahoge, bangs, ponytail, twintails, braids, blush, 1980s (style), 1990s (style), 2000s (style), retro artstyle,
+mole, fang, closed mouth, scarf, jeans, grin, blonde hair, mug, alcohol, green eyes, white hair, brown hair, multicolored hair, long hair, dark skin, tan, earrings, hair ornament, sunglasses, holding food,
+^ ^, > <, v, one eye closed, shoes, crop top, black gloves, blue eyes, clenched teeth, official art, anime coloring, cel rendering, outline, synthwave, vaporwave, cyberpunk, steampunk, happy, nervous`,
+            userPromptTemplate: (currentPrompt) => 
+                currentPrompt 
+                ? `Improve and expand this image prompt with more artistic and technical details, adding booru tags as appropriate: "${currentPrompt}"`
+                : 'Create an image prompt using a subject and artistic and technical details, including booru tags.',
+            temperature: 0.8,
+            requiresInput: false
         }
     };
 
