@@ -10,6 +10,11 @@ Adds options to easily scale-up to a slightly-higher resolution.  This will add 
 Various settings are tweaked automatically, to get the best out of each model.  Click on the ScaleUp label to cycle through various options.  Avoid using the ControlNet option with higher resolutions.  Eventually, you may hit a limit where the model is just too large for a given resolution on your video card; if you still want higher resolution, use the split/merge option that will generate 4 separate images and stitch them together.
 [ScaleUp](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/master/scaleup.plugin.js)
 
+```If you want to use the ControlNet feature with SDXL or Flux, you need to download these models:
+Canny/SDXL: https://huggingface.co/lllyasviel/sd_control_collection/tree/main
+Canny/Flux: https://huggingface.co/XLabs-AI/flux-controlnet-canny-v3
+Tile for SDXL and Flux: https://huggingface.co/TTPlanet/TTPLanet_SDXL_Controlnet_Tile_Realistic/tree/main```
+
 ### OutpaintIt
 
 Allows painting outside of the original image.  Simple one-click interface.
@@ -69,7 +74,7 @@ This plugin adds a button that calls a local LLM using an OpenAI API endpoint, r
 
 [LLM Prompt Generation](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/llm-image-generator.plugin.js)
 
-Tested using Oobabooga's text-generation UI, but other LLM UIs may work if they support the same OpenAI API call.
+Tested using Oobabooga's text-generation UI, but other LLM UIs may work if they support the same OpenAI API call.  The default URL is the same URL that is hosting Easy Diffusion, but with :5000 as the port.  If your LLM service is at a different URL or port number, you need to edit the plugin and change the default URL near the top of the file.
 
 ## Other
 
