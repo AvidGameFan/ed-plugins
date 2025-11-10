@@ -27,7 +27,7 @@
             const hostname = window.location.hostname || '127.0.0.1';
             return protocol + '//' + hostname + ':5000' + '/v1/completions';
         } catch (e) {
-            return 'http://127.0.0.1:5000/v1/completions';
+            return 'http://127.0.0.1:5000/v1/completions';   //If your LLM service is at a different URL, change this.
         }
     }
 

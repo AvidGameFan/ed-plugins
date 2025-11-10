@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.12.6, last updated: 10/22/2025
+ * v.2.13.0, last updated: 11/09/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -962,10 +962,13 @@ function onScaleUp2xClick(origRequest, image, e, tools) {
   //first, run the latent 2x upscale.
   let path = upscaleModelField.value;
   let scale = 2;
+
   let filterName = path.toLowerCase().includes("realesrgan") ? "realesrgan" : "latent_upscaler";
+  
   let statusText = "Upscaling by " + scale + "x using " + filterName;
-  applyInlineFilter(filterName, path, { scale: scale }, image, statusText, tools)
- 
+  applyInlineFilter(filterName, path, { [filterName]: { scale: scale } }, image, statusText, tools)
+  // older ED used { scale: scale } for the parameter
+
   // poll until latent upscaler finishes
 
   asyncFunctionCall(origRequest, image, tools);
