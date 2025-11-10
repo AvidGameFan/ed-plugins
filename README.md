@@ -11,7 +11,8 @@ Various settings are tweaked automatically, to get the best out of each model.  
 [ScaleUp](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/master/scaleup.plugin.js)
 
 If you want to use the ControlNet feature with SDXL or Flux, you need to download these models:
-```Canny/SDXL: https://huggingface.co/lllyasviel/sd_control_collection/tree/main
+```
+Canny/SDXL: https://huggingface.co/lllyasviel/sd_control_collection/tree/main
 Canny/Flux: https://huggingface.co/XLabs-AI/flux-controlnet-canny-v3
 Tile for SDXL and Flux: https://huggingface.co/TTPlanet/TTPLanet_SDXL_Controlnet_Tile_Realistic/tree/main
 ```
