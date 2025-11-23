@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.13.0, last updated: 11/09/2025
+ * v.2.14.0, last updated: 11/22/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -38,7 +38,7 @@ var ScaleUpSettings = {
   useChangedModel: false,
   resizeImage: true,
   reuseControlnet: false,
-  animeControlnet: false,
+  controlnetType: "tile",  // "tile", "lineart_realistic", or "lineart_anime"
   useInputSteps: false
   //useControlNet: false,
 };
@@ -59,6 +59,7 @@ for much greater sizes.
 
 (function() { "use strict"
 
+
 //Original 1.5 limits: 1280 * 1536 ( 1536	* 896 balanced?)
 //For 8GB VRAM and xformers, try 2592 * 2016 or more.
 //Between more recent versions of ED and improved Nvidia drivers, you can now generate much larger (in late 2023) than before (early 2023).
@@ -67,7 +68,8 @@ var maxTurboResolution = 1088	* 1664; //put max 'balanced' resolution here - lar
 var MaxSquareResolution =  3072; //was 2048;
 
 //SDXL limits:2048*2048 or better
-var maxTotalResolutionXL = 4096*3072; //10000000; //3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number maybe able to be raised.
+var maxTotalResolutionFlux = 3072*2304;  //GGUF Flux models can probably go further, but this is about the limit for GGUF Chroma on a 16GB video card.
+var maxTotalResolutionXL = 4096*3072; //10000000; //3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number may be able to be raised.
 var maxLatentUpscaler = 1728*1152; //1600*1152; //Max resolution in which to do the 2x.  Much larger, and Latent Upscaler will run out of memory.
 var maxNoVaeTiling = 2200000; //5500000;  //max resolution to allow no VAE tiling.  Turn on VAE tiling for larger images, otherwise it loads more slowly.
 //Note that the table entries go in pairs, if not 1:1 square ratio.
@@ -254,6 +256,94 @@ var exactResTable = [
 var scalingIncrease1=1.25; //arbitrary amount to increase scaling, when beyond lookup table
 var scalingIncrease2=1.5; //arbitrary amount to increase scaling, when beyond lookup table
 var contrastAmount=0.8;  //0.8 appears to slightly increase contrast; 0.7 is more neutral
+
+//------------ controlnet model preferences ------------
+//ControlNet model preferences - ordered by preference (first available will be used)
+//These are checked against modelsDB["controlnet"] before use
+var controlnetModelPreferences = {
+  flux_canny: [
+    "flux-canny-controlnet-v3.safetensors",
+    "flux-canny-controlnet.safetensors", //generic placeholder name
+    "TTPLANET_Controlnet_Tile_realistic_v2_fp16",  //tile model can work with lineart as well
+    "FLUX.1-dev-ControlNet-Union-Pro-2.0.safetensors",
+    "FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8.safetensors"
+ ],
+  flux_tile: [
+    "TTPLANET_Controlnet_Tile_realistic_v2_fp16",
+    "flux-tile-controlnet.safetensors"  //generic placeholder name
+  ],
+  xl_canny: [
+    "diffusers_xl_canny_full",
+    "controlnet-union-sdxl-1.0l_promax.safetensors",
+    "controlnet-union-promax-sdxl-1.0.safetensors",
+    "controlnet-union-sdxl-promax-1.0.safetensors",
+    "controlnet-union-sdxl-1.0.safetensors",
+    "TTPLANET_Controlnet_Tile_realistic_v2_fp16",
+    "controlnet_xl_canny.safetensors" //generic placeholder name
+  ],
+  xl_tile: [
+    "TTPLANET_Controlnet_Tile_realistic_v2_fp16",
+    "controlnet_xl_tile.safetensors" //generic placeholder name
+  ],
+  sd15_canny: [
+    "control_v11p_sd15_canny"
+  ],
+  sd15_tile: [
+    "control_v11f1e_sd15_tile"
+  ]
+};
+
+//Helper function to find the first available controlnet model from preference list
+//Returns the first model that exists in modelsDB, or the first in the list if modelsDB doesn't exist
+function findAvailableControlnetModel(preferenceKey) {
+  var preferences = controlnetModelPreferences[preferenceKey];
+  if (!preferences || preferences.length === 0) {
+    return null;
+  }
+  
+  // If modelsDB doesn't exist, fall back to first preference
+  if (!modelsDB || !modelsDB["controlnet"]) {
+    return preferences[0];
+  }
+  
+  var controlnetModels = modelsDB["controlnet"];
+  
+  // Check each preference in order
+  for (var i = 0; i < preferences.length; i++) {
+    var modelName = preferences[i];
+    
+    // Check for exact match first (model name as key)
+    if (controlnetModels[modelName]) {
+      return modelName;
+    }
+    
+    // Check for partial match - if any key contains the model name or vice versa
+    // This handles cases where model names might be paths or have different formats
+    for (var key in controlnetModels) {
+      if (controlnetModels.hasOwnProperty(key)) {
+        // Extract just the filename from the key (in case it's a path)
+        var keyBasename = key.split('/').pop().split('\\').pop();
+        var modelBasename = modelName.split('/').pop().split('\\').pop();
+        
+        // Check exact match on basename
+        if (keyBasename === modelBasename) {
+          return key;
+        }
+        
+        // Check if basenames contain each other (case-insensitive)
+        if (keyBasename.toLowerCase().includes(modelBasename.toLowerCase()) ||
+            modelBasename.toLowerCase().includes(keyBasename.toLowerCase())) {
+          return key;
+        }
+      }
+    }
+  }
+  
+  // If no match found, fall back to first preference
+  return preferences[0];
+}
+//------------------------------------------------
+
 
 function maxRatio(maxRes, height, width) {
   return Math.sqrt(maxRes/(height*width));
@@ -680,10 +770,16 @@ function onScaleUpMAXClick(origRequest, image) {
   var isFlux = isModelFlux(desiredModel) || origRequest.guidance_scale==1;  //Flux can handle fewer steps
 
   var maxRes=maxTotalResolution;
-  if (isModelXl(desiredModel)) {
+  if (isFlux) {
+    maxRes=maxTotalResolutionFlux;
+  }
+  else if (isModelXl(desiredModel)) {
     maxRes=maxTotalResolutionXL;
     isXl=true;
   }
+
+  
+
   //image.naturalWidth & Height don't exist when called from "split click".  The *2 only makes sense when doing the split.
   const imageWidth = image.naturalWidth==0?origRequest.width:image.naturalWidth;
   const imageHeight = image.naturalHeight==0?origRequest.height:image.naturalHeight;
@@ -726,8 +822,7 @@ function onScaleUpMAXClick(origRequest, image) {
     delete newTaskRequest.reqBody.control_image;
   }
   //If using controlnet --SDXL now supported
-  if (scaleUpControlNet /* && !isXl*/)
-    {
+  if (scaleUpControlNet /* && !isXl*/)  {
     delete newTaskRequest.reqBody.control_filter_to_apply;
     //to avoid "halo" artifacts, need to soften the image before passing to control image.
   
@@ -746,41 +841,53 @@ function onScaleUpMAXClick(origRequest, image) {
       0, 0, image.naturalWidth, image.naturalHeight, //source 
       0, 0, canvasSoft.width, canvasSoft.height //destination
     );
-  //      sharpen(ctx2, canvasSoft.width, canvasSoft.height, .8, true);
-  //  document.querySelector('body').appendChild(canvasSoft);   //Testing -- let's see what we have
-      var img2 =  ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
-      ctx2.putImageData(img2, 0, 0);
-      var newImage2 = new Image;
-      newImage2.src = canvasSoft.toDataURL('image/png');
-      newTaskRequest.reqBody.control_image = newImage2.src;
+    //      sharpen(ctx2, canvasSoft.width, canvasSoft.height, .8, true);
+    //  document.querySelector('body').appendChild(canvasSoft);   //Testing -- let's see what we have
+    var img2 =  ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
+    ctx2.putImageData(img2, 0, 0);
+    var newImage2 = new Image;
+    newImage2.src = canvasSoft.toDataURL('image/png');
+    newTaskRequest.reqBody.control_image = newImage2.src;
     //TODO: Only for SDXL, search for an appropriate model
     //let xlCnModel = "diffusers_xl_canny_full"; //default -- canny doesn't work that well
     // if (isXl)  {
         // if (inCnList("TTPLANET_Controlnet_Tile_realistic_v2_fp16")); 
         //document.getElementById('controlnet_model-model-list').getElementsByTagName("li"); -- can cycle through to find available models
     // }
-    if(ScaleUpSettings.animeControlnet) {
-      newTaskRequest.reqBody.control_filter_to_apply= 'lineart_anime'; //works better than the canny filter
-      newTaskRequest.reqBody.use_controlnet_model = isFlux?"flux-canny-controlnet-v3.safetensors":(isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny");
+    var controlnetType = ScaleUpSettings.controlnetType || "tile";
+    
+    if (controlnetType === "lineart_anime" || controlnetType === "lineart_realistic") {
+      // if reusing controlnet, and they've already been using lineart, keep existing model.
+      let reuseControlNet = ScaleUpSettings.reuseControlnet && newTaskRequest.reqBody.use_controlnet_model == null && newTaskRequest.reqBody.control_filter_to_apply.includes('lineart');
+      newTaskRequest.reqBody.control_filter_to_apply = controlnetType;
+      if (!reuseControlNet) {
+        if (isFlux) {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("flux_canny");
+        } else if (isXl) {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("xl_canny");
+        } else {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_canny");
+        }
+      }
     }
-    else {
+    else { // controlnetType === "tile"
+      //Tile controlnet doesn't use a filter
       //if (isFlux) {
       //  newTaskRequest.reqBody.control_filter_to_apply= 'canny'; //canny works better than lineart_anime for realistic.  Tile controlnet not yet available.
       //  newTaskRequest.reqBody.use_controlnet_model = "flux-canny-controlnet-v3.safetensors";
       //}
       //else {
       //Flux works fine with SDXL controlnet tile method (but not with XL canny)
-        newTaskRequest.reqBody.use_controlnet_model = (isXl || isFlux)? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
-      //}
+      if (isXl || isFlux) {
+        newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel((isFlux) ? "flux_tile" : "xl_tile");
+      } else {
+        newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_tile");
       }
-      newTaskRequest.reqBody.control_alpha = 0.3;
-      newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : (isXl? 0.45:0.5)) - (isFlux? reduceFluxPromptStrength:0));
+      //}
     }
-
-
-
-
-
+    newTaskRequest.reqBody.control_alpha = 0.3;
+    newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : (isXl? 0.45:0.5)) - (isFlux? reduceFluxPromptStrength:0));
+  }
 
 
   newTaskRequest.seed = newTaskRequest.reqBody.seed
@@ -911,7 +1018,10 @@ function onScaleUpMAXClick(origRequest, image) {
 function scaleUpMaxScalingRatio(origRequest, image) {
   var scaleUpMaxRatio;
   var maxRes=maxTotalResolution;
-  if (isModelXl(desiredModelName(origRequest))) { //$("#editor-settings #stable_diffusion_model").val())) {  //origRequest.use_stable_diffusion_model
+  if (isModelFlux(desiredModelName(origRequest))) { 
+    maxRes=maxTotalResolutionFlux;
+  }
+  else if (isModelXl(desiredModelName(origRequest))) { //$("#editor-settings #stable_diffusion_model").val())) {  //origRequest.use_stable_diffusion_model
     maxRes=maxTotalResolutionXL;
   }
 
@@ -1111,13 +1221,30 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
         // if (inCnList("TTPLANET_Controlnet_Tile_realistic_v2_fp16")); 
         //document.getElementById('controlnet_model-model-list').getElementsByTagName("li"); -- can cycle through to find available models
     // }
-    if(ScaleUpSettings.animeControlnet) {
-      newTaskRequest.reqBody.control_filter_to_apply= 'lineart_anime'; //works better than the canny filter
-      newTaskRequest.reqBody.use_controlnet_model = isFlux?"flux-canny-controlnet-v3.safetensors":(isXl? "diffusers_xl_canny_full":"control_v11p_sd15_canny");
+    var controlnetType = ScaleUpSettings.controlnetType || "tile";
+    
+    if (controlnetType === "lineart_anime" || controlnetType === "lineart_realistic") {
+      // if reusing controlnet, and they've already been using lineart, keep existing model.
+      let reuseControlNet = ScaleUpSettings.reuseControlnet && newTaskRequest.reqBody.use_controlnet_model == null && newTaskRequest.reqBody.control_filter_to_apply.includes('lineart');
+      newTaskRequest.reqBody.control_filter_to_apply = controlnetType;
+      if (!reuseControlNet) {
+        if (isFlux) {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("flux_canny");
+        } else if (isXl) {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("xl_canny");
+        } else {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_canny");
+        }
+      }
     }
-    else {
+    else { // controlnetType === "tile"
+      //Tile controlnet doesn't use a filter
       //Flux can also use SDXL Tile.
-      newTaskRequest.reqBody.use_controlnet_model = (isXl || isFlux)? "TTPLANET_Controlnet_Tile_realistic_v2_fp16":"control_v11f1e_sd15_tile";
+      if (isXl || isFlux) {
+        newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel((isFlux) ? "flux_tile" : "xl_tile");
+      } else {
+        newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_tile");
+      }
     }
     newTaskRequest.reqBody.control_alpha = 0.3;
     newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : ((isXl || isFlux)? 0.45:0.5)) - (isFlux?reduceFluxPromptStrength:0));
@@ -1756,10 +1883,13 @@ function findSplitImages(image, filter) {
           </div>
           <label for="scaleup_reuse_controlnet">Reuse controlnet <small>(if existing and if not using ScaleUp's controlnet)</small></label>
           </li>
-          <li class="pl-5"><div class="input-toggle">
-          <input id="scaleup_animeControlnet" name="scaleup_animeControlnet" type="checkbox" value="`+ScaleUpSettings.animeControlnet+`"  onchange="setScaleUpSettings()"> <label for="scaleup_animeControlnet"></label>
-          </div>
-          <label for="scaleup_animeControlnet">Use Canny/lineart for controlnet, not Tile<small> (better for Anime)</small></label>
+          <li class="pl-5">
+          <label for="scaleup_controlnet_type">ControlNet Type:</label>
+          <select id="scaleup_controlnet_type" name="scaleup_controlnet_type" onchange="setScaleUpSettings()">
+            <option value="tile"`+((ScaleUpSettings.controlnetType || "tile") === "tile" ? " selected" : "")+`>Tile</option>
+            <option value="lineart_realistic"`+((ScaleUpSettings.controlnetType || "tile") === "lineart_realistic" ? " selected" : "")+`>Lineart (Realistic)</option>
+            <option value="lineart_anime"`+((ScaleUpSettings.controlnetType || "tile") === "lineart_anime" ? " selected" : "")+`>Lineart (Anime)</option>
+          </select>
           </li>
           <li class="pl-5"><div class="input-toggle">
           <input id="scaleup_use_input_steps" name="scaleup_use_input_steps" type="checkbox" value="`+ScaleUpSettings.useInputSteps+`" onchange="setScaleUpSettings()"> <label for="scaleup_use_input_steps">
@@ -1794,7 +1924,7 @@ function setScaleUpSettings() {
   ScaleUpSettings.useMaxSplitSize = scaleup_split_size.checked;
   ScaleUpSettings.resizeImage = scaleup_resize_sharpen.checked;
   ScaleUpSettings.reuseControlnet = scaleup_reuse_controlnet.checked;
-  ScaleUpSettings.animeControlnet = scaleup_animeControlnet.checked;
+  ScaleUpSettings.controlnetType = scaleup_controlnet_type.value;
   ScaleUpSettings.useInputSteps = scaleup_use_input_steps.checked;
 
   localStorage.setItem('ScaleUp_Plugin_Settings', JSON.stringify(ScaleUpSettings));  //Store settings
@@ -1814,7 +1944,7 @@ function scaleUpResetSettings(reset) {
     ScaleUpSettings.useMaxSplitSize = true;
     ScaleUpSettings.resizeImage = true;
     ScaleUpSettings.reuseControlnet = true;
-    ScaleUpSettings.animeControlnet = false;
+    ScaleUpSettings.controlnetType = "tile";
     ScaleUpSettings.useInputSteps = false;
 
     //useControlNet = false;
@@ -1826,9 +1956,24 @@ function scaleUpResetSettings(reset) {
     ScaleUpSettings.useMaxSplitSize =settings.useMaxSplitSize ?? true;
     ScaleUpSettings.resizeImage =settings.resizeImage ?? true;
     ScaleUpSettings.reuseControlnet =settings.reuseControlnet ?? false;
-    ScaleUpSettings.animeControlnet =settings.animeControlnet ?? false;
+    
+    // Migrate from old animeControlnet setting to new controlnetType
+    if (settings.controlnetType !== undefined) {
+      ScaleUpSettings.controlnetType = settings.controlnetType ?? "tile";
+    } else if (settings.animeControlnet !== undefined) {
+      // Migration: old checkbox -> new dropdown
+      ScaleUpSettings.controlnetType = settings.animeControlnet ? "lineart_anime" : "tile";
+
+      // Remove old animeControlnet setting if it exists (cleanup after migration)
+      delete settings.animeControlnet;
+    } else {
+      ScaleUpSettings.controlnetType = "tile";
+    }
+    
     ScaleUpSettings.useInputSteps =settings.useInputSteps ?? false;
     }
+  
+
   localStorage.setItem('ScaleUp_Plugin_Settings', JSON.stringify(ScaleUpSettings));  //Store settings
 
   //set the input fields
@@ -1838,7 +1983,7 @@ function scaleUpResetSettings(reset) {
   scaleup_split_size.checked = ScaleUpSettings.useMaxSplitSize;
   scaleup_resize_sharpen.checked = ScaleUpSettings.resizeImage;
   scaleup_reuse_controlnet.checked = ScaleUpSettings.reuseControlnet;
-  scaleup_animeControlnet.checked = ScaleUpSettings.animeControlnet;
+  scaleup_controlnet_type.value = ScaleUpSettings.controlnetType || "tile";
   scaleup_use_input_steps.checked = ScaleUpSettings.useInputSteps;
 }
 
