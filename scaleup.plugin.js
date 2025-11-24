@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.14.0, last updated: 11/22/2025
+ * v.2.14.1, last updated: 11/24/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -856,11 +856,13 @@ function onScaleUpMAXClick(origRequest, image) {
     // }
     var controlnetType = ScaleUpSettings.controlnetType || "tile";
     
-    if (controlnetType === "lineart_anime" || controlnetType === "lineart_realistic") {
-      // if reusing controlnet, and they've already been using lineart, keep existing model.
-      let reuseControlNet = ScaleUpSettings.reuseControlnet && newTaskRequest.reqBody.use_controlnet_model == null && newTaskRequest.reqBody.control_filter_to_apply.includes('lineart');
-      newTaskRequest.reqBody.control_filter_to_apply = controlnetType;
-      if (!reuseControlNet) {
+    let reuseControlNet = ScaleUpSettings.reuseControlnet && newTaskRequest.reqBody.use_controlnet_model != null; /* check if model is null or undefined */
+    //Ideally, would like to only accept certain controlnet selections as valid.  However, control_filter_to_apply is reset above.  Rearrange code if desired.
+    // if reusing controlnet, and they've already been using lineart, keep existing model.
+    //  && (newTaskRequest.reqBody.control_filter_to_apply?.includes('lineart') || newTaskRequest.reqBody.control_filter_to_apply?.includes('canny') || ...'tile'?    
+    if (!reuseControlNet) {
+      if (controlnetType === "lineart_anime" || controlnetType === "lineart_realistic") {
+        newTaskRequest.reqBody.control_filter_to_apply = controlnetType;
         if (isFlux) {
           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("flux_canny");
         } else if (isXl) {
@@ -869,21 +871,15 @@ function onScaleUpMAXClick(origRequest, image) {
           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_canny");
         }
       }
-    }
-    else { // controlnetType === "tile"
-      //Tile controlnet doesn't use a filter
-      //if (isFlux) {
-      //  newTaskRequest.reqBody.control_filter_to_apply= 'canny'; //canny works better than lineart_anime for realistic.  Tile controlnet not yet available.
-      //  newTaskRequest.reqBody.use_controlnet_model = "flux-canny-controlnet-v3.safetensors";
-      //}
-      //else {
-      //Flux works fine with SDXL controlnet tile method (but not with XL canny)
-      if (isXl || isFlux) {
-        newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel((isFlux) ? "flux_tile" : "xl_tile");
-      } else {
-        newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_tile");
+      else { // controlnetType === "tile"
+        //Tile controlnet doesn't use a filter
+        //Flux can also use SDXL Tile.
+        if (isXl || isFlux) {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel((isFlux) ? "flux_tile" : "xl_tile");
+        } else {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_tile");
+        }
       }
-      //}
     }
     newTaskRequest.reqBody.control_alpha = 0.3;
     newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : (isXl? 0.45:0.5)) - (isFlux? reduceFluxPromptStrength:0));
@@ -1222,12 +1218,14 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
         //document.getElementById('controlnet_model-model-list').getElementsByTagName("li"); -- can cycle through to find available models
     // }
     var controlnetType = ScaleUpSettings.controlnetType || "tile";
-    
-    if (controlnetType === "lineart_anime" || controlnetType === "lineart_realistic") {
-      // if reusing controlnet, and they've already been using lineart, keep existing model.
-      let reuseControlNet = ScaleUpSettings.reuseControlnet && newTaskRequest.reqBody.use_controlnet_model == null && newTaskRequest.reqBody.control_filter_to_apply.includes('lineart');
-      newTaskRequest.reqBody.control_filter_to_apply = controlnetType;
-      if (!reuseControlNet) {
+      
+    let reuseControlNet = ScaleUpSettings.reuseControlnet && newTaskRequest.reqBody.use_controlnet_model != null; /* check if model is null or undefined */
+    //Ideally, would like to only accept certain controlnet selections as valid.  However, control_filter_to_apply is reset above.  Rearrange code if desired.
+    // if reusing controlnet, and they've already been using lineart, keep existing model.
+    //  && (newTaskRequest.reqBody.control_filter_to_apply?.includes('lineart') || newTaskRequest.reqBody.control_filter_to_apply?.includes('canny') || ...'tile'?    
+    if (!reuseControlNet) {
+      if (controlnetType === "lineart_anime" || controlnetType === "lineart_realistic") {
+        newTaskRequest.reqBody.control_filter_to_apply = controlnetType;
         if (isFlux) {
           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("flux_canny");
         } else if (isXl) {
@@ -1236,14 +1234,14 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_canny");
         }
       }
-    }
-    else { // controlnetType === "tile"
-      //Tile controlnet doesn't use a filter
-      //Flux can also use SDXL Tile.
-      if (isXl || isFlux) {
-        newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel((isFlux) ? "flux_tile" : "xl_tile");
-      } else {
-        newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_tile");
+      else { // controlnetType === "tile"
+        //Tile controlnet doesn't use a filter
+        //Flux can also use SDXL Tile.
+        if (isXl || isFlux) {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel((isFlux) ? "flux_tile" : "xl_tile");
+        } else {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_tile");
+        }
       }
     }
     newTaskRequest.reqBody.control_alpha = 0.3;
