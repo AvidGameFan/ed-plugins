@@ -32,6 +32,15 @@ Also supports a pen/stylus.
 
 */
 
+/*
+	Dev notes:
+	
+	Now, Easy Diffusion uses a scaling factor in the drawing editors (mainly for larger images).  At any time, pixels can either be in terms of the underlying canvas, or the (smaller) screen size.
+
+	Canvas coordinates: Used for all calculations and stored in cloneSourcePoint and _cloneOffset
+	Screen coordinates: Only used for CSS positioning of the visual cursor
+*/
+
 
 	// --- Tool implementation helpers ---
 	function ensureOffscreen(editor, size) {
@@ -68,6 +77,12 @@ Also supports a pen/stylus.
 		return cursor
 	}
 
+	/*
+	Accepts screen coordinates (from mouse events)
+	Converts to canvas coordinates for calculations
+	Converts back to screen coordinates for CSS positioning
+	Ensures the cursor appears at the correct screen position
+	*/
 	function updateCloneSourceCursor(editor, currentX, currentY) {
 		if (!editor.cloneSourcePoint || !editor._cloneOffset) return
 		
@@ -298,6 +313,11 @@ function attachRightClickSourceSetter(editor) {
 	if (editor._cloneRightClickBound) return
 	editor._cloneRightClickBound = true;
 
+	/*
+	Converts screen coordinates to canvas coordinates by dividing by editor.containerScale
+	Stores cloneSourcePoint in canvas coordinates (matching what tool.begin receives)
+	Uses screen coordinates for initial cursor positioning
+	*/
 	// Helper function to set clone source point
 	function setCloneSourcePoint(e) {
 		if (editor.tool && editor.tool.id === 'clone') {
