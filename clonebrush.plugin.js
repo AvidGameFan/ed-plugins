@@ -1,6 +1,6 @@
 /* Clone Brush Plugin
 
- v. 1.1.2, last updated: 9/11/2025
+ v. 1.2.0, last updated: 11/24/2025
  By Gary W.
 
  Inital version created with the help of Cursor/Claude AI.
@@ -74,16 +74,21 @@ Also supports a pen/stylus.
 		const cursor = createCloneSourceCursor(editor)
 		const radius = Math.max(1, Math.round(editor.options.brush_size / 2))
 		
-		// Calculate source position
-		const sourceX = currentX + editor._cloneOffset.dx
-		const sourceY = currentY + editor._cloneOffset.dy
+		// currentX, currentY are in screen coordinates, convert to canvas coordinates for calculations
+		const canvasX = currentX / editor.containerScale
+		const canvasY = currentY / editor.containerScale
 		
-		// Get canvas position relative to viewport
-		//const canvasRect = editor.layers.overlay.canvas.getBoundingClientRect()
+		// Calculate source position in canvas coordinates
+		const sourceCanvasX = canvasX + editor._cloneOffset.dx
+		const sourceCanvasY = canvasY + editor._cloneOffset.dy
 		
-		// Position cursor at source location
-		cursor.style.left = (/*canvasRect.left +*/ sourceX - radius) + 'px'
-		cursor.style.top = (/*canvasRect.top + */ sourceY - radius) + 'px'
+		// Convert back to screen coordinates for cursor positioning
+		const sourceScreenX = sourceCanvasX * editor.containerScale
+		const sourceScreenY = sourceCanvasY * editor.containerScale
+		
+		// Position cursor at source location (in screen coordinates)
+		cursor.style.left = (sourceScreenX - radius) + 'px'
+		cursor.style.top = (sourceScreenY - radius) + 'px'
 		cursor.style.width = (radius * 2) + 'px'
 		cursor.style.height = (radius * 2) + 'px'
 		cursor.style.opacity = '1'
@@ -96,11 +101,9 @@ Also supports a pen/stylus.
 	}
 
 	function showCloneSourceCursor(editor) {
-		if (editor.cloneSourcePoint && editor._cloneOffset && editor.tool && editor.tool.id === 'clone') {
-			// Show cursor at current mouse position or last known position
-			const lastPoint = editor._clonePrevPoint || { x: editor.width / 2, y: editor.height / 2 }
-			updateCloneSourceCursor(editor, lastPoint.x, lastPoint.y)
-		}
+		// Cursor will be shown when mouse moves - we don't have screen coordinates here
+		// since _clonePrevPoint is in canvas coordinates and we need screen coordinates
+		// The mousemove handler will call updateCloneSourceCursor with proper screen coordinates
 	}
 
 function stampClone(editor, ctx, x, y) {
@@ -110,7 +113,7 @@ function stampClone(editor, ctx, x, y) {
 	}
 	
 	// Update source cursor position
-	updateCloneSourceCursor(editor, x, y)
+	////??updateCloneSourceCursor(editor, x, y)
 	// Select source canvas:
 	// - draw editor: snapshot of (background + drawing) captured at stroke begin
 	// - inpainter: background image only (clone shape becomes white for mask)
@@ -126,14 +129,14 @@ function stampClone(editor, ctx, x, y) {
 	offCtx.clearRect(0, 0, size, size)
 
 	// Where to sample from
-	var sx_center = Math.round(x + editor._cloneOffset.dx)
-	var sy_center = Math.round(y + editor._cloneOffset.dy)
+	var sx_center = x + editor._cloneOffset.dx //Math.round(x + editor._cloneOffset.dx) -- no need for rounding, we need the precision
+	var sy_center = y + editor._cloneOffset.dy //Math.round(y + editor._cloneOffset.dy)
 	var sx = sx_center - radius
 	var sy = sy_center - radius
 	var sw = size
 	var sh = size
-	var dx = Math.round(x - radius)
-	var dy = Math.round(y - radius)
+	var dx = x - radius //Math.round(x - radius)
+	var dy = y - radius //Math.round(y - radius)
 
 	// Clamp source rectangle within canvas bounds and map into offscreen position
 	var px = 0
@@ -166,6 +169,7 @@ function stampClone(editor, ctx, x, y) {
 
 	// Draw the offscreen patch onto destination; respect existing ctx alpha/filter
 	ctx.save()
+	ctx.imageSmoothingQuality = "high"; //smoothing is enabled by default, but this ensures it maintains higher quality
 	// ctx.globalAlpha already set by setBrush -> respect editor.options.opacity
 	ctx.drawImage(off, dx, dy)
 	ctx.restore()
@@ -173,7 +177,7 @@ function stampClone(editor, ctx, x, y) {
 
 function stampAlongLine(editor, ctx, from, to) {
 	var radius = Math.max(1, Math.round(editor.options.brush_size / 2))
-	var spacing = Math.max(1, Math.round(radius * 0.6))
+	var spacing = Math.max(1, Math.round(radius * 0.6 /* / editor.containerScale )*/ ))
 	var dx = to.x - from.x
 	var dy = to.y - from.y
 	var dist = Math.sqrt(dx * dx + dy * dy)
@@ -184,8 +188,8 @@ function stampAlongLine(editor, ctx, from, to) {
 	var steps = Math.floor(dist / spacing)
 	for (var i = 1; i <= steps; i++) {
 		var t = i / steps
-		var px = from.x + dx * t
-		var py = from.y + dy * t
+		var px =  from.x + dx * t
+		var py =  from.y + dy * t
 		stampClone(editor, ctx, px, py)
 	}
 	// Always stamp at the final point to ensure complete coverage
@@ -298,17 +302,23 @@ function attachRightClickSourceSetter(editor) {
 	function setCloneSourcePoint(e) {
 		if (editor.tool && editor.tool.id === 'clone') {
 			var bbox = editor.layers.overlay.canvas.getBoundingClientRect()
-			editor.cloneSourcePoint = { x: (e.clientX || 0) - bbox.left, y: (e.clientY || 0) - bbox.top }
+			// Convert screen coordinates to canvas coordinates (matching image-editor.js mouseHandler)
+			var screenX = (e.clientX || 0) - bbox.left
+			var screenY = (e.clientY || 0) - bbox.top
+			editor.cloneSourcePoint = { 
+				x: screenX / editor.containerScale, 
+				y: screenY / editor.containerScale 
+			}
 			
 			// Clear any existing offset to ensure fresh start
 			editor._cloneOffset = null
 			editor._clonePrevPoint = null
 			
-			// Show source cursor at the selected point
+			// Show source cursor at the selected point (use screen coordinates for positioning)
 			const radius = Math.max(1, Math.round(editor.options.brush_size / 2))
 			const cursor = createCloneSourceCursor(editor)
-			cursor.style.left = (/*bbox.left +*/ editor.cloneSourcePoint.x - radius) + 'px'
-			cursor.style.top = (/*bbox.top +*/ editor.cloneSourcePoint.y - radius) + 'px'
+			cursor.style.left = (screenX - radius) + 'px'
+			cursor.style.top = (screenY - radius) + 'px'
 			cursor.style.width = (radius * 2) + 'px'
 			cursor.style.height = (radius * 2) + 'px'
 			cursor.style.opacity = '1'
@@ -386,6 +396,11 @@ function waitForEditorsAndWire() {
 			// Patch the selectOption method to handle clone tool cursor
 			patchSelectOptionForCloneCursor(imageEditor)
 			//patchSelectOptionForCloneCursor(imageInpainter)
+
+			//For backwards compatibility (with old ED), ensure editor.containerScale is set.
+			if (editor.containerScale==undefined) {
+				editor.containerScale = 1.0;
+			}
 		}
 		// Give up after some time
 		if (tries > 200) {
