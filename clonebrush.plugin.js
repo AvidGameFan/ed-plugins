@@ -386,6 +386,11 @@ function waitForEditorsAndWire() {
 			IMAGE_EDITOR_TOOLS.push(cloneTool)
 		}
 		if (imageEditor && imageInpainter && IMAGE_EDITOR_SECTIONS) {
+			// For backwards compatibility (with old ED), ensure editor.containerScale is set.
+			if (imageEditor.containerScale === undefined) {
+				imageEditor.containerScale = 1.0
+			}
+
 			clearInterval(interval)
 			// Add button and listeners to both editors
 			addCloneButtonToEditor(imageEditor)
@@ -396,11 +401,6 @@ function waitForEditorsAndWire() {
 			// Patch the selectOption method to handle clone tool cursor
 			patchSelectOptionForCloneCursor(imageEditor)
 			//patchSelectOptionForCloneCursor(imageInpainter)
-
-			//For backwards compatibility (with old ED), ensure editor.containerScale is set.
-			if (editor.containerScale==undefined) {
-				editor.containerScale = 1.0;
-			}
 		}
 		// Give up after some time
 		if (tries > 200) {
