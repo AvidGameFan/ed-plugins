@@ -1,6 +1,6 @@
 /* Clone Brush Plugin
 
- v. 1.2.0, last updated: 11/24/2025
+ v. 1.2.1, last updated: 11/25/2025
  By Gary W.
 
  Inital version created with the help of Cursor/Claude AI.
@@ -136,7 +136,7 @@ function stampClone(editor, ctx, x, y) {
 	var width = editor.width
 	var height = editor.height
 
-	var radius = Math.max(1, Math.round(editor.options.brush_size / 2))
+	var radius = Math.max(1, Math.round(editor.options.brush_size / 2)) / editor.containerScale
 	var size = radius * 2
 	ensureOffscreen(editor, size)
 	var off = editor._cloneOffscreen
@@ -166,11 +166,13 @@ function stampClone(editor, ctx, x, y) {
 	offCtx.globalCompositeOperation = 'source-over'
 	offCtx.drawImage(sourceCanvas, sx, sy, sw, sh, px, py, sw, sh)
 
-	// Feather edges using a radial alpha mask
+	// Feather edges using a radial alpha mask with smooth gradient fade
 	var g = offCtx.createRadialGradient(radius, radius, 0, radius, radius, radius)
-	g.addColorStop(0, 'rgba(255,255,255,1)')
-	g.addColorStop(0.7, 'rgba(255,255,255,1)')
-	g.addColorStop(1, 'rgba(255,255,255,0)')
+	g.addColorStop(0, 'rgba(255,255,255,1)')     // fully opaque at center
+	g.addColorStop(0.70, 'rgba(255,255,255,1)')  // stay opaque in inner region
+	g.addColorStop(0.80, 'rgba(255,255,255,0.7)')  // start fading
+	g.addColorStop(0.90, 'rgba(255,255,255,0.3)')  // continue fading
+	g.addColorStop(1, 'rgba(255,255,255,0)')     // fully transparent at edge
 	offCtx.globalCompositeOperation = 'destination-in'
 	offCtx.fillStyle = g
 	offCtx.fillRect(0, 0, size, size)
