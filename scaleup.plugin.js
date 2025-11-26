@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.0.0, last updated: 11/25/2025
+ * v.3.1.0, last updated: 11/26/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -813,199 +813,201 @@ function onScaleUpMAXClick(origRequest, image) {
   //For the split, we need to know the ratio for stitching.
   newTaskRequest.reqBody.ScaleUpSplitRatio = ratio;
 
-  //May want to delete the original controlnet, as it's normally not neccessary once scaling-up,
-  //but it can be useful to carry-forward while scaling-up (such as to preserve fingers), so it's left as a user option.
-  if (!ScaleUpSettings.reuseControlnet)
-  {
-    delete newTaskRequest.reqBody.use_controlnet_model;
-    delete newTaskRequest.reqBody.control_filter_to_apply;
-    delete newTaskRequest.reqBody.control_image;
-  }
-  //If using controlnet --SDXL now supported
-  if (scaleUpControlNet /* && !isXl*/)  {
-    delete newTaskRequest.reqBody.control_filter_to_apply;
-    //to avoid "halo" artifacts, need to soften the image before passing to control image.
+  processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, origRequest);
+
+//   //May want to delete the original controlnet, as it's normally not neccessary once scaling-up,
+//   //but it can be useful to carry-forward while scaling-up (such as to preserve fingers), so it's left as a user option.
+//   if (!ScaleUpSettings.reuseControlnet)
+//   {
+//     delete newTaskRequest.reqBody.use_controlnet_model;
+//     delete newTaskRequest.reqBody.control_filter_to_apply;
+//     delete newTaskRequest.reqBody.control_image;
+//   }
+//   //If using controlnet --SDXL now supported
+//   if (scaleUpControlNet /* && !isXl*/)  {
+//     delete newTaskRequest.reqBody.control_filter_to_apply;
+//     //to avoid "halo" artifacts, need to soften the image before passing to control image.
   
-    //create working canvas
-    let canvasSoft = document.createElement("canvas");
-    canvasSoft.width = image.naturalWidth; //*1.75;
-    canvasSoft.height = image.naturalHeight; //*1.75;
-    let ctx2 = canvasSoft.getContext("2d", {
-      willReadFrequently: true,
-      alpha: false  // Firefox optimization
-    });
-    ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
-    // get the image data of the canvasSoft  -- we only need the part we're going to resize
-    //x,y -- upper-left, width & height
-    ctx2.drawImage( image,
-      0, 0, image.naturalWidth, image.naturalHeight, //source 
-      0, 0, canvasSoft.width, canvasSoft.height //destination
-    );
-    //      sharpen(ctx2, canvasSoft.width, canvasSoft.height, .8, true);
-    //  document.querySelector('body').appendChild(canvasSoft);   //Testing -- let's see what we have
-    var img2 =  ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
-    ctx2.putImageData(img2, 0, 0);
-    var newImage2 = new Image;
-    newImage2.src = canvasSoft.toDataURL('image/png');
-    newTaskRequest.reqBody.control_image = newImage2.src;
-    //TODO: Only for SDXL, search for an appropriate model
-    //let xlCnModel = "diffusers_xl_canny_full"; //default -- canny doesn't work that well
-    // if (isXl)  {
-        // if (inCnList("TTPLANET_Controlnet_Tile_realistic_v2_fp16")); 
-        //document.getElementById('controlnet_model-model-list').getElementsByTagName("li"); -- can cycle through to find available models
-    // }
-    var controlnetType = ScaleUpSettings.controlnetType || "tile";
+//     //create working canvas
+//     let canvasSoft = document.createElement("canvas");
+//     canvasSoft.width = image.naturalWidth; //*1.75;
+//     canvasSoft.height = image.naturalHeight; //*1.75;
+//     let ctx2 = canvasSoft.getContext("2d", {
+//       willReadFrequently: true,
+//       alpha: false  // Firefox optimization
+//     });
+//     ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
+//     // get the image data of the canvasSoft  -- we only need the part we're going to resize
+//     //x,y -- upper-left, width & height
+//     ctx2.drawImage( image,
+//       0, 0, image.naturalWidth, image.naturalHeight, //source 
+//       0, 0, canvasSoft.width, canvasSoft.height //destination
+//     );
+//     //      sharpen(ctx2, canvasSoft.width, canvasSoft.height, .8, true);
+//     //  document.querySelector('body').appendChild(canvasSoft);   //Testing -- let's see what we have
+//     var img2 =  ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
+//     ctx2.putImageData(img2, 0, 0);
+//     var newImage2 = new Image;
+//     newImage2.src = canvasSoft.toDataURL('image/png');
+//     newTaskRequest.reqBody.control_image = newImage2.src;
+//     //TODO: Only for SDXL, search for an appropriate model
+//     //let xlCnModel = "diffusers_xl_canny_full"; //default -- canny doesn't work that well
+//     // if (isXl)  {
+//         // if (inCnList("TTPLANET_Controlnet_Tile_realistic_v2_fp16")); 
+//         //document.getElementById('controlnet_model-model-list').getElementsByTagName("li"); -- can cycle through to find available models
+//     // }
+//     var controlnetType = ScaleUpSettings.controlnetType || "tile";
     
-    let reuseControlNet = ScaleUpSettings.reuseControlnet && newTaskRequest.reqBody.use_controlnet_model != null; /* check if model is null or undefined */
-    //Ideally, would like to only accept certain controlnet selections as valid.  However, control_filter_to_apply is reset above.  Rearrange code if desired.
-    // if reusing controlnet, and they've already been using lineart, keep existing model.
-    //  && (newTaskRequest.reqBody.control_filter_to_apply?.includes('lineart') || newTaskRequest.reqBody.control_filter_to_apply?.includes('canny') || ...'tile'?    
-    if (!reuseControlNet) {
-      if (controlnetType === "lineart_anime" || controlnetType === "lineart_realistic") {
-        newTaskRequest.reqBody.control_filter_to_apply = controlnetType;
-        if (isFlux) {
-          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("flux_canny");
-        } else if (isXl) {
-          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("xl_canny");
-        } else {
-          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_canny");
-        }
-      }
-      else { // controlnetType === "tile"
-        //Tile controlnet doesn't use a filter
-        //Flux can also use SDXL Tile.
-        if (isXl || isFlux) {
-          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel((isFlux) ? "flux_tile" : "xl_tile");
-        } else {
-          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_tile");
-        }
-      }
-    }
-    newTaskRequest.reqBody.control_alpha = 0.3;
-    newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : (isXl? 0.45:0.5)) - (isFlux? reduceFluxPromptStrength:0));
-  }
+//     let reuseControlNet = ScaleUpSettings.reuseControlnet && newTaskRequest.reqBody.use_controlnet_model != null; /* check if model is null or undefined */
+//     //Ideally, would like to only accept certain controlnet selections as valid.  However, control_filter_to_apply is reset above.  Rearrange code if desired.
+//     // if reusing controlnet, and they've already been using lineart, keep existing model.
+//     //  && (newTaskRequest.reqBody.control_filter_to_apply?.includes('lineart') || newTaskRequest.reqBody.control_filter_to_apply?.includes('canny') || ...'tile'?    
+//     if (!reuseControlNet) {
+//       if (controlnetType === "lineart_anime" || controlnetType === "lineart_realistic") {
+//         newTaskRequest.reqBody.control_filter_to_apply = controlnetType;
+//         if (isFlux) {
+//           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("flux_canny");
+//         } else if (isXl) {
+//           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("xl_canny");
+//         } else {
+//           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_canny");
+//         }
+//       }
+//       else { // controlnetType === "tile"
+//         //Tile controlnet doesn't use a filter
+//         //Flux can also use SDXL Tile.
+//         if (isXl || isFlux) {
+//           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel((isFlux) ? "flux_tile" : "xl_tile");
+//         } else {
+//           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_tile");
+//         }
+//       }
+//     }
+//     newTaskRequest.reqBody.control_alpha = 0.3;
+//     newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : (isXl? 0.45:0.5)) - (isFlux? reduceFluxPromptStrength:0));
+//   }
 
 
-  newTaskRequest.seed = newTaskRequest.reqBody.seed
-//  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
-  newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
-  newTaskRequest.numOutputsTotal = 1 // "
-  //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
-  //Each person needs to test with different resolutions to find the limit of their card when using Balanced or modes other than 'low'.
-  if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //put max normal resolution here
-    //newTaskRequest.reqBody.turbo = false;
-    newTaskRequest.reqBody.vram_usage_level = 'low';
-  }
+//   newTaskRequest.seed = newTaskRequest.reqBody.seed
+// //  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
+//   newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
+//   newTaskRequest.numOutputsTotal = 1 // "
+//   //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
+//   //Each person needs to test with different resolutions to find the limit of their card when using Balanced or modes other than 'low'.
+//   if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //put max normal resolution here
+//     //newTaskRequest.reqBody.turbo = false;
+//     newTaskRequest.reqBody.vram_usage_level = 'low';
+//   }
 
-  //Grab the prompt from the user-input area instead of the original image.
-  if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
-    if (ScaleUpSettings.useChangedPrompt ) {
-      newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
-    };
-  }
+//   //Grab the prompt from the user-input area instead of the original image.
+//   if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
+//     if (ScaleUpSettings.useChangedPrompt ) {
+//       newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
+//     };
+//   }
 
-  if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
-    newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
-  }
+//   if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
+//     newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
+//   }
 
-  delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
+//   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
 
-  newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
+//   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
 
-  //special case where you use Flux to do an initial generate, but want to use a smaller model for later generates
-  if (ScaleUpSettings.useChangedModel ) {
+//   //special case where you use Flux to do an initial generate, but want to use a smaller model for later generates
+//   if (ScaleUpSettings.useChangedModel ) {
 
-    //Use the user's new guidance first, but if it doesn't match Flux/SDXL's requirements, then change as needed, below.
-    newTaskRequest.reqBody.guidance_scale=parseFloat(guidanceScaleField.value); 
+//     //Use the user's new guidance first, but if it doesn't match Flux/SDXL's requirements, then change as needed, below.
+//     newTaskRequest.reqBody.guidance_scale=parseFloat(guidanceScaleField.value); 
 
 
-    // //This could use some tweaking.
-    // //If old model (from image) is flux and new desired model is not
-    // if (isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && !isFlux /*calculated with UI prompt*/) {
-    //   let guidance = parseFloat(guidanceScaleField.value); //$("#guidance_scale").val();
-    //   //Change Guidance Scale of new image -- it's assumed that the flux run used <= 1.1
-    //   //  If GuidanceScale in UI is still 1, change it to 6
-    //   if (guidance <= 1.1) {
-    //     newTaskRequest.reqBody.guidance_scale=6;
-    //   }
-    //   else {  //  If GuidanceScale in UI is >1.1, change it to the UI value
-    //     newTaskRequest.reqBody.guidance_scale=guidance;
-    //   }
-    // }
-    // // if switching to flux, force GS to 1
-    // else if (!isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && isFlux /*calculated with UI prompt*/) {
-    //     newTaskRequest.reqBody.guidance_scale=1;
+//     // //This could use some tweaking.
+//     // //If old model (from image) is flux and new desired model is not
+//     // if (isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && !isFlux /*calculated with UI prompt*/) {
+//     //   let guidance = parseFloat(guidanceScaleField.value); //$("#guidance_scale").val();
+//     //   //Change Guidance Scale of new image -- it's assumed that the flux run used <= 1.1
+//     //   //  If GuidanceScale in UI is still 1, change it to 6
+//     //   if (guidance <= 1.1) {
+//     //     newTaskRequest.reqBody.guidance_scale=6;
+//     //   }
+//     //   else {  //  If GuidanceScale in UI is >1.1, change it to the UI value
+//     //     newTaskRequest.reqBody.guidance_scale=guidance;
+//     //   }
+//     // }
+//     // // if switching to flux, force GS to 1
+//     // else if (!isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && isFlux /*calculated with UI prompt*/) {
+//     //     newTaskRequest.reqBody.guidance_scale=1;
         
-    // }
-    //Because flux and SDXL have very different requirements for guidance, set it to the input in case it has changed.
-    newTaskRequest.reqBody.guidance_scale=parseFloat(guidanceScaleField.value); 
+//     // }
+//     //Because flux and SDXL have very different requirements for guidance, set it to the input in case it has changed.
+//     newTaskRequest.reqBody.guidance_scale=parseFloat(guidanceScaleField.value); 
 
-    //Switch the sampler (and scheduler) at the same time, if switching to a new model.  Some Sampler/scheduler combinations don't work with Flux and vice-versa.
-     newTaskRequest.reqBody.sampler_name = $("#sampler_name")[0].value;
-     newTaskRequest.reqBody.scheduler_name = $("#scheduler_name")[0].value;
+//     //Switch the sampler (and scheduler) at the same time, if switching to a new model.  Some Sampler/scheduler combinations don't work with Flux and vice-versa.
+//      newTaskRequest.reqBody.sampler_name = $("#sampler_name")[0].value;
+//      newTaskRequest.reqBody.scheduler_name = $("#scheduler_name")[0].value;
 
-    const loras = JSON.parse($('#lora_model')[0].dataset.path);
-    const selectedLoras = loras.modelNames;
-    const selectedLoraWeights = loras.modelWeights;
+//     const loras = JSON.parse($('#lora_model')[0].dataset.path);
+//     const selectedLoras = loras.modelNames;
+//     const selectedLoraWeights = loras.modelWeights;
 
-    // Update the lora setting in the request
-    if (selectedLoras.length === 1 && selectedLoras[0] != '') {
-      newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
-    } else if (selectedLoras.length > 1) {
-      newTaskRequest.reqBody.use_lora_model = selectedLoras;
-    } else {
-      delete newTaskRequest.reqBody.use_lora_model;
-    }
-    // Update the lora weight setting in the request
-    if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
-      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
-    } else if (selectedLoraWeights.length > 1) {
-      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
-    } else {
-      delete newTaskRequest.reqBody.lora_alpha;
-    }
-  }
+//     // Update the lora setting in the request
+//     if (selectedLoras.length === 1 && selectedLoras[0] != '') {
+//       newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
+//     } else if (selectedLoras.length > 1) {
+//       newTaskRequest.reqBody.use_lora_model = selectedLoras;
+//     } else {
+//       delete newTaskRequest.reqBody.use_lora_model;
+//     }
+//     // Update the lora weight setting in the request
+//     if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
+//       newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
+//     } else if (selectedLoraWeights.length > 1) {
+//       newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
+//     } else {
+//       delete newTaskRequest.reqBody.lora_alpha;
+//     }
+//   }
 
-  //Beta makes stronger changes, so reduce the prompt_strength to compensate
-  if ( newTaskRequest.reqBody.scheduler_name == 'beta') {
-    newTaskRequest.reqBody.prompt_strength = scaleupRound(newTaskRequest.reqBody.prompt_strength - .04);
-  }
+//   //Beta makes stronger changes, so reduce the prompt_strength to compensate
+//   if ( newTaskRequest.reqBody.scheduler_name == 'beta') {
+//     newTaskRequest.reqBody.prompt_strength = scaleupRound(newTaskRequest.reqBody.prompt_strength - .04);
+//   }
 
-  delete newTaskRequest.reqBody.mask
+//   delete newTaskRequest.reqBody.mask
 
-  //resize the image before scaling back up, to maximize detail
-  if(ScaleUpSettings.resizeImage) {
-    //create working canvas
-    let canvas = document.createElement("canvas");
-    canvas.width = Math.round(imageWidth*1.25);
-    canvas.height = Math.round(imageHeight*1.25);
+//   //resize the image before scaling back up, to maximize detail
+//   if(ScaleUpSettings.resizeImage) {
+//     //create working canvas
+//     let canvas = document.createElement("canvas");
+//     canvas.width = Math.round(imageWidth*1.25);
+//     canvas.height = Math.round(imageHeight*1.25);
 
-    let ctx = canvas.getContext("2d", {
-      alpha: false  // Firefox optimization
-    });
+//     let ctx = canvas.getContext("2d", {
+//       alpha: false  // Firefox optimization
+//     });
 
-    // get the image data of the canvas  -- we only need the part we're going to resize
-    //x,y -- upper-left, width & height
-    ctx.drawImage( image,
-      0, 0, imageWidth, imageHeight, //source 
-      0, 0, canvas.width, canvas.height //destination
-    );
+//     // get the image data of the canvas  -- we only need the part we're going to resize
+//     //x,y -- upper-left, width & height
+//     ctx.drawImage( image,
+//       0, 0, imageWidth, imageHeight, //source 
+//       0, 0, canvas.width, canvas.height //destination
+//     );
 
-    //extra sharpening doesn't work well for Flux
-    if (isFlux) {
-      sharpen(ctx, canvas.width, canvas.height, .1);
-    }
-    else {
-      sharpen(ctx, canvas.width, canvas.height, .33);
-    }
+//     //extra sharpening doesn't work well for Flux
+//     if (isFlux) {
+//       sharpen(ctx, canvas.width, canvas.height, .1);
+//     }
+//     else {
+//       sharpen(ctx, canvas.width, canvas.height, .33);
+//     }
     
-    var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
-    img = contrastImage(img, contrastAmount);
-    ctx.putImageData(img, 0, 0);
-    var newImage = new Image;
-    newImage.src = canvas.toDataURL('image/png');
-    newTaskRequest.reqBody.init_image = newImage.src;
-  }
+//     var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
+//     img = contrastImage(img, contrastAmount);
+//     ctx.putImageData(img, 0, 0);
+//     var newImage = new Image;
+//     newImage.src = canvas.toDataURL('image/png');
+//     newTaskRequest.reqBody.init_image = newImage.src;
+//   }
   
 
   createTask(newTaskRequest)
@@ -1171,265 +1173,11 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
 
-  //May want to delete the original controlnet, as it's normally not neccessary once scaling-up,
-  //but it can be useful to carry-forward while scaling-up (such as to preserve fingers), so it's left as a user option.
-  if (!ScaleUpSettings.reuseControlnet)
-  {
-    delete newTaskRequest.reqBody.use_controlnet_model;
-    delete newTaskRequest.reqBody.control_filter_to_apply;
-    delete newTaskRequest.reqBody.control_image;
-  }
-  //If using controlnet --SDXL now supported
-  if (scaleUpControlNet /* && !isXl*/)
-  {
-    delete newTaskRequest.reqBody.control_filter_to_apply;
+  processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, origRequest);
 
-    //to avoid "halo" artifacts, need to soften the image before passing to control image.
-  
-    //create working canvas
-    let canvasSoft = document.createElement("canvas");
-    canvasSoft.width = image.naturalWidth; //*1.75;
-    canvasSoft.height = image.naturalHeight; //*1.75;
-    let ctx2 = canvasSoft.getContext("2d", {
-      willReadFrequently: true,
-      alpha: false  // Firefox optimization
-    });
+  createTask(newTaskRequest);
 
-    ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
-
-    // get the image data of the canvasSoft  -- we only need the part we're going to resize
-    //x,y -- upper-left, width & height
-    ctx2.drawImage( image,
-      0, 0, image.naturalWidth, image.naturalHeight, //source 
-      0, 0, canvasSoft.width, canvasSoft.height //destination
-    );
-//      sharpen(ctx2, canvasSoft.width, canvasSoft.height, .8, true);
-//  document.querySelector('body').appendChild(canvasSoft);   //Testing -- let's see what we have
-    var img2 =  ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
-    ctx2.putImageData(img2, 0, 0);
-    var newImage2 = new Image;
-    newImage2.src = canvasSoft.toDataURL('image/png');
-    newTaskRequest.reqBody.control_image = newImage2.src;
-
-    //TODO: Only for SDXL, search for an appropriate model
-    //let xlCnModel = "diffusers_xl_canny_full"; //default -- canny doesn't work that well
-    // if (isXl)  {
-        // if (inCnList("TTPLANET_Controlnet_Tile_realistic_v2_fp16")); 
-        //document.getElementById('controlnet_model-model-list').getElementsByTagName("li"); -- can cycle through to find available models
-    // }
-    var controlnetType = ScaleUpSettings.controlnetType || "tile";
-      
-    let reuseControlNet = ScaleUpSettings.reuseControlnet && newTaskRequest.reqBody.use_controlnet_model != null; /* check if model is null or undefined */
-    //Ideally, would like to only accept certain controlnet selections as valid.  However, control_filter_to_apply is reset above.  Rearrange code if desired.
-    // if reusing controlnet, and they've already been using lineart, keep existing model.
-    //  && (newTaskRequest.reqBody.control_filter_to_apply?.includes('lineart') || newTaskRequest.reqBody.control_filter_to_apply?.includes('canny') || ...'tile'?    
-    if (!reuseControlNet) {
-      if (controlnetType === "lineart_anime" || controlnetType === "lineart_realistic") {
-        newTaskRequest.reqBody.control_filter_to_apply = controlnetType;
-        if (isFlux) {
-          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("flux_canny");
-        } else if (isXl) {
-          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("xl_canny");
-        } else {
-          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_canny");
-        }
-      }
-      else { // controlnetType === "tile"
-        //Tile controlnet doesn't use a filter
-        //Flux can also use SDXL Tile.
-        if (isXl || isFlux) {
-          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel((isFlux) ? "flux_tile" : "xl_tile");
-        } else {
-          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_tile");
-        }
-      }
-    }
-    newTaskRequest.reqBody.control_alpha = 0.3;
-    newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : ((isXl || isFlux)? 0.45:0.5)) - (isFlux?reduceFluxPromptStrength:0));
-  }
-
-  newTaskRequest.seed = newTaskRequest.reqBody.seed
-//  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
-  newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
-  newTaskRequest.numOutputsTotal = 1 // "
-  //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
-  //Each person needs to test with different resolutions to find the limit of their card when using Balanced or modes other than 'low'.
-  if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //put max normal resolution here
-    //Disable anything that takes up VRAM here
-    //newTaskRequest.reqBody.turbo = false;
-    newTaskRequest.reqBody.vram_usage_level = 'low';
-  }
-
-  if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
-    newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
-  }
-
-  delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
-
-  newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
-
-  //Grab the prompt from the user-input area instead of the original image.
-  if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
-    if (ScaleUpSettings.useChangedPrompt ) {
-      newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
-      
-
-    };
-  }
-
-  //special case where you use Flux to do an initial generate, but want to use a smaller model for later generates
-  if (ScaleUpSettings.useChangedModel ) {
-
-    //Use the user's new guidance first, but if it doesn't match Flux/SDXL's requirements, then change as needed, below.
-    newTaskRequest.reqBody.guidance_scale=parseFloat(guidanceScaleField.value); 
-
-
-    //If old model (from image) is flux and new desired model is not
-    if (isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && !isFlux /*calculated with UI prompt*/) {
-      let guidance = parseFloat(guidanceScaleField.value); //$("#guidance_scale").val();
-      //Change Guidance Scale of new image -- it's assumed that the flux run used <= 1.1
-      //  If GuidanceScale in UI is still 1, change it to 6
-      if (guidance <= 1.1) {
-        newTaskRequest.reqBody.guidance_scale=6;
-      }
-      else {  //  If GuidanceScale in UI is >1.1, change it to the UI value
-        newTaskRequest.reqBody.guidance_scale=guidance;
-      }
-    }
-    // if switching to flux, force GS to 1
-    else if (!isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && isFlux /*calculated with UI prompt*/) {
-        newTaskRequest.reqBody.guidance_scale=1;
-        
-    }
-    //Switch the sampler (and scheduler) at the same time, if switching to a new model.  Some Sampler/scheduler combinations don't work with Flux and vice-versa.
-
-     newTaskRequest.reqBody.sampler_name = $("#sampler_name")[0].value;
-     newTaskRequest.reqBody.scheduler_name = $("#scheduler_name")[0].value;
-
-     /*
-    // Update lora settings if any are selected
-    const loraElements = document.querySelectorAll('#editor-settings [id^="lora_"] .model_name');
-    const selectedLoras = [];
-    
-    loraElements.forEach(element => {
-      if (element.dataset.path) {
-        selectedLoras.push(element.dataset.path);
-      }
-    });
-    
-    // Update the lora setting in the request
-    if (selectedLoras.length === 1 && selectedLoras[0] != '') {
-      newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
-    } else if (selectedLoras.length > 1) {
-      newTaskRequest.reqBody.use_lora_model = selectedLoras;
-    } else {
-      delete newTaskRequest.reqBody.use_lora_model;
-    }
-    
-    //also need to update lora_alpha the same way
-    const loraElementWeights = document.querySelectorAll('#editor-settings [id^="lora_"] .model_name');
-    const selectedLoraWeights = [];
-    
-    loraElementWeights.forEach(element => {
-      if (element.dataset.path) {
-        selectedLoraWeights.push(element.dataset.path);
-      }
-    });
-    
-    // Update the lora setting in the request
-    if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
-      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
-    } else if (selectedLoraWeights.length > 1) {
-      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
-    } else {
-      delete newTaskRequest.reqBody.lora_alpha;
-    }
-      */
-    const loras = JSON.parse($('#lora_model')[0].dataset.path);
-    const selectedLoras = loras.modelNames;
-    const selectedLoraWeights = loras.modelWeights;
-
-    // Update the lora setting in the request
-    if (selectedLoras.length === 1 && selectedLoras[0] != '') {
-      newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
-    } else if (selectedLoras.length > 1) {
-      newTaskRequest.reqBody.use_lora_model = selectedLoras;
-    } else {
-      delete newTaskRequest.reqBody.use_lora_model;
-    }
-    // Update the lora weight setting in the request
-    if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
-      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
-    } else if (selectedLoraWeights.length > 1) {
-      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
-    } else {
-      delete newTaskRequest.reqBody.lora_alpha;
-    }
-
-  }
-
-
-  //Beta makes stronger changes, so reduce the prompt_strength to compensate
-  if ( newTaskRequest.reqBody.scheduler_name == 'beta') {
-    newTaskRequest.reqBody.prompt_strength = scaleupRound(newTaskRequest.reqBody.prompt_strength - .04);
-  }
-
-  delete newTaskRequest.reqBody.mask
-
-  //resize the image before scaling back up, to maximize detail
-  if(ScaleUpSettings.resizeImage) {
-    //create working canvas
-    let canvas = document.createElement("canvas");
-    canvas.width = Math.round(image.naturalWidth*1.25);
-    canvas.height = Math.round(image.naturalHeight*1.25);
-
-    let ctx = canvas.getContext("2d", {
-      willReadFrequently: true,
-      alpha: false  // Firefox optimization
-    });
-
-    // get the image data of the canvas  -- we only need the part we're going to resize
-    //x,y -- upper-left, width & height
-    ctx.drawImage( image,
-      0, 0, image.naturalWidth, image.naturalHeight, //source 
-      0, 0, canvas.width, canvas.height //destination
-    );
-
-    //extra sharpening not necessarily needed with controlnet
-    //if (!scaleUpControlNet) { }
-    //extra sharpening doesn't work well for Flux
-    if (isFlux) {
-      sharpen(ctx, canvas.width, canvas.height, .1);
-    }
-    else {
-      sharpen(ctx, canvas.width, canvas.height, .33);
-    }
-    
-    // Firefox-compatible image data handling
-    var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    
-    // Create a copy to avoid Firefox issues with direct modification
-    var imgCopy = ctx.createImageData(img.width, img.height);
-    imgCopy.data.set(img.data);
-    
-    imgCopy = contrastImage(imgCopy, contrastAmount);
-    ctx.putImageData(imgCopy, 0, 0);
-
-    var newImage = new Image;
-    
-    // Firefox compatibility: ensure canvas is properly flushed before toDataURL
-    try {
-      newImage.src = canvas.toDataURL('image/png');
-    } catch (error) {
-      console.warn('Firefox: toDataURL failed, trying alternative method:', error);
-      // Alternative method for Firefox
-      newImage.src = canvas.toDataURL('image/jpeg', 0.95);
-    }
-   
-    newTaskRequest.reqBody.init_image = newImage.src;
-  }
-
-  createTask(newTaskRequest)
+  //return newTaskRequest.reqBody.seed; //could use for region enhancer
 }
 
 // sharpen image, from Bing CoPilot, after correcting for rounding and edge pixels
@@ -1803,6 +1551,274 @@ function findSplitImages(image, filter) {
   return images;
 }
 
+function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, origRequest, imageWidth, imageHeight, cropOriginX = 0, cropOriginY = 0) {
+  // Allow optional dimensions to override image.naturalWidth/Height (useful for region crops)
+  const imgWidth = imageWidth || image.naturalWidth;
+  const imgHeight = imageHeight || image.naturalHeight;
+  //but it can be useful to carry-forward while scaling-up (such as to preserve fingers), so it's left as a user option.
+  if (!ScaleUpSettings.reuseControlnet) {
+    delete newTaskRequest.reqBody.use_controlnet_model;
+    delete newTaskRequest.reqBody.control_filter_to_apply;
+    delete newTaskRequest.reqBody.control_image;
+  }
+  //If using controlnet --SDXL now supported
+  if (scaleUpControlNet /* && !isXl*/) {
+    delete newTaskRequest.reqBody.control_filter_to_apply;
+
+    //to avoid "halo" artifacts, need to soften the image before passing to control image.
+    //create working canvas
+    let canvasSoft = document.createElement("canvas");
+    canvasSoft.width = imgWidth; //*1.75;
+    canvasSoft.height = imgHeight; //*1.75;
+    let ctx2 = canvasSoft.getContext("2d", {
+      willReadFrequently: true,
+      alpha: false // Firefox optimization
+    });
+
+    ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
+
+
+
+    // get the image data of the canvasSoft  -- we only need the part we're going to resize
+    //x,y -- upper-left, width & height
+    ctx2.drawImage(image,
+      cropOriginX, cropOriginY, imgWidth, imgHeight, //source 
+      0, 0, canvasSoft.width, canvasSoft.height //destination
+    );
+    //      sharpen(ctx2, canvasSoft.width, canvasSoft.height, .8, true);
+    //  document.querySelector('body').appendChild(canvasSoft);   //Testing -- let's see what we have
+    var img2 = ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
+    ctx2.putImageData(img2, 0, 0);
+    var newImage2 = new Image;
+    newImage2.src = canvasSoft.toDataURL('image/png');
+    newTaskRequest.reqBody.control_image = newImage2.src;
+
+    //TODO: Only for SDXL, search for an appropriate model
+    //let xlCnModel = "diffusers_xl_canny_full"; //default -- canny doesn't work that well
+    // if (isXl)  {
+    // if (inCnList("TTPLANET_Controlnet_Tile_realistic_v2_fp16")); 
+    //document.getElementById('controlnet_model-model-list').getElementsByTagName("li"); -- can cycle through to find available models
+    // }
+    var controlnetType = ScaleUpSettings.controlnetType || "tile";
+
+    let reuseControlNet = ScaleUpSettings.reuseControlnet && newTaskRequest.reqBody.use_controlnet_model != null; /* check if model is null or undefined */
+
+
+
+    //Ideally, would like to only accept certain controlnet selections as valid.  However, control_filter_to_apply is reset above.  Rearrange code if desired.
+    // if reusing controlnet, and they've already been using lineart, keep existing model.
+    //  && (newTaskRequest.reqBody.control_filter_to_apply?.includes('lineart') || newTaskRequest.reqBody.control_filter_to_apply?.includes('canny') || ...'tile'?    
+    if (!reuseControlNet) {
+      if (controlnetType === "lineart_anime" || controlnetType === "lineart_realistic") {
+        newTaskRequest.reqBody.control_filter_to_apply = controlnetType;
+        if (isFlux) {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("flux_canny");
+        } else if (isXl) {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("xl_canny");
+        } else {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_canny");
+        }
+      }
+      else { // controlnetType === "tile"
+        //Tile controlnet doesn't use a filter
+        //Flux can also use SDXL Tile.
+        if (isXl || isFlux) {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel((isFlux) ? "flux_tile" : "xl_tile");
+        } else {
+          newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_tile");
+        }
+      }
+    }
+    newTaskRequest.reqBody.control_alpha = 0.3;
+    newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : ((isXl || isFlux) ? 0.45 : 0.5)) - (isFlux ? reduceFluxPromptStrength : 0));
+  }
+
+  newTaskRequest.seed = newTaskRequest.reqBody.seed;
+  //  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
+  newTaskRequest.batchCount = 1; // assume user only wants one at a time to evaluate, if selecting one out of a batch
+  newTaskRequest.numOutputsTotal = 1; // "
+
+
+  //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
+  //Each person needs to test with different resolutions to find the limit of their card when using Balanced or modes other than 'low'.
+  if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) { //put max normal resolution here
+    //Disable anything that takes up VRAM here
+    //newTaskRequest.reqBody.turbo = false;
+    newTaskRequest.reqBody.vram_usage_level = 'low';
+  }
+
+  if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxNoVaeTiling) {
+    newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
+  }
+
+  delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
+
+  newTaskRequest.reqBody.use_stable_diffusion_model = desiredModel;
+
+  //Grab the prompt from the user-input area instead of the original image.
+  if (newTaskRequest.reqBody.prompt.substr(0, $("textarea#prompt").val().length) != $("textarea#prompt").val()) {
+    if (ScaleUpSettings.useChangedPrompt) {
+      newTaskRequest.reqBody.prompt = getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
+
+
+    };
+  }
+
+  //special case where you use Flux to do an initial generate, but want to use a smaller model for later generates
+  if (ScaleUpSettings.useChangedModel) {
+
+    //Use the user's new guidance first, but if it doesn't match Flux/SDXL's requirements, then change as needed, below.
+    newTaskRequest.reqBody.guidance_scale = parseFloat(guidanceScaleField.value);
+
+
+    //If old model (from image) is flux and new desired model is not
+    if (isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && !isFlux /*calculated with UI prompt*/) {
+      let guidance = parseFloat(guidanceScaleField.value); //$("#guidance_scale").val();
+
+
+      //Change Guidance Scale of new image -- it's assumed that the flux run used <= 1.1
+      //  If GuidanceScale in UI is still 1, change it to 6
+      if (guidance <= 1.1) {
+        newTaskRequest.reqBody.guidance_scale = 6;
+      }
+      else { //  If GuidanceScale in UI is >1.1, change it to the UI value
+        newTaskRequest.reqBody.guidance_scale = guidance;
+      }
+    }
+
+    // if switching to flux, force GS to 1
+    else if (!isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && isFlux /*calculated with UI prompt*/) {
+      newTaskRequest.reqBody.guidance_scale = 1;
+
+    }
+    //Switch the sampler (and scheduler) at the same time, if switching to a new model.  Some Sampler/scheduler combinations don't work with Flux and vice-versa.
+    newTaskRequest.reqBody.sampler_name = $("#sampler_name")[0].value;
+    newTaskRequest.reqBody.scheduler_name = $("#scheduler_name")[0].value;
+
+    /*
+   // Update lora settings if any are selected
+   const loraElements = document.querySelectorAll('#editor-settings [id^="lora_"] .model_name');
+   const selectedLoras = [];
+   
+   loraElements.forEach(element => {
+     if (element.dataset.path) {
+       selectedLoras.push(element.dataset.path);
+     }
+   });
+   
+   // Update the lora setting in the request
+   if (selectedLoras.length === 1 && selectedLoras[0] != '') {
+     newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
+   } else if (selectedLoras.length > 1) {
+     newTaskRequest.reqBody.use_lora_model = selectedLoras;
+   } else {
+     delete newTaskRequest.reqBody.use_lora_model;
+   }
+   
+   //also need to update lora_alpha the same way
+   const loraElementWeights = document.querySelectorAll('#editor-settings [id^="lora_"] .model_name');
+   const selectedLoraWeights = [];
+   
+   loraElementWeights.forEach(element => {
+     if (element.dataset.path) {
+       selectedLoraWeights.push(element.dataset.path);
+     }
+   });
+   
+   // Update the lora setting in the request
+   if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
+     newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
+   } else if (selectedLoraWeights.length > 1) {
+     newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
+   } else {
+     delete newTaskRequest.reqBody.lora_alpha;
+   }
+     */
+    const loras = JSON.parse($('#lora_model')[0].dataset.path);
+    const selectedLoras = loras.modelNames;
+    const selectedLoraWeights = loras.modelWeights;
+
+    // Update the lora setting in the request
+    if (selectedLoras.length === 1 && selectedLoras[0] != '') {
+      newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
+    } else if (selectedLoras.length > 1) {
+      newTaskRequest.reqBody.use_lora_model = selectedLoras;
+    } else {
+      delete newTaskRequest.reqBody.use_lora_model;
+    }
+    // Update the lora weight setting in the request
+    if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
+      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
+    } else if (selectedLoraWeights.length > 1) {
+      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
+    } else {
+      delete newTaskRequest.reqBody.lora_alpha;
+    }
+
+  }
+
+
+  //Beta makes stronger changes, so reduce the prompt_strength to compensate
+  if (newTaskRequest.reqBody.scheduler_name == 'beta') {
+    newTaskRequest.reqBody.prompt_strength = scaleupRound(newTaskRequest.reqBody.prompt_strength - .04);
+  }
+
+  delete newTaskRequest.reqBody.mask;
+
+  //resize the image before scaling back up, to maximize detail
+  if (ScaleUpSettings.resizeImage) {
+    //create working canvas
+    let canvas = document.createElement("canvas");
+    canvas.width = Math.round(imgWidth * 1.25);
+    canvas.height = Math.round(imgHeight * 1.25);
+
+    let ctx = canvas.getContext("2d", {
+      willReadFrequently: true,
+      alpha: false // Firefox optimization
+    });
+
+    // get the image data of the canvas  -- we only need the part we're going to resize
+    //x,y -- upper-left, width & height
+    ctx.drawImage(image,
+      cropOriginX, cropOriginY, imgWidth, imgHeight, //source 
+      0, 0, canvas.width, canvas.height //destination
+    );
+
+    //extra sharpening not necessarily needed with controlnet
+    //if (!scaleUpControlNet) { }
+    //extra sharpening doesn't work well for Flux
+    if (isFlux) {
+      sharpen(ctx, canvas.width, canvas.height, .1);
+    }
+    else {
+      sharpen(ctx, canvas.width, canvas.height, .33);
+    }
+
+    // Firefox-compatible image data handling
+    var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    // Create a copy to avoid Firefox issues with direct modification
+    var imgCopy = ctx.createImageData(img.width, img.height);
+    imgCopy.data.set(img.data);
+
+    imgCopy = contrastImage(imgCopy, contrastAmount);
+    ctx.putImageData(imgCopy, 0, 0);
+
+    var newImage = new Image;
+
+    // Firefox compatibility: ensure canvas is properly flushed before toDataURL
+    try {
+      newImage.src = canvas.toDataURL('image/png');
+    } catch (error) {
+      console.warn('Firefox: toDataURL failed, trying alternative method:', error);
+      // Alternative method for Firefox
+      newImage.src = canvas.toDataURL('image/jpeg', 0.95);
+    }
+
+    newTaskRequest.reqBody.init_image = newImage.src;
+  }
+}
+
 
 // --- REGION UPSCALE: capture 512x512 region, submit to scale-up, merge back with feathered edges ---
 // Click handler registration (adds a single-button array so it appears alongside other image buttons)
@@ -1830,6 +1846,9 @@ let regionSelectionState = {
  */
 function onScaleUpRegionClick(origRequest, image) {
   try {
+    // Clean up any previous selection state first
+    cleanupSelectionOverlay();
+    
     const container = image.closest('[id^="imageTaskContainer-"]');
     
     const imgW = image.naturalWidth || origRequest.width;
@@ -1837,7 +1856,7 @@ function onScaleUpRegionClick(origRequest, image) {
 
     console.log(`[ScaleUpRegion] Entering selection mode, image size: ${imgW}x${imgH}`);
 
-    // Set up selection state
+    // Set up selection state (fresh for each click)
     regionSelectionState.active = true;
     regionSelectionState.image = image;
     regionSelectionState.origRequest = origRequest;
@@ -2053,11 +2072,18 @@ function processRegionAtPoint(centerX, centerY) {
     cropCtx.drawImage(image, left, top, cropW, cropH, 0, 0, cropW, cropH);
     const cropDataUrl = cropCanvas.toDataURL('image/png');
 
+
     // Build a minimal origRequest-like object to base the upscale on
     const fakeOrig = Object.assign({}, origRequest, {
       width: cropW,
       height: cropH
     });
+    
+    // Clear any previous region metadata from origRequest to avoid inheriting from previous crops
+    delete fakeOrig._scaleup_region;
+    delete fakeOrig._scaleup_origin;
+    delete fakeOrig._scaleup_origin_container;
+    delete fakeOrig._scaleup_origin_image_selector;
 
     // Prepare a new task request copying current user request and using the cropped image as init_image.
     let newTaskRequest = getCurrentUserRequest();
@@ -2066,8 +2092,6 @@ function processRegionAtPoint(centerX, centerY) {
     const targetHeight = scaleUp(cropH, cropW, scalingIncrease2);
 
     const seed = Math.floor(Math.random() * 100000000);
-
-    //TODO: call scaleUpOnce(origRequest, image, true, scalingIncrease1) , but we need the seed.
 
     console.log(`[ScaleUpRegion] Target upscale size: ${targetWidth}x${targetHeight}, using seed: ${seed}`);
 
@@ -2084,12 +2108,17 @@ function processRegionAtPoint(centerX, centerY) {
       seed: seed
     });
 
-    if (!ScaleUpSettings.reuseControlnet)
-    {
-      delete newTaskRequest.reqBody.use_controlnet_model;
-      delete newTaskRequest.reqBody.control_filter_to_apply;
-      delete newTaskRequest.reqBody.control_image;
-    }
+    // Pass crop dimensions and origin to processTaskRequest for controlnet image extraction
+    // (init_image is already the cropped data, but controlnet needs the region coordinates from the original)
+    processTaskRequest(newTaskRequest, image, isModelFlux(desiredModelName(origRequest)), isModelXl(desiredModelName(origRequest)), desiredModelName(origRequest), origRequest, cropW, cropH, left, top);
+
+    // if (!ScaleUpSettings.reuseControlnet)
+    // {
+    //   delete newTaskRequest.reqBody.use_controlnet_model;
+    //   delete newTaskRequest.reqBody.control_filter_to_apply;
+    //   delete newTaskRequest.reqBody.control_image;
+    // }
+
     // metadata so we can find and merge later
     newTaskRequest.reqBody._scaleup_region = true;
     newTaskRequest.reqBody._scaleup_origin_container = containerId;
@@ -2125,6 +2154,7 @@ function processRegionAtPoint(centerX, centerY) {
     pollForGeneratedImage(savedRegionTimestamp, seed, 120000).then((generatedImgEl) => {
       if (!generatedImgEl) {
         console.warn('Scale region: generated image not found for seed', seed);
+        showNotification('Did not find generated image (timeout)', 'error');
         return;
       }
       console.log(`[ScaleUpRegion] Generated image found, starting merge`);
@@ -2251,6 +2281,9 @@ async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedIm
     patchCanvas.width = origin.w;
     patchCanvas.height = origin.h;
     const pctx = patchCanvas.getContext('2d', { willReadFrequently: true, alpha: true });
+    
+    // Disable image smoothing to preserve sharpness when downscaling
+    pctx.imageSmoothingEnabled = false;
 
     // Draw downscaled generated image onto patch canvas
     pctx.drawImage(generatedImageEl, 0, 0, generatedImageEl.naturalWidth, generatedImageEl.naturalHeight, 0, 0, origin.w, origin.h);
@@ -2336,9 +2369,11 @@ async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedIm
       a.click();
       document.body.removeChild(a);
     }
-    
+    showNotification(`Merged enhanced region successfully!`, 'success');
+
     console.log(`[ScaleUpRegion] Merge complete`);
   } catch (err) {
+    showNotification('Error attempting to merge', 'error');
     console.error('mergeGeneratedPatchBack error', err);
   }
 }
@@ -2354,6 +2389,65 @@ function ensureImageLoaded(imgEl) {
   });
 }
 
+//________________________________________________________________________________________________________________________________________
+// Show notification to user
+    function showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            z-index: 10000;
+            max-width: 300px;
+            word-wrap: break-word;
+            animation: slideIn 0.3s ease-out;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        `;
+
+        // Set background color based on type
+        switch (type) {
+            case 'success':
+                notification.style.backgroundColor = '#4CAF50';
+                break;
+            case 'error':
+                notification.style.backgroundColor = '#f44336';
+                break;
+            case 'warning':
+                notification.style.backgroundColor = '#ff9800';
+                break;
+            default:
+                notification.style.backgroundColor = '#2196F3';
+        }
+
+        // Add CSS animation if not already present
+        if (!document.querySelector('#llm-notification-styles')) {
+            const style = document.createElement('style');
+            style.id = 'llm-notification-styles';
+            style.textContent = `
+                @keyframes slideIn {
+                    from { transform: translateX(100%); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Add to page
+        document.body.appendChild(notification);
+
+        // Remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 5000);
+    }
 //________________________________________________________________________________________________________________________________________
 
   //UI insertion adapted from Rabbit Hole plugin
