@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.2.14.1, last updated: 11/24/2025
+ * v.3.0.0, last updated: 11/25/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1802,6 +1802,558 @@ function findSplitImages(image, filter) {
 
   return images;
 }
+
+
+// --- REGION UPSCALE: capture 512x512 region, submit to scale-up, merge back with feathered edges ---
+// Click handler registration (adds a single-button array so it appears alongside other image buttons)
+const regLabel = 'Region Enhancer';  //base label prefix
+PLUGINS['IMAGE_INFO_BUTTONS'].push([
+  { html: '<span class="region-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">'
+    +regLabel+':</span>', type: 'label'},
+  { html: '<i class="fa-solid fa-expand-arrows-alt" title="Enhance 512px Region"></i>', on_click: onScaleUpRegionClick, filter: onScaleUpFilter }
+])
+
+// Store region selection state
+let regionSelectionState = {
+  active: false,
+  image: null,
+  origRequest: null,
+  imgW: 0,
+  imgH: 0,
+  CROP_SIZE: 512,
+  overlay: null,
+  rect: null
+};
+
+/**
+ * Start region selection mode. User clicks to select center point.
+ */
+function onScaleUpRegionClick(origRequest, image) {
+  try {
+    const container = image.closest('[id^="imageTaskContainer-"]');
+    
+    const imgW = image.naturalWidth || origRequest.width;
+    const imgH = image.naturalHeight || origRequest.height;
+
+    console.log(`[ScaleUpRegion] Entering selection mode, image size: ${imgW}x${imgH}`);
+
+    // Set up selection state
+    regionSelectionState.active = true;
+    regionSelectionState.image = image;
+    regionSelectionState.origRequest = origRequest;
+    regionSelectionState.imgW = imgW;
+    regionSelectionState.imgH = imgH;
+    regionSelectionState.containerId = container?.id || null;
+
+    // Create overlay for selection UI
+    createSelectionOverlay(image);
+  } catch (err) {
+    console.error('onScaleUpRegionClick failed', err);
+  }
+}
+
+/**
+ * Create an interactive overlay for selecting the region
+ */
+function createSelectionOverlay(imageEl) {
+  // Find the imgContainer parent div
+  const imgContainer = imageEl.closest('.imgContainer');
+  if (!imgContainer) {
+    console.error('[ScaleUpRegion] Could not find imgContainer parent');
+    return;
+  }
+
+  // Create overlay div that covers the image container
+  const overlay = document.createElement('div');
+  overlay.id = 'scaleup-region-overlay';
+  overlay.style.cssText = `
+    position: absolute;
+    cursor: crosshair;
+    z-index: 10000;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  `;
+
+  // Create SVG for drawing the rectangle
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.style.cssText = `
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    width: 100%;
+    height: 100%;
+  `;
+
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('fill', 'none');
+  rect.setAttribute('stroke', '#00ff00');
+  rect.setAttribute('stroke-width', '2');
+  rect.setAttribute('display', 'none');
+  svg.appendChild(rect);
+
+  // Create instruction text
+  const instruction = document.createElement('div');
+  instruction.id = 'scaleup-region-instruction';
+  instruction.textContent = 'Click to select region center point (Press Escape to cancel)';
+  instruction.style.cssText = `
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    color: #00ff00;
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-family: monospace;
+    z-index: 10001;
+    pointer-events: none;
+  `;
+
+  overlay.appendChild(svg);
+  imgContainer.appendChild(overlay);
+  document.body.appendChild(instruction);
+
+  regionSelectionState.overlay = overlay;
+  regionSelectionState.rect = rect;
+  regionSelectionState.instruction = instruction;
+  regionSelectionState.imgContainer = imgContainer;
+
+  // Get container bounds for coordinate calculations
+  const containerBounds = imgContainer.getBoundingClientRect();
+
+  // Track mouse movement to show selection rectangle
+  function onMouseMove(e) {
+    const containerBounds = imgContainer.getBoundingClientRect();
+    const x = e.clientX - containerBounds.left;
+    const y = e.clientY - containerBounds.top;
+
+    // Scale screen coordinates to image coordinates
+    const scaleX = regionSelectionState.imgW / containerBounds.width;
+    const scaleY = regionSelectionState.imgH / containerBounds.height;
+    const imgX = x * scaleX;
+    const imgY = y * scaleY;
+
+    // Calculate crop dimensions
+    const cropW = Math.min(regionSelectionState.CROP_SIZE, regionSelectionState.imgW);
+    const cropH = Math.min(regionSelectionState.CROP_SIZE, regionSelectionState.imgH);
+
+    // Calculate region bounds (clamp to image boundaries)
+    const left = Math.max(0, Math.min(imgX - cropW / 2, regionSelectionState.imgW - cropW));
+    const top = Math.max(0, Math.min(imgY - cropH / 2, regionSelectionState.imgH - cropH));
+
+    // Draw rectangle on overlay (convert back to screen coordinates)
+    const rectLeft = (left / scaleX);
+    const rectTop = (top / scaleY);
+    const rectWidth = (cropW / scaleX);
+    const rectHeight = (cropH / scaleY);
+
+    rect.setAttribute('x', rectLeft);
+    rect.setAttribute('y', rectTop);
+    rect.setAttribute('width', rectWidth);
+    rect.setAttribute('height', rectHeight);
+    rect.setAttribute('display', 'block');
+  }
+
+  // Handle region selection click
+  function onClick(e) {
+    const containerBounds = imgContainer.getBoundingClientRect();
+    const x = e.clientX - containerBounds.left;
+    const y = e.clientY - containerBounds.top;
+
+    // Scale screen coordinates to image coordinates
+    const scaleX = regionSelectionState.imgW / containerBounds.width;
+    const scaleY = regionSelectionState.imgH / containerBounds.height;
+    const imgX = x * scaleX;
+    const imgY = y * scaleY;
+
+    console.log(`[ScaleUpRegion] Selected center point: [${Math.round(imgX)}, ${Math.round(imgY)}]`);
+
+    // Clean up overlay
+    cleanupSelectionOverlay();
+
+    // Process the selected region
+    processRegionAtPoint(imgX, imgY);
+  }
+
+  // Handle escape to cancel
+  function onKeyDown(e) {
+    if (e.key === 'Escape') {
+      console.log(`[ScaleUpRegion] Selection cancelled`);
+      cleanupSelectionOverlay();
+    }
+  }
+
+  overlay.addEventListener('mousemove', onMouseMove);
+  overlay.addEventListener('click', onClick);
+  document.addEventListener('keydown', onKeyDown);
+
+  regionSelectionState.onMouseMove = onMouseMove;
+  regionSelectionState.onClick = onClick;
+  regionSelectionState.onKeyDown = onKeyDown;
+}
+
+/**
+ * Clean up the selection overlay
+ */
+function cleanupSelectionOverlay() {
+  regionSelectionState.active = false;
+
+  // Remove event listeners
+  if (regionSelectionState.overlay && regionSelectionState.onMouseMove) {
+    regionSelectionState.overlay.removeEventListener('mousemove', regionSelectionState.onMouseMove);
+    regionSelectionState.overlay.removeEventListener('click', regionSelectionState.onClick);
+  }
+  if (regionSelectionState.onKeyDown) {
+    document.removeEventListener('keydown', regionSelectionState.onKeyDown);
+  }
+
+  // Remove DOM elements
+  if (regionSelectionState.overlay) {
+    regionSelectionState.overlay.remove();
+    regionSelectionState.overlay = null;
+  }
+  if (regionSelectionState.instruction) {
+    regionSelectionState.instruction.remove();
+    regionSelectionState.instruction = null;
+  }
+
+  regionSelectionState.rect = null;
+}
+
+/**
+ * Process the selected region at the given center point
+ */
+function processRegionAtPoint(centerX, centerY) {
+  try {
+    const CROP_SIZE = regionSelectionState.CROP_SIZE;
+    const image = regionSelectionState.image;
+    const origRequest = regionSelectionState.origRequest;
+    const imgW = regionSelectionState.imgW;
+    const imgH = regionSelectionState.imgH;
+    const containerId = regionSelectionState.containerId;
+
+    // Calculate crop dimensions
+    const cropW = Math.min(CROP_SIZE, imgW);
+    const cropH = Math.min(CROP_SIZE, imgH);
+
+    // Calculate crop position (clamp to image boundaries)
+    const left = Math.max(0, Math.min(centerX - cropW / 2, imgW - cropW));
+    const top = Math.max(0, Math.min(centerY - cropH / 2, imgH - cropH));
+
+    console.log(`[ScaleUpRegion] Processing region: [${left.toFixed(0)}, ${top.toFixed(0)}] size ${cropW}x${cropH}`);
+
+    // create crop canvas
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = cropW;
+    cropCanvas.height = cropH;
+    const cropCtx = cropCanvas.getContext('2d', { willReadFrequently: true, alpha: false });
+    cropCtx.drawImage(image, left, top, cropW, cropH, 0, 0, cropW, cropH);
+    const cropDataUrl = cropCanvas.toDataURL('image/png');
+
+    // Build a minimal origRequest-like object to base the upscale on
+    const fakeOrig = Object.assign({}, origRequest, {
+      width: cropW,
+      height: cropH
+    });
+
+    // Prepare a new task request copying current user request and using the cropped image as init_image.
+    let newTaskRequest = getCurrentUserRequest();
+    // Use scalingIncrease2 to get stronger upscale; generate target dims with existing helpers
+    const targetWidth = scaleUp(cropW, cropH, scalingIncrease2);
+    const targetHeight = scaleUp(cropH, cropW, scalingIncrease2);
+
+    const seed = Math.floor(Math.random() * 100000000);
+
+    //TODO: call scaleUpOnce(origRequest, image, true, scalingIncrease1) , but we need the seed.
+
+    console.log(`[ScaleUpRegion] Target upscale size: ${targetWidth}x${targetHeight}, using seed: ${seed}`);
+
+    newTaskRequest.reqBody = Object.assign({}, fakeOrig, {
+      init_image: cropDataUrl,
+      width: targetWidth,
+      height: targetHeight,
+      prompt_strength: scaleupRound((scaleUpPreserve ? 0.15 : 0.33) - (isModelFlux(desiredModelName(origRequest)) ? reduceFluxPromptStrength : 0)),
+      num_inference_steps: stepsToUse(origRequest.num_inference_steps, isModelFlux(desiredModelName(origRequest)), isModelTurbo(desiredModelName(origRequest), origRequest.use_lora_model), isModelXl(desiredModelName(origRequest))),
+      num_outputs: 1,
+      use_vae_model: desiredVaeName(origRequest),
+      use_text_encoder_model: desiredTextEncoderName(origRequest),
+      use_stable_diffusion_model: desiredModelName(origRequest),
+      seed: seed
+    });
+
+    if (!ScaleUpSettings.reuseControlnet)
+    {
+      delete newTaskRequest.reqBody.use_controlnet_model;
+      delete newTaskRequest.reqBody.control_filter_to_apply;
+      delete newTaskRequest.reqBody.control_image;
+    }
+    // metadata so we can find and merge later
+    newTaskRequest.reqBody._scaleup_region = true;
+    newTaskRequest.reqBody._scaleup_origin_container = containerId;
+    newTaskRequest.reqBody._scaleup_origin = {
+      left: left,
+      top: top,
+      w: cropW,
+      h: cropH,
+      imgW: imgW,
+      imgH: imgH
+    };
+    // keep track of which original image element to replace (best-effort)
+    newTaskRequest.reqBody._scaleup_origin_image_selector = containerId ? `#${containerId}` : null;
+
+    // Reduce vram usage for large targets (re-using existing logic)
+    if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {
+      newTaskRequest.reqBody.vram_usage_level = 'low';
+    }
+    if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxNoVaeTiling) {
+      newTaskRequest.reqBody.enable_vae_tiling = true;
+    }
+
+    // Save timestamp to match later
+    const savedRegionTimestamp = parseInt(Date.now());
+    console.log(`[ScaleUpRegion] Time of submission: ${savedRegionTimestamp}`);
+
+    // submit task
+    console.log(`[ScaleUpRegion] Submitting task to server`);
+    createTask(newTaskRequest);
+
+    // Poll for resulting image with matching seed, then merge back
+    console.log(`[ScaleUpRegion] Waiting for generated image...`);
+    pollForGeneratedImage(savedRegionTimestamp, seed, 120000).then((generatedImgEl) => {
+      if (!generatedImgEl) {
+        console.warn('Scale region: generated image not found for seed', seed);
+        return;
+      }
+      console.log(`[ScaleUpRegion] Generated image found, starting merge`);
+      mergeGeneratedPatchBack(containerId, image, generatedImgEl, newTaskRequest.reqBody._scaleup_origin);
+    }).catch((err) => {
+      console.error('Scale region error:', err);
+    });
+  } catch (err) {
+    console.error('processRegionAtPoint failed', err);
+  }
+}
+
+/**
+ * Poll for an imageTaskContainer whose Timestamp equals the given regionTimestamp.
+ * Resolves to the <img> element (full-size image) or null on timeout.
+ */
+function pollForGeneratedImage(regionTimestamp, seed, timeoutMs = 120000, intervalMs = 500) {
+  return new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    let lastLogTime = 0;
+
+    const checker = () => {
+      // find all containers created recently and check regionTimestamp child
+      const containers = document.querySelectorAll('[id^="imageTaskContainer-"]');
+      
+      // Log periodically (every 5 seconds)
+      const now = Date.now();
+      if (now - lastLogTime > 5000) {
+        console.log(`[ScaleUpRegion] Polling for regionTimestamp ${regionTimestamp}... Found ${containers.length} containers`);
+        lastLogTime = now;
+      }
+      
+      for (const c of containers) {
+        
+        const timestamp = parseInt(c.id.split('-')[1]); //timestamp from container id
+
+        //console.log(`[ScaleUpRegion] Container timestamp ${timestamp} in container`, c.id);
+        if (regionTimestamp - timestamp + 500 >= 0 && regionTimestamp - timestamp < 5000) { //allow 5 second window, with extra before as time is captured before submission
+          //console.log(`[ScaleUpRegion] Found matching timestamp ${regionTimestamp} in container`, c.id);
+          
+          // return last image (full-size) - look for actual rendered image
+          const imgs = c.querySelectorAll('img');
+          if (imgs.length === 0) {  //shouldn't occur
+            console.log(`[ScaleUpRegion] Container has seed match but no images yet, waiting...`);
+            if (Date.now() <= deadline) {
+              setTimeout(checker, intervalMs);
+            } else {
+              resolve(null);
+            }
+            return;
+          }
+          
+          const img = imgs[imgs.length - 1];
+
+          //console.log(`[ScaleUpRegion] Img contains seed ${img.dataset.seed}`);
+
+          //if it doesn't have data-seed, it is not loaded yet - go around again.
+          if (img.dataset.seed && parseInt(img.dataset.seed) === seed) {  //verify that we match exactly on seed
+            console.log(`[ScaleUpRegion] Found image with matching seed ${seed}, checking load status`);
+
+            // Ensure it's actually loaded
+            if (img.complete && img.naturalWidth !== 0) {
+              console.log(`[ScaleUpRegion] Image loaded successfully, resolving`);
+              resolve(img);
+              return;
+            } else {
+              // Wait for load
+              img.onload = () => {
+                console.log(`[ScaleUpRegion] Image onload fired, resolving`);
+                resolve(img);
+              };
+              img.onerror = () => {
+                console.warn(`[ScaleUpRegion] Image failed to load`);
+                resolve(img); // resolve anyway, let merge handle it
+              };
+              return;
+            }
+          }
+        }
+      }
+      
+      if (Date.now() > deadline) {
+        console.warn(`[ScaleUpRegion] Timeout: did not find seed ${regionTimestamp} within ${timeoutMs}ms`);
+        resolve(null);
+      } else {
+        setTimeout(checker, intervalMs);
+      }
+    };
+    checker();
+  });
+}
+
+/**
+ * Merge the generated upscaled patch back into the original image element.
+ * Strategy: Create a feathered alpha mask at the edges, then blend the upscaled patch
+ * smoothly into the original image.
+ */
+async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedImageEl, origin) {
+  try {
+    console.log(`[ScaleUpRegion] Starting merge with origin:`, origin);
+    
+    // ensure images loaded
+    await ensureImageLoaded(generatedImageEl);
+    await ensureImageLoaded(originalImageEl);
+
+    // Prepare canvases
+    const origW = origin.imgW || originalImageEl.naturalWidth || originalImageEl.width;
+    const origH = origin.imgH || originalImageEl.naturalHeight || originalImageEl.height;
+
+    console.log(`[ScaleUpRegion] Original image size: ${origW}x${origH}, crop region: [${origin.left},${origin.top}] ${origin.w}x${origin.h}`);
+    console.log(`[ScaleUpRegion] Generated image size: ${generatedImageEl.naturalWidth}x${generatedImageEl.naturalHeight}`);
+
+    // Create working canvas for the merged result
+    const workCanvas = document.createElement('canvas');
+    workCanvas.width = origW;
+    workCanvas.height = origH;
+    const wctx = workCanvas.getContext('2d', { willReadFrequently: true, alpha: true });
+
+    // Draw original image as base
+    wctx.drawImage(originalImageEl, 0, 0, origW, origH);
+
+    // Create patch canvas with feathered alpha mask (downscale generated image to original crop size)
+    const patchCanvas = document.createElement('canvas');
+    patchCanvas.width = origin.w;
+    patchCanvas.height = origin.h;
+    const pctx = patchCanvas.getContext('2d', { willReadFrequently: true, alpha: true });
+
+    // Draw downscaled generated image onto patch canvas
+    pctx.drawImage(generatedImageEl, 0, 0, generatedImageEl.naturalWidth, generatedImageEl.naturalHeight, 0, 0, origin.w, origin.h);
+
+    // Create feathered alpha mask using linear gradients at the edges
+    // Feather amount in pixels (8-24 range based on patch size)
+    const feather = Math.max(8, Math.min(24, Math.floor(Math.min(origin.w, origin.h) * 0.1)));
+
+    console.log(`[ScaleUpRegion] Feathering with ${feather}px gradient`);
+
+    // Create a temporary canvas for the alpha mask
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = origin.w;
+    maskCanvas.height = origin.h;
+    const mctx = maskCanvas.getContext('2d', { willReadFrequently: true, alpha: true });
+
+    // Clear and fill with white (opaque)
+    mctx.fillStyle = 'white';
+    mctx.fillRect(0, 0, origin.w, origin.h);
+
+    // Draw linear gradients for feathering at each edge
+    mctx.globalCompositeOperation = 'destination-out';
+    
+    // Top edge gradient (fades to transparent)
+    let grad = mctx.createLinearGradient(0, 0, 0, feather);
+    grad.addColorStop(0, 'white');
+    grad.addColorStop(1, 'transparent');
+    mctx.fillStyle = grad;
+    mctx.fillRect(0, 0, origin.w, feather);
+
+    // Bottom edge gradient
+    grad = mctx.createLinearGradient(0, origin.h - feather, 0, origin.h);
+    grad.addColorStop(0, 'transparent');
+    grad.addColorStop(1, 'white');
+    mctx.fillStyle = grad;
+    mctx.fillRect(0, origin.h - feather, origin.w, feather);
+
+    // Left edge gradient
+    grad = mctx.createLinearGradient(0, 0, feather, 0);
+    grad.addColorStop(0, 'white');
+    grad.addColorStop(1, 'transparent');
+    mctx.fillStyle = grad;
+    mctx.fillRect(0, feather, feather, origin.h - 2 * feather);
+
+    // Right edge gradient
+    grad = mctx.createLinearGradient(origin.w - feather, 0, origin.w, 0);
+    grad.addColorStop(0, 'transparent');
+    grad.addColorStop(1, 'white');
+    mctx.fillStyle = grad;
+    mctx.fillRect(origin.w - feather, feather, feather, origin.h - 2 * feather);
+
+    // Apply the mask to the patch canvas using destination-in
+    pctx.globalCompositeOperation = 'destination-in';
+    pctx.drawImage(maskCanvas, 0, 0);
+
+    // Draw the feathered patch onto the work canvas
+    wctx.globalCompositeOperation = 'source-over';
+    wctx.drawImage(patchCanvas, origin.left, origin.top);
+
+    // Replace displayed original image with merged result
+    const mergedDataUrl = workCanvas.toDataURL('image/png');
+
+    // find the correct image element in the container and replace; prefer the original element passed in
+    let targetImg = originalImageEl;
+    if (!targetImg && containerId) {
+      const container = document.getElementById(containerId);
+      if (container) {
+        const imgs = container.querySelectorAll('img');
+        if (imgs.length > 0) targetImg = imgs[imgs.length - 1];
+      }
+    }
+
+    if (targetImg) {
+      console.log(`[ScaleUpRegion] Updating image element with merged result`);
+      targetImg.src = mergedDataUrl;
+    } else {
+      // fallback: open merged result in new tab
+      console.log(`[ScaleUpRegion] Could not find target image, downloading merged result`);
+      const a = document.createElement('a');
+      a.href = mergedDataUrl;
+      a.download = 'merged-upscaled-region-' + Date.now() + '.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+    
+    console.log(`[ScaleUpRegion] Merge complete`);
+  } catch (err) {
+    console.error('mergeGeneratedPatchBack error', err);
+  }
+}
+
+// helper: ensure <img> is fully loaded (resolves immediately if already loaded)
+function ensureImageLoaded(imgEl) {
+  return new Promise((resolve) => {
+    if (!imgEl) return resolve();
+    if (imgEl.complete && imgEl.naturalWidth !== 0) return resolve();
+    imgEl.onload = () => resolve();
+    // safety timeout
+    setTimeout(resolve, 10000);
+  });
+}
+
 //________________________________________________________________________________________________________________________________________
 
   //UI insertion adapted from Rabbit Hole plugin
@@ -1984,5 +2536,4 @@ function scaleUpResetSettings(reset) {
   scaleup_controlnet_type.value = ScaleUpSettings.controlnetType || "tile";
   scaleup_use_input_steps.checked = ScaleUpSettings.useInputSteps;
 }
-
 
