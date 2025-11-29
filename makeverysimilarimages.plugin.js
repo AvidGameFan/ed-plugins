@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.1.3.0, last updated: 11/27/2025
+ * v.1.3.1, last updated: 11/28/2025
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -353,7 +353,7 @@ delete newTaskRequest.reqBody.mask
 
   //Beta makes stronger changes, so reduce the prompt_strength to compensate
   if ( newTaskRequest.reqBody.scheduler_name == 'beta') {
-    newTaskRequest.reqBody.prompt_strength = Math.round((newTaskRequest.reqBody.prompt_strength - .08)*100)/100;
+    newTaskRequest.reqBody.prompt_strength = Math.round((newTaskRequest.reqBody.prompt_strength - .04)*100)/100;
   }
 
 createTask(newTaskRequest)
