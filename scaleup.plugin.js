@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.1.0, last updated: 11/26/2025
+ * v.3.1.1, last updated: 11/29/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -42,6 +42,7 @@ var ScaleUpSettings = {
   useInputSteps: false
   //useControlNet: false,
 };
+
 
 /**********************************************************************
 EDIT THE BELOW to put in the maximum resolutions your video card can handle. 
@@ -1819,6 +1820,7 @@ function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, o
   }
 }
 
+//________________________________________________________________________________________________________________________________________
 
 // --- REGION UPSCALE: capture 512x512 region, submit to scale-up, merge back with feathered edges ---
 // Click handler registration (adds a single-button array so it appears alongside other image buttons)
@@ -1854,7 +1856,7 @@ function onScaleUpRegionClick(origRequest, image) {
     const imgW = image.naturalWidth || origRequest.width;
     const imgH = image.naturalHeight || origRequest.height;
 
-    console.log(`[ScaleUpRegion] Entering selection mode, image size: ${imgW}x${imgH}`);
+    scaleupLog(`[ScaleUpRegion] Entering selection mode, image size: ${imgW}x${imgH}`);
 
     // Set up selection state (fresh for each click)
     regionSelectionState.active = true;
@@ -1867,7 +1869,7 @@ function onScaleUpRegionClick(origRequest, image) {
     // Create overlay for selection UI
     createSelectionOverlay(image);
   } catch (err) {
-    console.error('onScaleUpRegionClick failed', err);
+    scaleupError('onScaleUpRegionClick failed', err);
   }
 }
 
@@ -1878,7 +1880,7 @@ function createSelectionOverlay(imageEl) {
   // Find the imgContainer parent div
   const imgContainer = imageEl.closest('.imgContainer');
   if (!imgContainer) {
-    console.error('[ScaleUpRegion] Could not find imgContainer parent');
+    scaleupError('[ScaleUpRegion] Could not find imgContainer parent');
     return;
   }
 
@@ -1988,7 +1990,7 @@ function createSelectionOverlay(imageEl) {
     const imgX = x * scaleX;
     const imgY = y * scaleY;
 
-    console.log(`[ScaleUpRegion] Selected center point: [${Math.round(imgX)}, ${Math.round(imgY)}]`);
+    scaleupLog(`[ScaleUpRegion] Selected center point: [${Math.round(imgX)}, ${Math.round(imgY)}]`);
 
     // Clean up overlay
     cleanupSelectionOverlay();
@@ -2000,7 +2002,7 @@ function createSelectionOverlay(imageEl) {
   // Handle escape to cancel
   function onKeyDown(e) {
     if (e.key === 'Escape') {
-      console.log(`[ScaleUpRegion] Selection cancelled`);
+      scaleupLog(`[ScaleUpRegion] Selection cancelled`);
       cleanupSelectionOverlay();
     }
   }
@@ -2062,7 +2064,7 @@ function processRegionAtPoint(centerX, centerY) {
     const left = Math.max(0, Math.min(centerX - cropW / 2, imgW - cropW));
     const top = Math.max(0, Math.min(centerY - cropH / 2, imgH - cropH));
 
-    console.log(`[ScaleUpRegion] Processing region: [${left.toFixed(0)}, ${top.toFixed(0)}] size ${cropW}x${cropH}`);
+    scaleupLog(`[ScaleUpRegion] Processing region: [${left.toFixed(0)}, ${top.toFixed(0)}] size ${cropW}x${cropH}`);
 
     // create crop canvas
     const cropCanvas = document.createElement('canvas');
@@ -2093,7 +2095,7 @@ function processRegionAtPoint(centerX, centerY) {
 
     const seed = Math.floor(Math.random() * 100000000);
 
-    console.log(`[ScaleUpRegion] Target upscale size: ${targetWidth}x${targetHeight}, using seed: ${seed}`);
+    scaleupLog(`[ScaleUpRegion] Target upscale size: ${targetWidth}x${targetHeight}, using seed: ${seed}`);
 
     newTaskRequest.reqBody = Object.assign({}, fakeOrig, {
       init_image: cropDataUrl,
@@ -2143,27 +2145,28 @@ function processRegionAtPoint(centerX, centerY) {
 
     // Save timestamp to match later
     const savedRegionTimestamp = parseInt(Date.now());
-    console.log(`[ScaleUpRegion] Time of submission: ${savedRegionTimestamp}`);
+    scaleupLog(`[ScaleUpRegion] Time of submission: ${savedRegionTimestamp}`);
 
     // submit task
-    console.log(`[ScaleUpRegion] Submitting task to server`);
+    scaleupLog(`[ScaleUpRegion] Submitting task to server`);
     createTask(newTaskRequest);
 
     // Poll for resulting image with matching seed, then merge back
-    console.log(`[ScaleUpRegion] Waiting for generated image...`);
-    pollForGeneratedImage(savedRegionTimestamp, seed, 120000).then((generatedImgEl) => {
+    scaleupLog(`[ScaleUpRegion] Waiting for generated image...`);
+    // Flux is slower, so we might as well have a longer timeout
+    pollForGeneratedImage(savedRegionTimestamp, seed, isModelFlux(desiredModelName(origRequest))? 180000:120000).then((generatedImgEl) => {
       if (!generatedImgEl) {
-        console.warn('Scale region: generated image not found for seed', seed);
+        scaleupWarn('Scale region: generated image not found for seed', seed);
         showNotification('Did not find generated image (timeout)', 'error');
         return;
       }
-      console.log(`[ScaleUpRegion] Generated image found, starting merge`);
+      scaleupLog(`[ScaleUpRegion] Generated image found, starting merge`);
       mergeGeneratedPatchBack(containerId, image, generatedImgEl, newTaskRequest.reqBody._scaleup_origin);
     }).catch((err) => {
-      console.error('Scale region error:', err);
+      scaleupError('Scale region error:', err);
     });
   } catch (err) {
-    console.error('processRegionAtPoint failed', err);
+    scaleupError('processRegionAtPoint failed', err);
   }
 }
 
@@ -2171,10 +2174,12 @@ function processRegionAtPoint(centerX, centerY) {
  * Poll for an imageTaskContainer whose Timestamp equals the given regionTimestamp.
  * Resolves to the <img> element (full-size image) or null on timeout.
  */
-function pollForGeneratedImage(regionTimestamp, seed, timeoutMs = 120000, intervalMs = 500) {
+function pollForGeneratedImage(regionTimestamp, seed, timeoutMs = 120000, intervalMs = 2000) {
   return new Promise((resolve) => {
-    const deadline = Date.now() + timeoutMs;
+    let deadline = Date.now() + timeoutMs;
     let lastLogTime = 0;
+    let lastDeadlineExtensionTime = 0;
+    let totalDeadlineExtensionTime = 0;
 
     const checker = () => {
       // find all containers created recently and check regionTimestamp child
@@ -2183,7 +2188,7 @@ function pollForGeneratedImage(regionTimestamp, seed, timeoutMs = 120000, interv
       // Log periodically (every 5 seconds)
       const now = Date.now();
       if (now - lastLogTime > 5000) {
-        console.log(`[ScaleUpRegion] Polling for regionTimestamp ${regionTimestamp}... Found ${containers.length} containers`);
+        scaleupLog(`[ScaleUpRegion] Polling for regionTimestamp ${regionTimestamp}... Found ${containers.length} containers`);
         lastLogTime = now;
       }
       
@@ -2191,14 +2196,35 @@ function pollForGeneratedImage(regionTimestamp, seed, timeoutMs = 120000, interv
         
         const timestamp = parseInt(c.id.split('-')[1]); //timestamp from container id
 
-        //console.log(`[ScaleUpRegion] Container timestamp ${timestamp} in container`, c.id);
-        if (regionTimestamp - timestamp + 500 >= 0 && regionTimestamp - timestamp < 5000) { //allow 5 second window, with extra before as time is captured before submission
-          //console.log(`[ScaleUpRegion] Found matching timestamp ${regionTimestamp} in container`, c.id);
+        //scaleupLog(`[ScaleUpRegion] Container timestamp ${timestamp} in container`, c.id);
+        if (regionTimestamp - timestamp + 500 >= 0 && regionTimestamp - timestamp < 4000) { //allow 4 second window, with extra before as time is captured before submission
+          //scaleupLog(`[ScaleUpRegion] Found matching timestamp ${regionTimestamp} in container`, c.id);
+          
+          // Check if task is still processing - extend deadline if so.
+          // We just don't want to wait forever, in case something has failed.  If it sits too long in a non-working state, we give up.  However, this can occur if an extremely long
+          // job is run just before queueing this up.  Probably could greatly extend if desired.
+
+          const minutesToExtendWait = 4; //max total extra wait time
+
+          const statusLabel = c.querySelector('.taskStatusLabel');
+          if (statusLabel && statusLabel.style.display !== 'none') {
+            // Task is still being processed, extend the deadline
+            const statusText = statusLabel.textContent.trim();
+            if (statusText && (statusText.includes('Processing') || statusText.includes('Enqueued') || statusText.includes('Waiting'))) {
+              const extensionAmount = 20000; // extend by 20 seconds each time
+              if (now - lastDeadlineExtensionTime > 15000 && totalDeadlineExtensionTime < minutesToExtendWait*60*1000) { // only extend every 15 seconds to avoid runaway deadlines, and max total extension of 4 minutes
+                deadline = Math.max(deadline, now + extensionAmount);
+                lastDeadlineExtensionTime = now;
+                totalDeadlineExtensionTime += extensionAmount;
+                //scaleupLog(`[ScaleUpRegion] Task still processing (${statusText}), extended deadline to ${(deadline - now) / 1000}s`);
+              }
+            }
+          }
           
           // return last image (full-size) - look for actual rendered image
           const imgs = c.querySelectorAll('img');
-          if (imgs.length === 0) {  //shouldn't occur
-            console.log(`[ScaleUpRegion] Container has seed match but no images yet, waiting...`);
+          if (imgs.length === 0) {  //shouldn't occur, as there's always a preview image
+            scaleupLog(`[ScaleUpRegion] Container has time match but no images yet, waiting...`);
             if (Date.now() <= deadline) {
               setTimeout(checker, intervalMs);
             } else {
@@ -2209,25 +2235,26 @@ function pollForGeneratedImage(regionTimestamp, seed, timeoutMs = 120000, interv
           
           const img = imgs[imgs.length - 1];
 
-          //console.log(`[ScaleUpRegion] Img contains seed ${img.dataset.seed}`);
+          //scaleupLog(`[ScaleUpRegion] Img contains seed ${img.dataset.seed}`);
 
-          //if it doesn't have data-seed, it is not loaded yet - go around again.
+          //if it doesn't have data-seed, it is not loaded yet - go around again.  (Preview image shouldn't have matching seed.)
+          //it is also possible that more than one section has a close-enough timestamp, so verify seed too.
           if (img.dataset.seed && parseInt(img.dataset.seed) === seed) {  //verify that we match exactly on seed
-            console.log(`[ScaleUpRegion] Found image with matching seed ${seed}, checking load status`);
+            scaleupLog(`[ScaleUpRegion] Found image with matching seed ${seed}, checking load status`);
 
             // Ensure it's actually loaded
             if (img.complete && img.naturalWidth !== 0) {
-              console.log(`[ScaleUpRegion] Image loaded successfully, resolving`);
+              scaleupLog(`[ScaleUpRegion] Image loaded successfully, resolving`);
               resolve(img);
               return;
             } else {
               // Wait for load
               img.onload = () => {
-                console.log(`[ScaleUpRegion] Image onload fired, resolving`);
+                scaleupLog(`[ScaleUpRegion] Image onload fired, resolving`);
                 resolve(img);
               };
               img.onerror = () => {
-                console.warn(`[ScaleUpRegion] Image failed to load`);
+                scaleupWarn(`[ScaleUpRegion] Image failed to load`);
                 resolve(img); // resolve anyway, let merge handle it
               };
               return;
@@ -2237,7 +2264,7 @@ function pollForGeneratedImage(regionTimestamp, seed, timeoutMs = 120000, interv
       }
       
       if (Date.now() > deadline) {
-        console.warn(`[ScaleUpRegion] Timeout: did not find seed ${regionTimestamp} within ${timeoutMs}ms`);
+        scaleupWarn(`[ScaleUpRegion] Timeout: did not find seed ${regionTimestamp} within ${timeoutMs + totalDeadlineExtensionTime}ms`);
         resolve(null);
       } else {
         setTimeout(checker, intervalMs);
@@ -2254,7 +2281,7 @@ function pollForGeneratedImage(regionTimestamp, seed, timeoutMs = 120000, interv
  */
 async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedImageEl, origin) {
   try {
-    console.log(`[ScaleUpRegion] Starting merge with origin:`, origin);
+    scaleupLog(`[ScaleUpRegion] Starting merge with origin:`, origin);
     
     // ensure images loaded
     await ensureImageLoaded(generatedImageEl);
@@ -2264,8 +2291,8 @@ async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedIm
     const origW = origin.imgW || originalImageEl.naturalWidth || originalImageEl.width;
     const origH = origin.imgH || originalImageEl.naturalHeight || originalImageEl.height;
 
-    console.log(`[ScaleUpRegion] Original image size: ${origW}x${origH}, crop region: [${origin.left},${origin.top}] ${origin.w}x${origin.h}`);
-    console.log(`[ScaleUpRegion] Generated image size: ${generatedImageEl.naturalWidth}x${generatedImageEl.naturalHeight}`);
+    scaleupLog(`[ScaleUpRegion] Original image size: ${origW}x${origH}, crop region: [${origin.left},${origin.top}] ${origin.w}x${origin.h}`);
+    scaleupLog(`[ScaleUpRegion] Generated image size: ${generatedImageEl.naturalWidth}x${generatedImageEl.naturalHeight}`);
 
     // Create working canvas for the merged result
     const workCanvas = document.createElement('canvas');
@@ -2292,7 +2319,7 @@ async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedIm
     // Feather amount in pixels (8-24 range based on patch size)
     const feather = Math.max(8, Math.min(24, Math.floor(Math.min(origin.w, origin.h) * 0.1)));
 
-    console.log(`[ScaleUpRegion] Feathering with ${feather}px gradient`);
+    scaleupLog(`[ScaleUpRegion] Feathering with ${feather}px gradient`);
 
     // Create a temporary canvas for the alpha mask
     const maskCanvas = document.createElement('canvas');
@@ -2357,11 +2384,11 @@ async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedIm
     }
 
     if (targetImg) {
-      console.log(`[ScaleUpRegion] Updating image element with merged result`);
+      scaleupLog(`[ScaleUpRegion] Updating image element with merged result`);
       targetImg.src = mergedDataUrl;
     } else {
       // fallback: open merged result in new tab
-      console.log(`[ScaleUpRegion] Could not find target image, downloading merged result`);
+      scaleupLog(`[ScaleUpRegion] Could not find target image, downloading merged result`);
       const a = document.createElement('a');
       a.href = mergedDataUrl;
       a.download = 'merged-upscaled-region-' + Date.now() + '.png';
@@ -2371,10 +2398,10 @@ async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedIm
     }
     showNotification(`Merged enhanced region successfully!`, 'success');
 
-    console.log(`[ScaleUpRegion] Merge complete`);
+    scaleupLog(`[ScaleUpRegion] Merge complete`);
   } catch (err) {
     showNotification('Error attempting to merge', 'error');
-    console.error('mergeGeneratedPatchBack error', err);
+    scaleupError('mergeGeneratedPatchBack error', err);
   }
 }
 
@@ -2448,6 +2475,37 @@ function ensureImageLoaded(imgEl) {
             }
         }, 5000);
     }
+//________________________________________________________________________________________________________________________________________
+
+// ===== LOGGING CONTROL =====
+// Set to true to enable detailed logging, false to disable
+const SCALEUP_DEBUG_LOGGING = false;
+
+/**
+ * Helper function for consistent logging with easy on/off control
+ * @param {...any} args - Arguments to pass to console.log
+ */
+function scaleupLog(...args) {
+  if (SCALEUP_DEBUG_LOGGING) {
+    console.log(...args);
+  }
+}
+
+/**
+ * Helper function for warnings (always logged regardless of debug setting)
+ * @param {...any} args - Arguments to pass to console.warn
+ */
+function scaleupWarn(...args) {
+  console.warn(...args);
+}
+
+/**
+ * Helper function for errors (always logged regardless of debug setting)
+ * @param {...any} args - Arguments to pass to console.error
+ */
+function scaleupError(...args) {
+  console.error(...args);
+}
 //________________________________________________________________________________________________________________________________________
 
   //UI insertion adapted from Rabbit Hole plugin
