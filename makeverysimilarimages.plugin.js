@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.1.2.9, last updated: 10/4/2025
+ * v.1.3.0, last updated: 11/27/2025
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -145,28 +145,130 @@ function isModelFlux(modelName) {
   return /flux|lyhAnime_kor|chroma|sd3|qwen/i.test(modelName);
 }
 
+function isSdxlModel() {
+  if (!modelsDB) {
+    return false;  //if the new functionality is not present, default to false, as we don't know if sdxl
+  }
+  let sdModel = stableDiffusionModelField.value
+  let tags = modelsDB["stable-diffusion"][sdModel]?.tags || []  // newer ED function added around 10/2025
+  let isSdxl = tags.some(tag => tag.startsWith("sd_xl"))
+  return isSdxl
+}
+function isModelXl(modelName) {
+  if (modelName == stableDiffusionModelField.value  // These model-check functions are only accurate if using the same model that's in the input field
+    && isSdxlModel()) {
+    return true;
+  }
+  //if we're unsure from the internal check, use the filename as a fall-back.
+  
+  // Combined regex for all XL-related terms
+  return /xl|playground|disneyrealcartoonmix|mobius|zovya/i.test(modelName) || isModelFlux(modelName); //Zovya models appear to mostly be Pony XL -- need to update if there are SD 1.5 models instead
+}
+
+
+//Back in the days of SD 1.x, there was a benefit for increasing steps for larege img2img runs.
+//SDXL and Flux don't seem to require as much of a boost. 
+//Note that the "real" steps are reduced  by the prompt-strength, so  the actual steps run are fewer than it seems.
+//For Prompt Strength of .3:
+//For SDXL, 50 steps is a bit more refined than 30.  8 steps still shows a lot of latant noise.
+//For SDXL Lightning, 5 vs 15, the eyes are more refined, but otherwise, very subtle changes.
+//For Flux Schnell, 8 steps looks OK, but 15 has a bit more detail.
+
+//For MSVI, Prompt Strength of .7:
+// For Turbo, in one test, 22 steps is OK, but noticeable improvement at 30.  In another test, 20 was too much, and 10 was better than 6.
+// For Lightning, 8 to 12 seemed to be peak quality, with 15 and 20 being OK, but progressively worse artifacting.
+// With SDXL (not Turbo/Lightning), 55 may be excessive and does not appear to be better.  45 is somewhat better than 35.
+// Actual improvements will vary by model and seed, so it's likely there's not one optimal fits-all choice, so chosen values are somewhat arbitrary.
+
+    // Larger resolutions show defects/duplication.  Try to run this plugin on reasonably smaller resolutions, not very upscaled ones.
+    // num_inference_steps: Math.floor((MakeVerySimilarSettings.highQuality ? 
+    //   ((isTurbo)? Math.min((isLightning)? Math.max(7, parseInt(origRequest.num_inference_steps) + 3): Math.max(8, parseInt(origRequest.num_inference_steps) + 4), 12) : 
+    //     Math.min(parseInt(origRequest.num_inference_steps) + 10, 40)):  //More steps for higher quality -- a few makes a difference
+    //   ((isTurbo)? Math.min((isLightning)? Math.max(6, parseInt(origRequest.num_inference_steps) + 2): Math.max(7, parseInt(origRequest.num_inference_steps) + 3), 10) : 
+    //     Math.min(parseInt(origRequest.num_inference_steps) + 5, 30))   //Minimal steps for speed -- much lower, and results may be poor
+    //   )
+    //   * (MakeVerySimilarSettings.preserve ? 2.5 : 1)  //multiply steps to compensate for Prompt Strength being .3 instead of .7
+    // )
+
+function stepsToUse(defaultSteps, isFlux, isTurbo, isXl) {
+  var steps = parseInt(defaultSteps);
+  if (MakeVerySimilarSettings.highQuality) {
+
+    if (isFlux) {  //need to test isFlux first
+      if (isTurbo) {
+        steps =  Math.min((isLightning)? Math.max(8, parseInt(steps) + 2): Math.max(8, parseInt(steps) + 3), 8);
+      }
+      else {
+        steps = Math.min(parseInt(steps) + 5, 12);
+      }
+    }
+    else if (isXl) {
+      if (isTurbo) {
+        steps =  Math.min((isLightning)? Math.max(8, parseInt(steps) + 3): Math.max(10, parseInt(steps) + 3), 10);
+      }
+      else {
+        steps = Math.min(parseInt(steps) + 5, 20);
+      }
+    }
+    else /* SD 1.x */ {
+      //SD 1.x needs more steps to keep the quality up
+      if (isTurbo) {
+        steps =  Math.min((isLightning)? Math.max(10, parseInt(steps) + 3): Math.max(10, parseInt(steps) + 3), 12);
+      }
+      else {
+        steps = Math.min(parseInt(steps) + 5, 30);
+      }
+    }
+
+  }
+  else {  //normal quality, higher speed
+
+    if (isFlux) {  //need to test isFlux first
+      if (isTurbo) {
+        steps =  Math.min((isLightning)? Math.max(6, parseInt(steps) + 2): Math.max(7, parseInt(steps) + 3), 7);
+      }
+      else {
+        steps = Math.min(parseInt(steps) + 5, 11);
+      }
+    }
+    else if (isXl) {
+      if (isTurbo) {
+        steps =  Math.min((isLightning)? Math.max(6, parseInt(steps) + 2): Math.max(7, parseInt(steps) + 3), 8);
+      }
+      else {
+        steps = Math.min(parseInt(steps) + 5, 18);
+      }
+    }
+    else /* SD 1.x */ {
+      //SD 1.x needs more steps to keep the quality up
+      if (isTurbo) {
+        steps =  Math.min((isLightning)? Math.max(6, parseInt(steps) + 2): Math.max(7, parseInt(steps) + 3), 10);
+      }
+      else {
+        steps = Math.min(parseInt(steps) + 5, 20);
+      }
+    }
+
+  }
+
+  //multiply steps to compensate for Prompt Strength being .3 instead of .7
+  if (MakeVerySimilarSettings.preserve) {
+    steps = steps * 2.5;  
+  }
+  return Math.floor(steps);
+}
+
+
 function onMakeVerySimilarClick(origRequest, image) {
   var isTurbo=isModelTurbo(origRequest.use_stable_diffusion_model, origRequest.use_lora_model);
   var isLightning=isModelLightning(origRequest.use_stable_diffusion_model, origRequest.use_lora_model);
   var isFlux = isModelFlux(origRequest.use_stable_diffusion_model);
+  var isXl = isModelXl(origRequest.use_stable_diffusion_model);
 
   const newTaskRequest = modifyCurrentRequest(origRequest, {
     num_outputs: 1,
-    // For Turbo, in one test, 22 steps is OK, but noticeable improvement at 30.  In another test, 20 was too much, and 10 was better than 6.
-    // For Lightning, 8 to 12 seemed to be peak quality, with 15 and 20 being OK, but progressively worse artifacting.
-    // With SDXL (not Turbo/Lightning), 55 may be excessive and does not appear to be better.  45 is somewhat better than 35.
-    // Actual improvements will vary by model and seed, so it's likely there's not one optimal fits-all choice, so chosen values are somewhat arbitrary.
-    //
-    // Larger resolutions show defects/duplication.  Try to run this plugin on reasonably smaller resolutions, not very upscaled ones.
-    num_inference_steps: Math.floor((MakeVerySimilarSettings.highQuality ? 
-      ((isTurbo)? Math.min((isLightning)? Math.max(7, parseInt(origRequest.num_inference_steps) + 3): Math.max(8, parseInt(origRequest.num_inference_steps) + 4), 12) : 
-        Math.min(parseInt(origRequest.num_inference_steps) + 10, 40)):  //More steps for higher quality -- a few makes a difference
-      ((isTurbo)? Math.min((isLightning)? Math.max(6, parseInt(origRequest.num_inference_steps) + 2): Math.max(7, parseInt(origRequest.num_inference_steps) + 3), 10) : 
-        Math.min(parseInt(origRequest.num_inference_steps) + 5, 30))   //Minimal steps for speed -- much lower, and results may be poor
-      )
-      * (MakeVerySimilarSettings.preserve ? 2.5 : 1)  //multiply steps to compensate for Prompt Strength being .3 instead of .7
-    )
-    ,  
+
+    num_inference_steps: stepsToUse(origRequest.num_inference_steps, isFlux, isTurbo, isXl),
     //large resolutions combined with large steps can cause an error
     prompt_strength: MakeVerySimilarSettings.preserve ? 0.3 : 0.7,
     init_image: image.src,
