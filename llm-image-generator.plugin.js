@@ -1,7 +1,7 @@
 /* 
  * LLM Prompt Generator Plugin
  *
- * v.1.2.1, last updated: 10/16/2025
+ * v.1.2.2, last updated: 11/29/2025
  * By Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -267,7 +267,9 @@
         // Combined regex for all Flux-related terms
         return /flux|lyhAnime_kor|chroma|sd3|qwen/i.test(modelName);
       }
-
+    const commonInstructions = ` Focus on visual elements and avoid extraneous information. 
+Keep to a a consistent style and avoid multiple styles; only choose one of anime, octane render, realistic, photographic, painterly, or other such core style. 
+Keep prompts concise but detailed. Do not include any other text than the prompt. `;
     // Prompt type configurations
     const promptTypes = {
         enhance: {
@@ -275,8 +277,8 @@
             description: 'Improve and expand existing prompt with more details',
             systemPrompt: `You are an expert at creating detailed, artistic prompts for AI image generation. 
 Generate creative, descriptive prompts that include artistic terms, lighting, composition, style, and technical details.
-Focus on visual elements and avoid extraneous information. Keep prompts concise but detailed.
-Do not include any other text than the prompt.`,
+Refine the prompt to keep the overall vision intact while enhancing the descriptions of lighting, mood, color palette, art style, camera settings, and other visual elements.`
+                + commonInstructions,
             userPromptTemplate: (currentPrompt) => 
                 currentPrompt 
                     ? `Improve and expand this image prompt with more artistic and technical details: "${currentPrompt}"`
@@ -289,9 +291,8 @@ Do not include any other text than the prompt.`,
             description: 'Create creative variations with somewhat different artistic directions',
             systemPrompt: `You are an expert at creating creative variations of AI image generation prompts. 
 Your goal is to take an existing prompt and create a slightly different prompt that explores alternative artistic directions, styles, compositions, or interpretations.
-Or, change the subject and use the same artistic style. Do not change all elements of the prompt, just make it slightly different. Maintain most elements of the original prompt.
-Focus on visual elements and avoid extraneous information. Keep prompts concise but detailed, adding elements as needed.
-Do not include any other text than the prompt.`,
+Or, change the subject and use the same artistic style. Do not change all elements of the prompt, just make it slightly different. Maintain most elements of the original prompt.`
+                + commonInstructions,
             userPromptTemplate: (currentPrompt) => 
                 `Create a creative variation of this image prompt. Make it somewhat different while maintaining artistic quality: "${currentPrompt}"
 Think about: different art styles, alternative lighting, new compositions, different moods, creative reinterpretations, or artistic techniques.`,
@@ -305,9 +306,8 @@ Think about: different art styles, alternative lighting, new compositions, diffe
 Your goal is to take an existing prompt and create a NEW, DIFFERENT prompt that explores alternative artistic directions, styles, compositions, or interpretations.
 Consider, what is the character?  What is the character doing and interacting with? 
 Be creative and divergent - change the mood, style, lighting, composition, artistic approach, or subject interpretation. Or, change the subject and use the same artistic style.
-Not all elements need to be changed - sometimes it's better to change only one or two elements to create a new and interesting variation.
-Focus on visual elements and avoid extraneous information. Keep prompts concise but detailed, adding elements as needed.
-Do not include any other text than the prompt.`,
+Not all elements need to be changed - sometimes it's better to change only one or two elements to create a new and interesting variation.`
+                + commonInstructions,
             userPromptTemplate: (currentPrompt) => 
                 `Create a creative variation of this image prompt. Make it significantly different while maintaining artistic quality: "${currentPrompt}"
 Think about: different art styles, alternative lighting, new compositions, different moods, creative reinterpretations, or artistic techniques.`,
@@ -318,9 +318,9 @@ Think about: different art styles, alternative lighting, new compositions, diffe
             name: 'Booru',
             description: 'Improve and expand existing prompt with more details and booru tags',
             systemPrompt: `You are an expert at creating creative variations of AI image generation prompts. 
-Your goal is to take an existing prompt and embellish it using a few booru-style tags. This is more commonly used for anime prompts.
-Focus on visual elements and avoid extraneous information. Keep prompts concise but detailed, adding elements as needed. 
-Not all elements of the prompt need to be turned into booru tags.
+Your goal is to take an existing prompt and embellish it using a few booru-style tags. This is more commonly used for anime prompts.`
+                + commonInstructions +
+`Not all elements of the prompt need to be turned into booru tags.
 Use tags appropriately, taking care not to mix styles and types haphazardly nor randomly. For example, don't mix anime-related tags with painterly or brush stroke.
 Keep most of the prompt descriptive, only adding a few booru tags. Some booru tags can be varied by color or other minor changes.
 Do not include any other text than the prompt. Here is an example (partial) list of possible tags (comma-separated): 1girl, 1boy, female, solo, from above, from side, holding sword,
