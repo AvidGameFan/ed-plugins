@@ -1,7 +1,7 @@
 /* 
  * LLM Prompt Generator Plugin
  *
- * v.1.2.2, last updated: 11/29/2025
+ * v.1.2.3, last updated: 12/5/2025
  * By Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -10,6 +10,13 @@
  * Clicking the button calls a localhost:5000 API to generate detailed prompts
  * and inserts the result into the prompt field.
  */
+
+//needs to be outside of the wrapper, as the input items are in the main UI.
+//These initial values can be overwritten upon startup -- do not rely on these as defaults.
+var LLMSettings = {
+    apiUrl: "",  // Base URL with port (e.g., "http://127.0.0.1:5000"), not including "/v1/completions"
+    model: ""    // Model name for Ollama (e.g., "llama2", "mistral"). Optional - only needed for Ollama.
+};
 
 (function() { 
     "use strict";
@@ -22,6 +29,15 @@
     };
 
     function resolveApiEndpoint() {
+        // Check if custom URL is set in settings
+        if (LLMSettings.apiUrl && LLMSettings.apiUrl.trim() !== "") {
+            const baseUrl = LLMSettings.apiUrl.trim();
+            // Remove trailing slash if present
+            const cleanUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+            return cleanUrl + '/v1/completions';
+        }
+        
+        // Fallback to existing logic
         try {
             const protocol = window.location.protocol || 'http:';
             const hostname = window.location.hostname || '127.0.0.1';
@@ -359,7 +375,7 @@ mole, fang, closed mouth, scarf, jeans, grin, blonde hair, mug, alcohol, green e
         // Generate user prompt
         const userPrompt = typeConfig.userPromptTemplate(currentPrompt);
 
-        const requestPayload = {
+        let requestPayload = {
             prompt: `${systemPrompt}\n\nUser: ${userPrompt}\n\nAssistant:`,
             max_tokens: 235,
             temperature: typeConfig.temperature,
@@ -367,6 +383,11 @@ mole, fang, closed mouth, scarf, jeans, grin, blonde hair, mug, alcohol, green e
             top_k: 20,
             stop: ["\nUser:", "\nHuman:", "\nAssistant:", "\nAI:"]
         };
+
+        //the model is not needed for Ooobabooga text UI, but it's needed for ollama
+        if (LLMSettings.model!==undefined && LLMSettings.model!=="") {
+            requestPayload.model = LLMSettings.model;
+        }
 
         let lastError;
         
@@ -496,8 +517,86 @@ mole, fang, closed mouth, scarf, jeans, grin, blonde hair, mug, alcohol, green e
         }, 100);
     }
 
+    // Setup settings UI
+    function setup() {
+        // Add new UI panel to left sidebar
+        var llmSettings = document.createElement('div');
+        llmSettings.id = 'llm-settings';
+        llmSettings.classList.add('settings-box');
+        llmSettings.classList.add('panel-box');
+        let tempHTML =  
+            `<h4 class="collapsible">LLM Settings
+              <i id="reset-llm-settings" class="fa-solid fa-arrow-rotate-left section-button">
+              <span class="simple-tooltip top-left">
+              Reset LLM Settings
+              </span>
+              </i>
+            </h4>
+            <!-- internal CSS like this outside of the <head> is not standards-compliant, but seems to work -->
+            <style>
+              .simple-tooltip.top-right {
+                  top: 0px;
+                  right: 0px;
+                  transform: translate(calc(100% - 15%), calc(-100% + 15%));
+              }
+              :hover > .simple-tooltip.top-right {
+                  transform: translate(80%, -100%);
+              }
+
+              .simple-tooltip.bottom-right {
+                  bottom: 0px;
+                  right: 0px;
+                  transform: translate(calc(100% - 15%), calc(100% - 15%));
+              }
+              :hover > .simple-tooltip.bottom-right {
+                  transform: translate(80%, 100%);
+              }
+
+              .simple-tooltip.bottom-left {
+                  bottom: 0px;
+                  left: 0px;
+                  transform: translate(calc(-100% + 15%), calc(100% - 15%));
+              }
+              :hover > .simple-tooltip.bottom-left {
+                  transform: translate(-80%, 100%);
+              }
+            </style>
+            <div id="llm-settings-entries" class="collapsible-content" style="display: block;margin-top:15px;">
+            <div><ul style="padding-left:0px">
+              <li><b class="settings-subheader">LLM Settings</b></li>
+              <li class="pl-5">
+              <label for="llm_api_url">LLM API URL:</label>
+              <input type="text" id="llm_api_url" name="llm_api_url" value="`+(LLMSettings.apiUrl || "")+`" onchange="setLLMSettings()" placeholder="http://127.0.0.1:5000" style="width: 100%; max-width: 300px; padding: 4px; margin-top: 5px;">
+              <small style="display: block; margin-top: 5px; color: #666;">Base URL with port (e.g., http://127.0.0.1:5000). Leave empty to use default.</small>
+              </li>
+              <li class="pl-5">
+              <label for="llm_model">Model (for Ollama):</label>
+              <input type="text" id="llm_model" name="llm_model" value="`+(LLMSettings.model || "")+`" onchange="setLLMSettings()" placeholder="llama2" style="width: 100%; max-width: 300px; padding: 4px; margin-top: 5px;">
+              <small style="display: block; margin-top: 5px; color: #666;">Model name (e.g., llama3.2, mistral, gemma3:4b). Required for Ollama. May leave empty for Oobabooga.</small>
+              </li>
+            </ul></div>
+            </div>`;
+        llmSettings.innerHTML = tempHTML;
+        var editorSettings = document.getElementById('editor-settings');
+        if (editorSettings && editorSettings.parentNode) {
+            editorSettings.parentNode.insertBefore(llmSettings, editorSettings.nextSibling);
+            createCollapsibles(llmSettings);
+
+            const icon = document.getElementById('reset-llm-settings');
+            if (icon) {
+                icon.addEventListener('click', llmResetSettings);
+            }
+
+            // Load settings from storage
+            llmResetSettings(null);
+        }
+    }
+
     // Initialize the plugin
     function init() {
+        // Setup settings UI
+        setup();
+        
         // Try to insert immediately if elements are already available
         if (document.querySelector('#prompt_history')) {
             insertLLMButton();
@@ -516,4 +615,44 @@ mole, fang, closed mouth, scarf, jeans, grin, blonde hair, mug, alcohol, green e
 
     console.log('LLM Prompt Generator Plugin loaded successfully');
 
-})(); 
+})();
+
+// Save settings to localStorage
+function setLLMSettings() {
+    const apiUrlField = document.getElementById('llm_api_url');
+    const modelField = document.getElementById('llm_model');
+    if (apiUrlField) {
+        LLMSettings.apiUrl = apiUrlField.value.trim();
+    }
+    if (modelField) {
+        LLMSettings.model = modelField.value.trim();
+    }
+    localStorage.setItem('LLM_Plugin_Settings', JSON.stringify(LLMSettings));
+}
+
+// Load settings from localStorage or set defaults
+function llmResetSettings(reset) {
+    let settings = JSON.parse(localStorage.getItem('LLM_Plugin_Settings'));
+    if (settings == null || reset != null) {
+        // Set defaults
+        LLMSettings.apiUrl = "";
+        LLMSettings.model = "";
+    } else {
+        // Load from storage
+        LLMSettings.apiUrl = settings.apiUrl ?? "";
+        LLMSettings.model = settings.model ?? "";
+    }
+
+    // Update UI fields
+    const apiUrlField = document.getElementById('llm_api_url');
+    if (apiUrlField) {
+        apiUrlField.value = LLMSettings.apiUrl || "";
+    }
+    const modelField = document.getElementById('llm_model');
+    if (modelField) {
+        modelField.value = LLMSettings.model || "";
+    }
+
+    // Save settings
+    localStorage.setItem('LLM_Plugin_Settings', JSON.stringify(LLMSettings));
+} 
