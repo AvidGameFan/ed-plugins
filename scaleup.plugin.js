@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.1.1, last updated: 11/29/2025
+ * v.3.1.2, last updated: 12/7/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -256,6 +256,7 @@ var exactResTable = [
 
 var scalingIncrease1=1.25; //arbitrary amount to increase scaling, when beyond lookup table
 var scalingIncrease2=1.5; //arbitrary amount to increase scaling, when beyond lookup table
+var scalingIncreaseRegion=1.75; //arbitrary amount to increase scaling for region-based scaling
 var contrastAmount=0.8;  //0.8 appears to slightly increase contrast; 0.7 is more neutral
 
 //------------ controlnet model preferences ------------
@@ -363,7 +364,7 @@ function scaleUp(height,width,scalingIncrease) {
           }
   })
   if (result==height || scalingIncrease!=scalingIncrease1) { /*no match found in table OR if not the first button, ignore table */
-      if (height==width) { /* and if square */
+      if (height==width) { // and if square ..      && scalingIncrease==scalingIncrease1) { /* and if square .. and using the first button, use 896.  Probably don't need to do it this way anymore. */
           if (height>=768 && height<MaxSquareResolution) {
               //result=MaxSquareResolution; //arbitrary
               result = ScaleUpMax(height,Math.min(maxRatio(maxTotalResolution, height, width),scalingIncrease));
@@ -641,14 +642,14 @@ function onScaleUpLabelClick(origRequest, image) {
   scaleUpControlNet = scaleUpSelection==SCALEUP_CONTROLNET || scaleUpSelection==SCALEUP_PRESERVE_CONTROLNET;
 
   //SDXL doesn't support controlnet for img2img, so reset the counter for SDXL if controlnet was selected.
-  if(scaleUpControlNet){
-    var desiredModel=desiredModelName(origRequest);
+  //if(scaleUpControlNet){
+    //var desiredModel=desiredModelName(origRequest);
     // if (isModelXl(desiredModel)) {
       // scaleUpPreserve = false;
       // scaleUpControlNet = false;
       // scaleUpSelection = SCALEUP_NORMAL;
     // }
-  }
+  //}
   //update current labels
   for (var index=0; index<document.getElementsByClassName("scaleup-label").length;index++) {
     document.getElementsByClassName("scaleup-label")[index].innerText=scaleupLabel(!scaleUpMAXFilter(origRequest, image));
@@ -698,6 +699,12 @@ function onScaleUpFilter(origRequest, image) {
       scaleUp(getHeight(origRequest, image), getWidth(origRequest, image), scalingIncrease1);
   }
   return result;
+}
+function onScaleUpRegionFilter(origRequest, image) {
+  // this is an optional function. return true/false to show/hide the button
+  // if this function isn't set, the button will always be visible
+
+  return true; //always show region scale up
 }
 
 function onScaleUpFilter2(origRequest, image) {
@@ -1658,10 +1665,9 @@ function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, o
 
   //Grab the prompt from the user-input area instead of the original image.
   if (newTaskRequest.reqBody.prompt.substr(0, $("textarea#prompt").val().length) != $("textarea#prompt").val()) {
-    if (ScaleUpSettings.useChangedPrompt) {
+    //if requesting new prompt OR if original prompt was just "Loaded Image", from the load-image plugin (which shouldn't happen, but just in case), always use new prompt
+    if (ScaleUpSettings.useChangedPrompt ||  newTaskRequest.reqBody.prompt=="Loaded Image" ) {  
       newTaskRequest.reqBody.prompt = getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
-
-
     };
   }
 
@@ -1762,6 +1768,9 @@ function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, o
   //Beta makes stronger changes, so reduce the prompt_strength to compensate
   if (newTaskRequest.reqBody.scheduler_name == 'beta') {
     newTaskRequest.reqBody.prompt_strength = scaleupRound(newTaskRequest.reqBody.prompt_strength - .04);
+    //for features that require merging and blending together, need to lessen beta's effect even more
+    //needs further work and testing:
+    //newTaskRequest.reqBody.prompt_strength = scaleupRound(newTaskRequest.reqBody.prompt_strength - (newTaskRequest.reqBody._scaleup_region?.08:(newTaskRequest.reqBody.scaleUpSplit)?.06:.04));
   }
 
   delete newTaskRequest.reqBody.mask;
@@ -1828,7 +1837,7 @@ const regLabel = 'Region Enhancer';  //base label prefix
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { html: '<span class="region-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">'
     +regLabel+':</span>', type: 'label'},
-  { html: '<i class="fa-solid fa-expand-arrows-alt" title="Enhance 512px Region"></i>', on_click: onScaleUpRegionClick, filter: onScaleUpFilter }
+  { html: '<i class="fa-solid fa-expand-arrows-alt" title="Enhance 512px Region"></i>', on_click: onScaleUpRegionClick, filter: onScaleUpRegionFilter }
 ])
 
 // Store region selection state
@@ -2089,9 +2098,9 @@ function processRegionAtPoint(centerX, centerY) {
 
     // Prepare a new task request copying current user request and using the cropped image as init_image.
     let newTaskRequest = getCurrentUserRequest();
-    // Use scalingIncrease2 to get stronger upscale; generate target dims with existing helpers
-    const targetWidth = scaleUp(cropW, cropH, scalingIncrease2);
-    const targetHeight = scaleUp(cropH, cropW, scalingIncrease2);
+    // Use scalingIncreaseRegion to get stronger upscale; generate target dims with existing helpers
+    const targetWidth = scaleUp(cropW, cropH, scalingIncreaseRegion);
+    const targetHeight = scaleUp(cropH, cropW, scalingIncreaseRegion);
 
     const seed = Math.floor(Math.random() * 100000000);
 
