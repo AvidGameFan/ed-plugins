@@ -2,7 +2,7 @@
 /* 
  * Load Image Plugin
  *
- * v.1.0.0, last updated: 12/7/2025
+ * v.1.1.0, last updated: 12/8/2025
  * By Gary W.
  *
  * This plugin allows users to load an image file and insert it into the UI
@@ -13,6 +13,21 @@
 
 (function() { 
     "use strict";
+
+    // Load exifr library for metadata extraction
+    const script = document.createElement('script');
+
+    //to get rid of "Tracking Prevention blocked access to storage for https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js.",
+    // Use local path:
+    //script.src = '/media/js/exifr.umd.js';
+    script.src = 'https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js';
+    script.onload = function() {
+        console.log('Load Image Plugin: exifr library loaded successfully');
+    };
+    script.onerror = function() {
+        console.warn('Load Image Plugin: Failed to load exifr library - metadata extraction will be unavailable');
+    };
+    document.head.appendChild(script);
 
     // Wait for required elements to be available
     function waitForElementsAndInit() {
@@ -114,18 +129,119 @@
         }
     }
 
+    // Extract prompt from image EXIF/metadata using exifr
+    async function extractPromptFromImage(file) {
+        try {
+            if (typeof exifr === 'undefined') {
+                console.warn('Load Image Plugin: exifr not available, skipping metadata extraction');
+                return null;
+            }
+
+            const data = await exifr.parse(file);
+            if (!data) {
+                return null;
+            }
+
+            // Check various fields where Easy Diffusion stores prompt
+            // PNG: parameters field often contains the prompt
+            if (data.parameters) {
+                const params = data.parameters;
+                // Try to extract prompt from parameters string
+                const promptMatch = params.match(/^([^,\n]*)/);
+                if (promptMatch && promptMatch[1]) {
+                    return promptMatch[1].trim();
+                }
+            }
+
+            // PNG: ImageDescription field
+            if (data.ImageDescription) {
+                return data.ImageDescription;
+            }
+
+            // JPEG: UserComment field (common for EXIF)
+            if (data.UserComment) {
+                return data.UserComment;
+            }
+
+            // JPEG/PNG: Check metadata for any "prompt" or "text" fields
+            if (data.text && typeof data.text === 'string') {
+                return data.text;
+            }
+
+            // Generic check through all metadata fields
+            for (const [key, value] of Object.entries(data)) {
+                if (typeof value === 'string' && value.length > 10) {
+                    if (key.toLowerCase().includes('prompt') || key.toLowerCase().includes('description')) {
+                        // Check if this is JSON-formatted metadata (ComfyUI format)
+                        if (value.trim().startsWith('{')) {
+                            try {
+                                const jsonData = JSON.parse(value);
+                                const extractedPrompt = extractPromptFromComfyUIJSON(jsonData);
+                                if (extractedPrompt) {
+                                    return extractedPrompt;
+                                }
+                            } catch (e) {
+                                // If JSON parsing fails, just use the string as-is
+                                return value;
+                            }
+                        }
+                        return value;
+                    }
+                }
+            }
+
+            return null;
+        } catch (error) {
+            console.log('Load Image Plugin: Could not extract prompt from metadata:', error);
+            return null;
+        }
+    }
+
+    // Helper function to extract prompt from ComfyUI JSON format
+    function extractPromptFromComfyUIJSON(jsonData) {
+        try {
+            // Look for CLIP Text Encode nodes (which contain prompts)
+            // They typically have class_type "CLIPTextEncode"
+            for (const [key, node] of Object.entries(jsonData)) {
+                if (node && node.class_type === 'CLIPTextEncode' && node.inputs && node.inputs.text) {
+                    // Return the first text prompt found (positive prompt)
+                    return node.inputs.text;
+                }
+            }
+            
+            // If no CLIPTextEncode found, look for any "text" field in inputs
+            for (const [key, node] of Object.entries(jsonData)) {
+                if (node && node.inputs && node.inputs.text) {
+                    return node.inputs.text;
+                }
+            }
+        } catch (e) {
+            console.log('Load Image Plugin: Error parsing ComfyUI JSON:', e);
+        }
+        return null;
+    }
+
     // Load and insert the image file
-    function loadImageFile(file) {
+    async function loadImageFile(file) {
         const reader = new FileReader();
         
-        reader.onload = function(e) {
+        reader.onload = async function(e) {
             const imageDataUrl = e.target.result;
+            
+            // Extract prompt from image metadata
+            let extractedPrompt = null;
+            try {
+                extractedPrompt = await extractPromptFromImage(file);
+            } catch (error) {
+                console.log('Load Image Plugin: Error during prompt extraction:', error);
+            }
             
             // Create image to get dimensions
             const img = new Image();
             img.onload = function() {
                 const timestamp = Date.now();
                 const containerId = `imageTaskContainer-${timestamp}`;
+                const promptText = extractedPrompt || 'Loaded Image';
                 
                 // Calculate thumbnail dimensions (80px height, maintain aspect ratio)
                 let thumbHeight = 80;
@@ -143,12 +259,12 @@
                         <div class="taskStatusLabel" style="display: none;">Loaded</div>
                         <button class="secondaryButton stopTask"><i class="fa-solid fa-trash-can"></i> Remove</button>
                         <button class="tertiaryButton useSettings"><i class="fa-solid fa-redo"></i> Use these settings</button>
-                        <div class="preview-prompt">Loaded Image</div>
+                        <div class="preview-prompt">${promptText}</div>
                         <div class="taskConfig">
-                            <div class="task-initimg init-img-preview" style="float:left;">
+                          <!--  <div class="task-initimg init-img-preview" style="float:left;">
                                 <img style="width:${thumbWidth}px;height:${thumbHeight}px;" src="${imageDataUrl}" width="${thumbWidth}" height="${thumbHeight}">
                                 <div class="task-fs-initimage"></div>
-                            </div>
+                            </div> -->
                         </div>
                         <div class="outputMsg"></div>
                         <div class="progress-bar" style="display: none;"><div></div></div>
@@ -158,7 +274,7 @@
                             <div class="imgItem">
                                 <div class="imgContainer">
                                     <img src="${imageDataUrl}" width="${img.width}" height="${img.height}" 
-                                         data-prompt="Loaded Image" data-steps="" data-guidance="">
+                                         data-prompt="${promptText}" data-steps="" data-guidance="">
                                     <div class="imgItemInfo" style="visibility: visible;">
                                         <div>
                                             <span class="imgInfoLabel imgExpandBtn"><i class="fa-solid fa-expand"></i></span>
@@ -194,7 +310,7 @@
                     seed: '',
                     isProcessing: false,  // CRITICAL: Must be false so it doesn't block generation!
                     reqBody: {
-                        prompt: 'Loaded Image',
+                        prompt: promptText,
                         seed: '',
                         width: img.width,
                         height: img.height,
@@ -264,7 +380,7 @@
                 }
                 
                 // Set up event handlers
-                setupImageContainer(taskEntry, imageDataUrl, img.width, img.height, file.name, task);
+                setupImageContainer(taskEntry, imageDataUrl, img.width, img.height, file.name, task, promptText);
                 
                 // Insert before supportBanner
                 const supportBanner = document.querySelector("#supportBanner");
@@ -320,7 +436,7 @@
     }
 
     // Set up event handlers for the image container
-    function setupImageContainer(container, imageDataUrl, width, height, fileName, task) {
+    function setupImageContainer(container, imageDataUrl, width, height, fileName, task, promptText) {
         // Set up image info buttons
         const imgItem = container.querySelector('.imgItem');
         const img = container.querySelector('.imgItem img');
@@ -351,7 +467,7 @@
         
         // Create a minimal request object for button handlers
         const req = {
-            prompt: desiredPrompt(fileName),
+            prompt: promptText || desiredPrompt(fileName),
             seed: '',
             num_inference_steps: (typeof numInferenceStepsField !== 'undefined' && numInferenceStepsField?.value) ? numInferenceStepsField.value : '20',
             guidance_scale: parseFloat(guidanceScaleField.value),
