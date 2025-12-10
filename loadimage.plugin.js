@@ -1,8 +1,7 @@
-
 /* 
  * Load Image Plugin
  *
- * v.1.1.0, last updated: 12/8/2025
+ * v.1.1.1, last updated: 12/9/2025
  * By Gary W.
  *
  * This plugin allows users to load an image file and insert it into the UI
@@ -55,7 +54,7 @@
         const loadImageBtn = document.createElement('button');
         loadImageBtn.id = 'load_image_btn';
         loadImageBtn.className = 'btn btn-primary';
-        loadImageBtn.innerHTML = '<i class="fa-solid fa-folder-open"></i> Load Image';
+        loadImageBtn.innerHTML = '<i class="fa-solid fa-folder-open"></i> Load Image <i class="fa-solid fa-arrow-right"></i>';
         loadImageBtn.title = 'Load an image file into the UI';
         loadImageBtn.style.cssText = `
             padding: 6px 12px;
@@ -88,22 +87,29 @@
             }
         });
         
-        // Insert button next to the download button
-        const downloadBtn = document.querySelector("#show-download-popup");
-        if (downloadBtn) {
-            // Insert after the download button
-            downloadBtn.parentNode.insertBefore(loadImageBtn, downloadBtn.nextSibling);
-            downloadBtn.parentNode.insertBefore(fileInput, downloadBtn.nextSibling);
+        // Insert button at the bottom of init_image_preview_container
+        const initImagePreviewContainer = document.querySelector("#init_image_preview_container");
+        if (initImagePreviewContainer) {
+            // Append at the bottom of the container
+            initImagePreviewContainer.appendChild(fileInput);
+            initImagePreviewContainer.appendChild(loadImageBtn);
         } else {
-            // Fallback: insert in preview tools if download button not found
-            const previewTools = document.querySelector("#preview-tools");
-            if (previewTools) {
-                previewTools.appendChild(loadImageBtn);
-                previewTools.appendChild(fileInput);
+            // Fallback: insert next to the download button
+            const downloadBtn = document.querySelector("#show-download-popup");
+            if (downloadBtn) {
+                downloadBtn.parentNode.insertBefore(loadImageBtn, downloadBtn.nextSibling);
+                downloadBtn.parentNode.insertBefore(fileInput, downloadBtn.nextSibling);
             } else {
-                // Last resort: insert at beginning of body
-                document.body.insertBefore(fileInput, document.body.firstChild);
-                document.body.insertBefore(loadImageBtn, document.body.firstChild);
+                // Second fallback: insert in preview tools if download button not found
+                const previewTools = document.querySelector("#preview-tools");
+                if (previewTools) {
+                    previewTools.appendChild(loadImageBtn);
+                    previewTools.appendChild(fileInput);
+                } else {
+                    // Last resort: insert at beginning of body
+                    document.body.insertBefore(fileInput, document.body.firstChild);
+                    document.body.insertBefore(loadImageBtn, document.body.firstChild);
+                }
             }
         }
     }
@@ -515,6 +521,18 @@
                     html: '<i class="fa-solid fa-download"></i> JSON',
                     on_click: onDownloadJSONClick,
                     class: "download-json",
+                },
+            ],
+            [
+                {
+                    html: '<i class="fa-solid fa-up-right-and-down-left-from-center"></i> Upscale',
+                    on_click: onUpscaleClick,
+                    class: "upscale-btn",
+                },
+                {
+                    html: '<i class="fa-solid fa-face-smile"></i> Fix Faces',
+                    on_click: onFixFacesClick,
+                    class: "fix-faces-btn",
                 },
             ],
         ];
