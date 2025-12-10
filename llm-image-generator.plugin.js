@@ -1,7 +1,7 @@
 /* 
  * LLM Prompt Generator Plugin
  *
- * v.1.2.3, last updated: 12/5/2025
+ * v.1.2.4, last updated: 12/9/2025
  * By Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -9,6 +9,12 @@
  * This plugin adds an LLM button next to the prompt history dropdown.
  * Clicking the button calls a localhost:5000 API to generate detailed prompts
  * and inserts the result into the prompt field.
+ * 
+ * http://localhost:5000 is the default URL for Oobabooga text generation web UI. Turn on "Openai" extension in Oobabooga settings.
+ * http://localhost:11434 is the default URL for Ollama.  Need to specify model name in settings (e.g., "llama2", "mistral").  Ollama 
+ * must be running locally and will not work on a different machine than the ED server.
+ * http://localhost:1234 is the default URL for LM Studio.
+ * 
  */
 
 //needs to be outside of the wrapper, as the input items are in the main UI.
@@ -169,7 +175,7 @@ var LLMSettings = {
         // Show loading state
         const button = document.querySelector('#llm_prompt_generator');
         const originalText = button.innerHTML;
-        button.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${typeConfig.name}ing...`;
+        button.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${typeConfig.waitName}...`;
         button.disabled = true;
 
         // Get the appropriate line ending for the current platform
@@ -290,6 +296,7 @@ Keep prompts concise but detailed. Do not include any other text than the prompt
     const promptTypes = {
         enhance: {
             name: 'Enhance',
+            waitName: 'Enhancing',
             description: 'Improve and expand existing prompt with more details',
             systemPrompt: `You are an expert at creating detailed, artistic prompts for AI image generation. 
 Generate creative, descriptive prompts that include artistic terms, lighting, composition, style, and technical details.
@@ -304,6 +311,7 @@ Refine the prompt to keep the overall vision intact while enhancing the descript
         },
         variation: {
             name: 'Variation',
+            waitName: 'Varying',
             description: 'Create creative variations with somewhat different artistic directions',
             systemPrompt: `You are an expert at creating creative variations of AI image generation prompts. 
 Your goal is to take an existing prompt and create a slightly different prompt that explores alternative artistic directions, styles, compositions, or interpretations.
@@ -317,6 +325,7 @@ Think about: different art styles, alternative lighting, new compositions, diffe
         },
         difference: {
             name: 'Difference',
+            waitName: 'Differentiating',
             description: 'Create creative, large variations with different artistic directions',
             systemPrompt: `You are an expert at creating creative variations of AI image generation prompts. 
 Your goal is to take an existing prompt and create a NEW, DIFFERENT prompt that explores alternative artistic directions, styles, compositions, or interpretations.
@@ -332,6 +341,7 @@ Think about: different art styles, alternative lighting, new compositions, diffe
         },
         booru: {
             name: 'Booru',
+            waitName: 'Working',
             description: 'Improve and expand existing prompt with more details and booru tags',
             systemPrompt: `You are an expert at creating creative variations of AI image generation prompts. 
 Your goal is to take an existing prompt and embellish it using a few booru-style tags. This is more commonly used for anime prompts.`
