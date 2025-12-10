@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.1.2, last updated: 12/7/2025
+ * v.3.1.3, last updated: 12/9/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -364,7 +364,7 @@ function scaleUp(height,width,scalingIncrease) {
           }
   })
   if (result==height || scalingIncrease!=scalingIncrease1) { /*no match found in table OR if not the first button, ignore table */
-      if (height==width) { // and if square ..      && scalingIncrease==scalingIncrease1) { /* and if square .. and using the first button, use 896.  Probably don't need to do it this way anymore. */
+      if (height==width && scalingIncrease==scalingIncrease1) { /* and if square .. and using the first button, use 896.  Probably don't need to do it this way anymore. */
           if (height>=768 && height<MaxSquareResolution) {
               //result=MaxSquareResolution; //arbitrary
               result = ScaleUpMax(height,Math.min(maxRatio(maxTotalResolution, height, width),scalingIncrease));
@@ -1927,7 +1927,7 @@ function createSelectionOverlay(imageEl) {
   // Create instruction text
   const instruction = document.createElement('div');
   instruction.id = 'scaleup-region-instruction';
-  instruction.textContent = 'Click to select region center point (Press Escape to cancel)';
+  instruction.textContent = 'Click to select region center point | Scroll wheel to adjust size (Press Escape to cancel)';
   instruction.style.cssText = `
     position: fixed;
     top: 20px;
@@ -1959,6 +1959,10 @@ function createSelectionOverlay(imageEl) {
     const containerBounds = imgContainer.getBoundingClientRect();
     const x = e.clientX - containerBounds.left;
     const y = e.clientY - containerBounds.top;
+
+    // Store last mouse position for wheel events
+    regionSelectionState.lastMouseX = e.clientX;
+    regionSelectionState.lastMouseY = e.clientY;
 
     // Scale screen coordinates to image coordinates
     const scaleX = regionSelectionState.imgW / containerBounds.width;
@@ -2016,13 +2020,43 @@ function createSelectionOverlay(imageEl) {
     }
   }
 
+  // Handle scroll wheel to adjust region size
+  function onWheel(e) {
+    e.preventDefault();
+    
+    const MIN_SIZE = 384; // 448;
+    const maxSize = Math.floor(Math.max(Math.min(regionSelectionState.imgW, regionSelectionState.imgH) * 0.75,Math.min(regionSelectionState.imgW, regionSelectionState.imgH)));
+    const step = 32; // Adjust in 32-pixel increments
+    
+    if (e.deltaY < 0) {
+      // Scroll up - increase size
+      regionSelectionState.CROP_SIZE = Math.min(maxSize, regionSelectionState.CROP_SIZE + step);
+    } else {
+      // Scroll down - decrease size
+      regionSelectionState.CROP_SIZE = Math.max(MIN_SIZE, regionSelectionState.CROP_SIZE - step);
+    }
+    
+    //scaleupLog(`[ScaleUpRegion] Region size adjusted to: ${regionSelectionState.CROP_SIZE}px`);
+    
+    // Redraw rectangle with new size by simulating the last mouse position
+    const lastEvent = new MouseEvent('mousemove', {
+      clientX: regionSelectionState.lastMouseX || e.clientX,
+      clientY: regionSelectionState.lastMouseY || e.clientY
+    });
+    onMouseMove(lastEvent);
+  }
+
   overlay.addEventListener('mousemove', onMouseMove);
   overlay.addEventListener('click', onClick);
+  overlay.addEventListener('wheel', onWheel, { passive: false });
   document.addEventListener('keydown', onKeyDown);
 
   regionSelectionState.onMouseMove = onMouseMove;
   regionSelectionState.onClick = onClick;
   regionSelectionState.onKeyDown = onKeyDown;
+  regionSelectionState.onWheel = onWheel;
+  regionSelectionState.lastMouseX = containerBounds.left + containerBounds.width / 2;
+  regionSelectionState.lastMouseY = containerBounds.top + containerBounds.height / 2;
 }
 
 /**
@@ -2035,6 +2069,7 @@ function cleanupSelectionOverlay() {
   if (regionSelectionState.overlay && regionSelectionState.onMouseMove) {
     regionSelectionState.overlay.removeEventListener('mousemove', regionSelectionState.onMouseMove);
     regionSelectionState.overlay.removeEventListener('click', regionSelectionState.onClick);
+    regionSelectionState.overlay.removeEventListener('wheel', regionSelectionState.onWheel);
   }
   if (regionSelectionState.onKeyDown) {
     document.removeEventListener('keydown', regionSelectionState.onKeyDown);
