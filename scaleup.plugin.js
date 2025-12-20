@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.1.3, last updated: 12/9/2025
+ * v.3.2.0, last updated: 12/19/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -705,6 +705,71 @@ function onScaleUpRegionFilter(origRequest, image) {
   // if this function isn't set, the button will always be visible
 
   return true; //always show region scale up
+}
+
+/**
+ * Handle undo button click - reverts image to previous state
+ * @param {Object} origRequest - The original request object
+ * @param {HTMLImageElement} image - The image element to undo
+ */
+function onUndoImageChange(origRequest, image) {
+  try {
+    const success = undoImageChange(image);
+    if (success) {
+      scaleupLog(`[UndoButton] Successfully reverted image to previous version`);
+    } else {
+      scaleupLog(`[UndoButton] No previous versions available to undo`);
+    }
+  } catch (err) {
+    scaleupError('onUndoImageChange failed', err);
+  }
+}
+
+/**
+ * Filter function for undo button - only show if history is available
+ * Hides the button DOM element if no history exists
+ * @param {Object} origRequest - The original request object
+ * @param {HTMLImageElement} image - The image element
+ * @returns {boolean} True to allow button creation
+ */
+function onUndoImageFilter(origRequest, image) {
+  // Always return true to create the button, but hide it initially
+  // It will be shown when history is available via refreshUndoButtonState()
+  
+  // Schedule hiding the button after DOM is rendered
+  setTimeout(() => {
+    // Find the image's parent container
+    let container = image.parentNode;
+    // while (container && !container.id.includes('imageTaskContainer')) {
+    //   container = container.parentNode;
+    // }
+    
+    if (container) {
+
+      const btn = container.querySelector('.fa-undo');
+
+      //this isn't having an effect -- need to investigate
+
+      btn.style.display = 'none';
+      btn.style.disabled = true;
+      
+      // Find all buttons in this container's parent
+      // const buttonGroup = container.parentNode.querySelector('[class*="image-buttons"], .imageTaskContainer-buttons');
+      // if (buttonGroup) {
+      //   // Find the undo button (the one with fa-undo icon)
+      //   const undoButtons = buttonGroup.querySelectorAll('button');
+      //   for (let btn of undoButtons) {
+      //     if (btn.querySelector('.fa-undo') || btn.title.includes('Undo')) {
+      //       btn.style.display = 'none';
+      //       break;
+      //     }
+      //   }
+      // }
+    }
+  }, 300);
+  
+  return true;
+
 }
 
 function onScaleUpFilter2(origRequest, image) {
@@ -1831,13 +1896,152 @@ function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, o
 
 //________________________________________________________________________________________________________________________________________
 
+// --- IMAGE HISTORY TRACKING: Store previous versions of images for undo/rewind functionality ---
+// Map to associate image history with image data hash
+// Using hash of base64 data as key allows history to persist across DOM element changes
+const imageHistoryMap = new Map();
+
+/**
+ * Generate a simple hash of the base64 image data
+ * @param {string} dataUrl - The data URL string
+ * @returns {string} Hash of the data
+ */
+/*
+function hashImageData(dataUrl) {
+  let hash = 0;
+  if (dataUrl.length === 0) return hash.toString();
+  
+  // Use only the data portion (skip the data:image/png;base64, prefix)
+  const dataOnly = dataUrl.split(',')[1] || dataUrl;
+  
+  for (let i = 0; i < dataOnly.length; i++) {
+    const char = dataOnly.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  
+  return Math.abs(hash).toString(16);
+}
+  */
+
+/**
+ * Get the history stack for an image. Creates one if it doesn't exist.
+ * @param {HTMLImageElement} image - The image element
+ * @returns {Array} Array of previous image data URIs
+ */
+function getImageHistory(image) {
+  // Navigate up to find the image task container
+  let container = image.parentNode;
+  while (container && !container.id.includes('imageTaskContainer')) {
+    container = container.parentNode;
+  }
+  //  const key = image.parentNode.parentNode.parentNode.parentNode.parentNode.parentNode.id.valueOf();
+  const key = container.id.valueOf(); //Unique ID of the containing div for this image.
+
+  if (!imageHistoryMap.has(key)) {
+    imageHistoryMap.set(key, []);
+  }
+  return imageHistoryMap.get(key);
+}
+
+/**
+ * Save current image to history buffer
+ * @param {HTMLImageElement} image - The image element to save
+ */
+function saveImageToHistory(image) {
+  const history = getImageHistory(image);
+  // Limit history to last 5 versions to avoid memory issues
+  if (history.length >= 5) {
+    history.shift(); // Remove oldest
+  }
+  // Save the current image data
+  history.push(image.src);
+  scaleupLog(`[ImageHistory] Saved image version. History length: ${history.length}`);
+}
+
+/**
+ * Revert image to previous version from history
+ * @param {HTMLImageElement} image - The image element to revert
+ * @returns {boolean} True if undo was successful, false if no history available
+ */
+function undoImageChange(image) {
+  const history = getImageHistory(image);
+  
+  if (history.length === 0) {
+    scaleupLog(`[ImageHistory] No undo history available for this image`);
+    return false;
+  }
+  
+  // Get the previous version
+  const previousSrc = history.pop();
+  image.src = previousSrc;
+  
+//  // Update history map to use new image hash after change
+//  const newHash = hashImageData(previousSrc);
+  let container = image.parentNode;
+  while (container && !container.id.includes('imageTaskContainer')) {
+    container = container.parentNode;
+  }
+  const key = container.id.valueOf(); //Unique ID of the containing div for this image.
+
+  if (!imageHistoryMap.has(key)) {
+    imageHistoryMap.set(key, []);
+    refreshUndoButtonState(image); //if empty, refresh button state -- ideally, should disable
+  }
+  
+  scaleupLog(`[ImageHistory] Reverted to previous version. Remaining history: ${history.length}`);
+  return true;
+}
+
+/**
+ * Check if undo is available for an image
+ * @param {HTMLImageElement} image - The image element
+ * @returns {boolean} True if history is available
+ */
+function hasImageHistory(image) {
+  const history = getImageHistory(image);
+  return history.length > 0;
+}
+
+/**
+ * Refresh the undo button visibility for a specific image
+ * Finds the undo button in the Region Enhancer section and shows/hides it based on history availability
+ * @param {HTMLImageElement} image - The image element
+ */
+function refreshUndoButtonState(image) {
+  if (!image) return;
+
+  // Navigate up to find the image container
+  let container = image.parentNode;
+  
+  if (!container) return;
+  
+  let undoButton = container.querySelector('.fa-undo');
+
+  if (undoButton) {
+    // Show or hide based on whether history is available
+    const hasHistory = hasImageHistory(image);
+
+    //This disable doesn't appear to have any effect.  It could be due to the "hover" of the parent panel.
+
+    undoButton.style.display = hasHistory ? '' : 'none';
+    undoButton.disabled = !hasHistory;
+    scaleupLog(`[UndoButton] Refreshed state: ${hasHistory ? 'visible' : 'hidden'}`);
+    return;
+  }
+  scaleupLog(`[UndoButton] Could not find undo button in DOM`);
+}
+
+//________________________________________________________________________________________________________________________________________
+
 // --- REGION UPSCALE: capture 512x512 region, submit to scale-up, merge back with feathered edges ---
 // Click handler registration (adds a single-button array so it appears alongside other image buttons)
 const regLabel = 'Region Enhancer';  //base label prefix
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { html: '<span class="region-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">'
     +regLabel+':</span>', type: 'label'},
-  { html: '<i class="fa-solid fa-expand-arrows-alt" title="Enhance 512px Region"></i>', on_click: onScaleUpRegionClick, filter: onScaleUpRegionFilter }
+  { html: '<i class="fa-solid fa-expand-arrows-alt" title="Enhance 512px Region"></i>', on_click: onScaleUpRegionClick, filter: onScaleUpRegionFilter },
+  { html: '<i class="fa-solid fa-undo" title="Undo Last Change"></i>', on_click: onUndoImageChange, filter: onUndoImageFilter }
 ])
 
 // Store region selection state
@@ -2429,6 +2633,9 @@ async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedIm
 
     if (targetImg) {
       scaleupLog(`[ScaleUpRegion] Updating image element with merged result`);
+      // Save current image to history before replacing it
+      saveImageToHistory(targetImg);
+      refreshUndoButtonState(targetImg);  // Refresh undo button visibility after saving history
       targetImg.src = mergedDataUrl;
     } else {
       // fallback: open merged result in new tab
@@ -2687,7 +2894,7 @@ function scaleUpResetSettings(reset) {
     ScaleUpSettings.use64PixelChunks = false;
     ScaleUpSettings.useChangedPrompt = false;
     ScaleUpSettings.useChangedModel = false;
-    ScaleUpSettings.useMaxSplitSize = true;
+    ScaleUpSettings.useMaxSplitSize = false;
     ScaleUpSettings.resizeImage = true;
     ScaleUpSettings.reuseControlnet = true;
     ScaleUpSettings.controlnetType = "tile";
@@ -2699,7 +2906,7 @@ function scaleUpResetSettings(reset) {
     ScaleUpSettings.use64PixelChunks =settings.use64PixelChunks ?? false;
     ScaleUpSettings.useChangedPrompt =settings.useChangedPrompt ?? false;
     ScaleUpSettings.useChangedModel =settings.useChangedModel ?? false;
-    ScaleUpSettings.useMaxSplitSize =settings.useMaxSplitSize ?? true;
+    ScaleUpSettings.useMaxSplitSize =settings.useMaxSplitSize ?? false;
     ScaleUpSettings.resizeImage =settings.resizeImage ?? true;
     ScaleUpSettings.reuseControlnet =settings.reuseControlnet ?? false;
     
