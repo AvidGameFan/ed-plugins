@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.2.0, last updated: 12/19/2025
+ * v.3.3.0, last updated: 12/21/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1658,10 +1658,18 @@ function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, o
       cropOriginX, cropOriginY, imgWidth, imgHeight, //source 
       0, 0, canvasSoft.width, canvasSoft.height //destination
     );
+    
     //      sharpen(ctx2, canvasSoft.width, canvasSoft.height, .8, true);
     //  document.querySelector('body').appendChild(canvasSoft);   //Testing -- let's see what we have
     var img2 = ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
     ctx2.putImageData(img2, 0, 0);
+    ctx2.filter = "none"; //turn off blur - may not need
+
+    if (SCALEUP_DEBUG_LOGGING) {
+      document.body.appendChild(document.createTextNode("canvasSoft (controlnet): "));
+      document.body.appendChild(canvasSoft); //DEBUG
+      document.body.appendChild(document.createElement("br"));
+    }
     var newImage2 = new Image;
     newImage2.src = canvasSoft.toDataURL('image/png');
     newTaskRequest.reqBody.control_image = newImage2.src;
@@ -1844,25 +1852,35 @@ function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, o
   if (ScaleUpSettings.resizeImage) {
     //create working canvas
     let canvas = document.createElement("canvas");
-    canvas.width = Math.round(imgWidth * 1.25);
-    canvas.height = Math.round(imgHeight * 1.25);
+    canvas.width = newTaskRequest.reqBody.width; //Math.round(imgWidth * 1.25);
+    canvas.height = newTaskRequest.reqBody.height; //Math.round(imgHeight * 1.25);
 
     let ctx = canvas.getContext("2d", {
       willReadFrequently: true,
       alpha: false // Firefox optimization
     });
 
-    // get the image data of the canvas  -- we only need the part we're going to resize
-    //x,y -- upper-left, width & height
-    ctx.drawImage(image,
-      cropOriginX, cropOriginY, imgWidth, imgHeight, //source 
-      0, 0, canvas.width, canvas.height //destination
-    );
+    ctx.filter = "none";  //just in case
+
+    // Create a source canvas from the cropped region if needed
+    let sourceCanvas = image;
+    if (cropOriginX !== 0 || cropOriginY !== 0 || imgWidth !== image.naturalWidth || imgHeight !== image.naturalHeight) {
+      // Need to extract just the crop region
+      const cropCanvas = document.createElement("canvas");
+      cropCanvas.width = imgWidth;
+      cropCanvas.height = imgHeight;
+      const cropCtx = cropCanvas.getContext("2d", { willReadFrequently: true, alpha: false });
+      cropCtx.drawImage(image, cropOriginX, cropOriginY, imgWidth, imgHeight, 0, 0, imgWidth, imgHeight);
+      sourceCanvas = cropCanvas;
+    }
+
+    // Use Lanczos resampling for higher quality upscaling
+    lanczosResize(sourceCanvas, canvas, newTaskRequest.reqBody.width, newTaskRequest.reqBody.height);
 
     //extra sharpening not necessarily needed with controlnet
     //if (!scaleUpControlNet) { }
     //extra sharpening doesn't work well for Flux
-    if (isFlux) {
+    if (isFlux) { // && !newTaskRequest.reqBody._scaleup_region) {
       sharpen(ctx, canvas.width, canvas.height, .1);
     }
     else {
@@ -1878,6 +1896,12 @@ function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, o
 
     imgCopy = contrastImage(imgCopy, contrastAmount);
     ctx.putImageData(imgCopy, 0, 0);
+
+    if (SCALEUP_DEBUG_LOGGING) {
+      document.body.appendChild(document.createTextNode("resized canvas: "));
+      document.body.appendChild(canvas); //DEBUG
+      document.body.appendChild(document.createElement("br"));
+    }
 
     var newImage = new Image;
 
@@ -2322,7 +2346,11 @@ function processRegionAtPoint(centerX, centerY) {
     cropCtx.drawImage(image, left, top, cropW, cropH, 0, 0, cropW, cropH);
     const cropDataUrl = cropCanvas.toDataURL('image/png');
 
-
+    if (SCALEUP_DEBUG_LOGGING) {
+      document.body.appendChild(document.createTextNode("cropCanvas: "));
+      document.body.appendChild(cropCanvas); //DEBUG
+      document.body.appendChild(document.createElement("br"));
+    }
     // Build a minimal origRequest-like object to base the upscale on
     const fakeOrig = Object.assign({}, origRequest, {
       width: cropW,
@@ -2522,6 +2550,162 @@ function pollForGeneratedImage(regionTimestamp, seed, timeoutMs = 120000, interv
   });
 }
 
+// // Instead of drawing to workCanvas, then patchCanvas, then maskCanvas
+// // Draw directly to the final output in ONE pass
+
+// async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedImageEl, origin) {
+//   try {
+//     await ensureImageLoaded(generatedImageEl);
+//     await ensureImageLoaded(originalImageEl);
+
+//     const origW = origin.imgW || originalImageEl.naturalWidth || originalImageEl.width;
+//     const origH = origin.imgH || originalImageEl.naturalHeight || originalImageEl.height;
+
+//     // SINGLE canvas for final result
+//     const resultCanvas = document.createElement('canvas');
+//     resultCanvas.width = origW;
+//     resultCanvas.height = origH;
+//     const ctx = resultCanvas.getContext('2d', { 
+//       willReadFrequently: true, 
+//       alpha: true,
+//       desynchronized: true  // Performance hint
+//     });
+
+//     // Draw original base
+//     ctx.drawImage(originalImageEl, 0, 0, origW, origH);
+
+//     // Get feathering amount
+//     const feather = Math.max(8, Math.min(24, Math.floor(Math.min(origin.w, origin.h) * 0.1)));
+
+//     // Draw generated patch with feathering applied directly
+//     // HIGH quality upscaling
+//     ctx.imageSmoothingEnabled = true;
+//     ctx.imageSmoothingQuality = 'high';
+    
+//     // Create clipping path for feathered edges instead of alpha mask
+//     ctx.save();
+//     ctx.beginPath();
+//     // Rounded rectangle path for the region
+//     roundRect(ctx, origin.left, origin.top, origin.w, origin.h, feather);
+//     ctx.clip();
+    
+//     // Draw the enhanced patch
+//     ctx.drawImage(
+//       generatedImageEl, 
+//       0, 0, generatedImageEl.naturalWidth, generatedImageEl.naturalHeight,
+//       origin.left, origin.top, origin.w, origin.h
+//     );
+//     ctx.restore();
+
+//     // Convert ONCE with maximum quality
+//     resultCanvas.toBlob((blob) => {
+//       const blobUrl = URL.createObjectURL(blob);
+//       let targetImg = originalImageEl;
+//       if (targetImg) {
+//         saveImageToHistory(targetImg);
+//         refreshUndoButtonState(targetImg);
+//         targetImg.src = blobUrl;
+//       }
+//       showNotification(`Merged enhanced region successfully!`, 'success');
+//     }, 'image/png', 1.0);
+
+//   } catch (err) {
+//     showNotification('Error attempting to merge', 'error');
+//     scaleupError('mergeGeneratedPatchBack error', err);
+//   }
+// }
+
+// // Helper for rounded rectangle path
+// function roundRect(ctx, x, y, w, h, r) {
+//   ctx.moveTo(x + r, y);
+//   ctx.lineTo(x + w - r, y);
+//   ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+//   ctx.lineTo(x + w, y + h - r);
+//   ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+//   ctx.lineTo(x + r, y + h);
+//   ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+//   ctx.lineTo(x, y + r);
+//   ctx.quadraticCurveTo(x, y, x + r, y);
+//   ctx.closePath();
+// }
+
+// Lanczos kernel function
+function lanczosKernel(x, a) {
+    if (x === 0) return 1;
+    if (x < -a || x > a) return 0;
+    const piX = Math.PI * x;
+    return (a * Math.sin(piX) * Math.sin(piX / a)) / (piX * piX);
+}
+
+// Lanczos resize function
+function lanczosResize(srcInput, resultCanvas, destWidth, destHeight, lobes = 3) {
+    // Handle both canvas and img elements as input
+    let srcCanvas;
+    if (srcInput instanceof HTMLImageElement) {
+        // Convert img element to canvas
+        srcCanvas = document.createElement('canvas');
+        srcCanvas.width = srcInput.naturalWidth || srcInput.width;
+        srcCanvas.height = srcInput.naturalHeight || srcInput.height;
+        const ctx = srcCanvas.getContext('2d');
+        ctx.drawImage(srcInput, 0, 0);
+    } else {
+        srcCanvas = srcInput;
+    }
+
+    const srcCtx = srcCanvas.getContext('2d');
+    const srcData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+    const srcPixels = srcData.data;
+
+    // Use the provided resultCanvas as destination
+    if (!resultCanvas) throw new Error('lanczosResize: resultCanvas parameter is required');
+    resultCanvas.width = destWidth;
+    resultCanvas.height = destHeight;
+    const destCtx = resultCanvas.getContext('2d');
+    const destImage = destCtx.createImageData(destWidth, destHeight);
+    const destPixels = destImage.data;
+
+    const ratioX = srcCanvas.width / destWidth;
+    const ratioY = srcCanvas.height / destHeight;
+    // For upscaling (ratio < 1), use smaller range; for downscaling, use larger range
+    const effectiveLobesX = ratioX < 1 ? Math.max(1, lobes / 2) : lobes;
+    const effectiveLobesY = ratioY < 1 ? Math.max(1, lobes / 2) : lobes;
+    const rangeX = Math.ceil(Math.max(ratioX, 1) * effectiveLobesX);
+    const rangeY = Math.ceil(Math.max(ratioY, 1) * effectiveLobesY);
+
+    for (let y = 0; y < destHeight; y++) {
+        for (let x = 0; x < destWidth; x++) {
+            let r = 0, g = 0, b = 0, a = 0, weightSum = 0;
+            const centerX = (x + 0.5) * ratioX;
+            const centerY = (y + 0.5) * ratioY;
+
+            for (let yy = Math.floor(centerY) - rangeY; yy <= Math.floor(centerY) + rangeY; yy++) {
+                for (let xx = Math.floor(centerX) - rangeX; xx <= Math.floor(centerX) + rangeX; xx++) {
+                    if (xx >= 0 && xx < srcCanvas.width && yy >= 0 && yy < srcCanvas.height) {
+                        const dx = Math.abs(centerX - xx);
+                        const dy = Math.abs(centerY - yy);
+                        const weight = lanczosKernel(dx / Math.max(ratioX, 1), effectiveLobesX) * lanczosKernel(dy / Math.max(ratioY, 1), effectiveLobesY);
+
+                        const idx = (yy * srcCanvas.width + xx) * 4;
+                        r += srcPixels[idx] * weight;
+                        g += srcPixels[idx + 1] * weight;
+                        b += srcPixels[idx + 2] * weight;
+                        a += srcPixels[idx + 3] * weight;
+                        weightSum += weight;
+                    }
+                }
+            }
+
+            const destIdx = (y * destWidth + x) * 4;
+            destPixels[destIdx] = r / weightSum;
+            destPixels[destIdx + 1] = g / weightSum;
+            destPixels[destIdx + 2] = b / weightSum;
+            destPixels[destIdx + 3] = a / weightSum;
+        }
+    }
+
+    destCtx.putImageData(destImage, 0, 0);
+}
+
 /**
  * Merge the generated upscaled patch back into the original image element.
  * Strategy: Create a feathered alpha mask at the edges, then blend the upscaled patch
@@ -2558,65 +2742,139 @@ async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedIm
     const pctx = patchCanvas.getContext('2d', { willReadFrequently: true, alpha: true });
     
     // Disable image smoothing to preserve sharpness when downscaling
-    pctx.imageSmoothingEnabled = false;
+    //pctx.imageSmoothingEnabled = false;
+    
+    pctx.imageSmoothingEnabled = true;
+    pctx.imageSmoothingQuality = 'high';
 
-    // Draw downscaled generated image onto patch canvas
-    pctx.drawImage(generatedImageEl, 0, 0, generatedImageEl.naturalWidth, generatedImageEl.naturalHeight, 0, 0, origin.w, origin.h);
+    //sharpen before we downsize -- just in case, may not be needed
+    sharpen(pctx, patchCanvas.width, patchCanvas.height, .1);
 
-    // Create feathered alpha mask using linear gradients at the edges
-    // Feather amount in pixels (8-24 range based on patch size)
+
+    // Draw downscaled generated image onto patch canvas using Lanczos for higher quality
+    lanczosResize(generatedImageEl, patchCanvas, origin.w, origin.h);
+    
+    // Blend patch into work canvas using per-pixel alpha blending (similar to onCombineSplitClick)
+    // This handles edges and corners smoothly without sharp transitions
     const feather = Math.max(8, Math.min(24, Math.floor(Math.min(origin.w, origin.h) * 0.1)));
-
     scaleupLog(`[ScaleUpRegion] Feathering with ${feather}px gradient`);
 
-    // Create a temporary canvas for the alpha mask
-    const maskCanvas = document.createElement('canvas');
-    maskCanvas.width = origin.w;
-    maskCanvas.height = origin.h;
-    const mctx = maskCanvas.getContext('2d', { willReadFrequently: true, alpha: true });
-
-    // Clear and fill with white (opaque)
-    mctx.fillStyle = 'white';
-    mctx.fillRect(0, 0, origin.w, origin.h);
-
-    // Draw linear gradients for feathering at each edge
-    mctx.globalCompositeOperation = 'destination-out';
-    
-    // Top edge gradient (fades to transparent)
-    let grad = mctx.createLinearGradient(0, 0, 0, feather);
-    grad.addColorStop(0, 'white');
-    grad.addColorStop(1, 'transparent');
-    mctx.fillStyle = grad;
-    mctx.fillRect(0, 0, origin.w, feather);
-
-    // Bottom edge gradient
-    grad = mctx.createLinearGradient(0, origin.h - feather, 0, origin.h);
-    grad.addColorStop(0, 'transparent');
-    grad.addColorStop(1, 'white');
-    mctx.fillStyle = grad;
-    mctx.fillRect(0, origin.h - feather, origin.w, feather);
-
-    // Left edge gradient
-    grad = mctx.createLinearGradient(0, 0, feather, 0);
-    grad.addColorStop(0, 'white');
-    grad.addColorStop(1, 'transparent');
-    mctx.fillStyle = grad;
-    mctx.fillRect(0, feather, feather, origin.h - 2 * feather);
-
-    // Right edge gradient
-    grad = mctx.createLinearGradient(origin.w - feather, 0, origin.w, 0);
-    grad.addColorStop(0, 'transparent');
-    grad.addColorStop(1, 'white');
-    mctx.fillStyle = grad;
-    mctx.fillRect(origin.w - feather, feather, feather, origin.h - 2 * feather);
-
-    // Apply the mask to the patch canvas using destination-in
-    pctx.globalCompositeOperation = 'destination-in';
-    pctx.drawImage(maskCanvas, 0, 0);
-
-    // Draw the feathered patch onto the work canvas
     wctx.globalCompositeOperation = 'source-over';
-    wctx.drawImage(patchCanvas, origin.left, origin.top);
+    wctx.imageSmoothingEnabled = false;
+
+    // Draw the non-overlapping center part with full opacity
+    const centerLeft = feather;
+    const centerTop = feather;
+    const centerW = origin.w - 2 * feather;
+    const centerH = origin.h - 2 * feather;
+    if (centerW > 0 && centerH > 0) {
+      wctx.globalAlpha = 1;
+      wctx.drawImage(patchCanvas, centerLeft, centerTop, centerW, centerH, 
+                      origin.left + centerLeft, origin.top + centerTop, centerW, centerH);
+    }
+
+    // Blend top edge (excluding corners)
+    if (feather > 0 && centerW > 0) {
+      for (let y = 0; y < feather; y++) {
+        const alpha = 1 - ((feather - y) / feather); // Fade from 0 at top to 1 inward
+        wctx.globalAlpha = alpha;
+        wctx.drawImage(patchCanvas, centerLeft, y, centerW, 1, 
+                        origin.left + centerLeft, origin.top + y, centerW, 1);
+      }
+    }
+
+    // Blend bottom edge (excluding corners)
+    if (feather > 0 && centerW > 0) {
+      for (let y = 0; y < feather; y++) {
+        const alpha = (feather - y) / feather; // Fade from 1 inward to 0 at bottom
+        wctx.globalAlpha = alpha;
+        wctx.drawImage(patchCanvas, centerLeft, origin.h - feather + y, centerW, 1, 
+                        origin.left + centerLeft, origin.top + origin.h - feather + y, centerW, 1);
+      }
+    }
+
+    // Blend left edge (excluding corners)
+    if (feather > 0 && centerH > 0) {
+      for (let x = 0; x < feather; x++) {
+        const alpha = 1-((feather - x) / feather); // Fade from 0 at left to 1 inward
+        wctx.globalAlpha = alpha;
+        wctx.drawImage(patchCanvas, x, centerTop, 1, centerH, 
+                        origin.left + x, origin.top + centerTop, 1, centerH);
+      }
+    }
+
+    // Blend right edge (excluding corners)
+    if (feather > 0 && centerH > 0) {
+      for (let x = 0; x < feather; x++) {
+        const alpha = (feather - x) / feather; // Fade from 1 inward to 0 at right
+        wctx.globalAlpha = alpha;
+        wctx.drawImage(patchCanvas, origin.w - feather + x, centerTop, 1, centerH, 
+                        origin.left + origin.w - feather + x, origin.top + centerTop, 1, centerH);
+      }
+    }
+
+    // Blend corners with 2D alpha gradient
+    // Top-left corner
+    if (feather > 0) {
+      for (let y = 0; y < feather; y++) {
+        for (let x = 0; x < feather; x++) {
+          const alphaY = 1-( (feather - y) / feather);
+          const alphaX = 1-((feather - x) / feather);
+          wctx.globalAlpha = Math.min(alphaX, alphaY);
+          wctx.drawImage(patchCanvas, x, y, 1, 1, 
+                          origin.left + x, origin.top + y, 1, 1);
+        }
+      }
+    }
+
+    // Top-right corner
+    if (feather > 0) {
+      for (let y = 0; y < feather; y++) {
+        for (let x = 0; x < feather; x++) {
+          const alphaY = 1-((feather - y) / feather);
+          const alphaX = (feather - x) / feather;
+          wctx.globalAlpha = Math.min(alphaX, alphaY);
+          wctx.drawImage(patchCanvas, origin.w - feather + x, y, 1, 1, 
+                          origin.left + origin.w - feather + x, origin.top + y, 1, 1);
+        }
+      }
+    }
+
+    // Bottom-left corner
+    if (feather > 0) {
+      for (let y = 0; y < feather; y++) {
+        for (let x = 0; x < feather; x++) {
+          const alphaY = (feather - y) / feather;
+          const alphaX = 1-((feather - x) / feather);
+          wctx.globalAlpha = Math.min(alphaX, alphaY);
+          wctx.drawImage(patchCanvas, x, origin.h - feather + y, 1, 1, 
+                          origin.left + x, origin.top + origin.h - feather + y, 1, 1);
+        }
+      }
+    }
+
+    // Bottom-right corner
+    if (feather > 0) {
+      for (let y = 0; y < feather; y++) {
+        for (let x = 0; x < feather; x++) {
+          const alphaY = (feather - y) / feather;
+          const alphaX = (feather - x) / feather;
+          wctx.globalAlpha = Math.min(alphaX, alphaY);
+          wctx.drawImage(patchCanvas, origin.w - feather + x, origin.h - feather + y, 1, 1, 
+                          origin.left + origin.w - feather + x, origin.top + origin.h - feather + y, 1, 1);
+        }
+      }
+    }
+
+    // Reset alpha and smoothing
+    wctx.globalAlpha = 1;
+    wctx.imageSmoothingEnabled = true;
+
+    if (SCALEUP_DEBUG_LOGGING) {
+      document.body.appendChild(document.createTextNode("patchCanvas: "));
+      document.body.appendChild(patchCanvas); //DEBUG
+      document.body.appendChild(document.createElement("br"));
+    }
 
     // Replace displayed original image with merged result
     const mergedDataUrl = workCanvas.toDataURL('image/png');
