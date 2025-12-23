@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.0, last updated: 12/21/2025
+ * v.3.3.1, last updated: 12/22/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -886,7 +886,9 @@ function onScaleUpMAXClick(origRequest, image) {
   //For the split, we need to know the ratio for stitching.
   newTaskRequest.reqBody.ScaleUpSplitRatio = ratio;
 
-  processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, origRequest);
+  processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, origRequest)
+    .then(() => createTask(newTaskRequest))
+    .catch(err => console.error('Error in processTaskRequest:', err));
 
 //   //May want to delete the original controlnet, as it's normally not neccessary once scaling-up,
 //   //but it can be useful to carry-forward while scaling-up (such as to preserve fingers), so it's left as a user option.
@@ -1083,7 +1085,7 @@ function onScaleUpMAXClick(origRequest, image) {
 //   }
   
 
-  createTask(newTaskRequest)
+  //createTask(newTaskRequest)
 }
 
 function scaleUpMaxScalingRatio(origRequest, image) {
@@ -1246,10 +1248,15 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
 
-  processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, origRequest);
-
-  createTask(newTaskRequest);
-
+  //The Lanczos filter is time-consuming, so bump this into the background.  It doesn't run in parallel, but frees up the UI for a moment.
+  setTimeout(async () => {
+    try {
+      await processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, origRequest);
+      createTask(newTaskRequest);
+    } catch (err) {
+      console.error('Error in processTaskRequest:', err);
+    }
+  }, 1);
   //return newTaskRequest.reqBody.seed; //could use for region enhancer
 }
 
@@ -1624,7 +1631,7 @@ function findSplitImages(image, filter) {
   return images;
 }
 
-function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, origRequest, imageWidth, imageHeight, cropOriginX = 0, cropOriginY = 0) {
+async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, origRequest, imageWidth, imageHeight, cropOriginX = 0, cropOriginY = 0) {
   // Allow optional dimensions to override image.naturalWidth/Height (useful for region crops)
   const imgWidth = imageWidth || image.naturalWidth;
   const imgHeight = imageHeight || image.naturalHeight;
@@ -1874,8 +1881,11 @@ function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, o
       sourceCanvas = cropCanvas;
     }
 
-    // Use Lanczos resampling for higher quality upscaling
-    lanczosResize(sourceCanvas, canvas, newTaskRequest.reqBody.width, newTaskRequest.reqBody.height);
+    // Use Lanczos resampling for higher quality upscaling (async, non-blocking)
+    const resultImageData = await lanczosResizeAsync(sourceCanvas, canvas, newTaskRequest.reqBody.width, newTaskRequest.reqBody.height);
+    
+    // Put the resized image data into the canvas
+    ctx.putImageData(resultImageData, 0, 0);
 
     //extra sharpening not necessarily needed with controlnet
     //if (!scaleUpControlNet) { }
@@ -2386,61 +2396,70 @@ function processRegionAtPoint(centerX, centerY) {
       seed: seed
     });
 
-    // Pass crop dimensions and origin to processTaskRequest for controlnet image extraction
-    // (init_image is already the cropped data, but controlnet needs the region coordinates from the original)
-    processTaskRequest(newTaskRequest, image, isModelFlux(desiredModelName(origRequest)), isModelXl(desiredModelName(origRequest)), desiredModelName(origRequest), origRequest, cropW, cropH, left, top);
+    //The lanczos filter can take a moment, so return access to the UI while it processes.
+    setTimeout(async () => {
+      try {
+        // Pass crop dimensions and origin to processTaskRequest for controlnet image extraction
+        // (init_image is already the cropped data, but controlnet needs the region coordinates from the original)
+        await processTaskRequest(newTaskRequest, image, isModelFlux(desiredModelName(origRequest)), isModelXl(desiredModelName(origRequest)), desiredModelName(origRequest), origRequest, cropW, cropH, left, top);
 
-    // if (!ScaleUpSettings.reuseControlnet)
-    // {
-    //   delete newTaskRequest.reqBody.use_controlnet_model;
-    //   delete newTaskRequest.reqBody.control_filter_to_apply;
-    //   delete newTaskRequest.reqBody.control_image;
-    // }
+      // if (!ScaleUpSettings.reuseControlnet)
+      // {
+      //   delete newTaskRequest.reqBody.use_controlnet_model;
+      //   delete newTaskRequest.reqBody.control_filter_to_apply;
+      //   delete newTaskRequest.reqBody.control_image;
+      // }
 
-    // metadata so we can find and merge later
-    newTaskRequest.reqBody._scaleup_region = true;
-    newTaskRequest.reqBody._scaleup_origin_container = containerId;
-    newTaskRequest.reqBody._scaleup_origin = {
-      left: left,
-      top: top,
-      w: cropW,
-      h: cropH,
-      imgW: imgW,
-      imgH: imgH
-    };
-    // keep track of which original image element to replace (best-effort)
-    newTaskRequest.reqBody._scaleup_origin_image_selector = containerId ? `#${containerId}` : null;
+      // metadata so we can find and merge later
+      newTaskRequest.reqBody._scaleup_region = true;
+      newTaskRequest.reqBody._scaleup_origin_container = containerId;
+      newTaskRequest.reqBody._scaleup_origin = {
+        left: left,
+        top: top,
+        w: cropW,
+        h: cropH,
+        imgW: imgW,
+        imgH: imgH
+      };
+      // keep track of which original image element to replace (best-effort)
+      newTaskRequest.reqBody._scaleup_origin_image_selector = containerId ? `#${containerId}` : null;
 
-    // Reduce vram usage for large targets (re-using existing logic)
-    if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {
-      newTaskRequest.reqBody.vram_usage_level = 'low';
-    }
-    if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxNoVaeTiling) {
-      newTaskRequest.reqBody.enable_vae_tiling = true;
-    }
-
-    // Save timestamp to match later
-    const savedRegionTimestamp = parseInt(Date.now());
-    scaleupLog(`[ScaleUpRegion] Time of submission: ${savedRegionTimestamp}`);
-
-    // submit task
-    scaleupLog(`[ScaleUpRegion] Submitting task to server`);
-    createTask(newTaskRequest);
-
-    // Poll for resulting image with matching seed, then merge back
-    scaleupLog(`[ScaleUpRegion] Waiting for generated image...`);
-    // Flux is slower, so we might as well have a longer timeout
-    pollForGeneratedImage(savedRegionTimestamp, seed, isModelFlux(desiredModelName(origRequest))? 180000:120000).then((generatedImgEl) => {
-      if (!generatedImgEl) {
-        scaleupWarn('Scale region: generated image not found for seed', seed);
-        showNotification('Did not find generated image (timeout)', 'error');
-        return;
+      // Reduce vram usage for large targets (re-using existing logic)
+      if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {
+        newTaskRequest.reqBody.vram_usage_level = 'low';
       }
-      scaleupLog(`[ScaleUpRegion] Generated image found, starting merge`);
-      mergeGeneratedPatchBack(containerId, image, generatedImgEl, newTaskRequest.reqBody._scaleup_origin);
-    }).catch((err) => {
-      scaleupError('Scale region error:', err);
-    });
+      if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxNoVaeTiling) {
+        newTaskRequest.reqBody.enable_vae_tiling = true;
+      }
+
+      // Save timestamp to match later
+      const savedRegionTimestamp = parseInt(Date.now());
+      scaleupLog(`[ScaleUpRegion] Time of submission: ${savedRegionTimestamp}`);
+
+      // submit task
+      scaleupLog(`[ScaleUpRegion] Submitting task to server`);
+      createTask(newTaskRequest);
+
+      // Poll for resulting image with matching seed, then merge back
+      scaleupLog(`[ScaleUpRegion] Waiting for generated image...`);
+      // Flux is slower, so we might as well have a longer timeout
+      pollForGeneratedImage(savedRegionTimestamp, seed, isModelFlux(desiredModelName(origRequest))? 180000:120000).then((generatedImgEl) => {
+        if (!generatedImgEl) {
+          scaleupWarn('Scale region: generated image not found for seed', seed);
+          showNotification('Did not find generated image (timeout)', 'error');
+          return;
+        }
+        scaleupLog(`[ScaleUpRegion] Generated image found, starting merge`);
+        mergeGeneratedPatchBack(containerId, image, generatedImgEl, newTaskRequest.reqBody._scaleup_origin);
+      }).catch((err) => {
+        scaleupError('Scale region error:', err);
+      });
+      } catch (err) {
+        scaleupError('Error in processTaskRequest or task submission:', err);
+      }
+    }, 5);
+
+
   } catch (err) {
     scaleupError('processRegionAtPoint failed', err);
   }
@@ -3124,6 +3143,252 @@ function scaleupError(...args) {
     scaleUpResetSettings(null);
   }
   setup();
+
+// Initialize Web Worker for Lanczos resampling using Blob
+let lanczosWorker = null;
+try {
+  // Create worker from inline code (Blob)
+  const workerCode = `
+    // Lanczos kernel function
+    function lanczosKernel(x, a) {
+        if (x === 0) return 1;
+        if (x < -a || x > a) return 0;
+        const piX = Math.PI * x;
+        return (a * Math.sin(piX) * Math.sin(piX / a)) / (piX * piX);
+    }
+
+    // Handle messages from main thread
+    self.onmessage = function(event) {
+        //console.log('[Worker] Received message type:', event.data.type);
+        const { type, srcImageData, srcWidth, srcHeight, destWidth, destHeight, lobes } = event.data;
+
+        if (type === 'resize') {
+            try {
+                //console.log('[Worker] Starting resize: ' + srcWidth + 'x' + srcHeight + ' -> ' + destWidth + 'x' + destHeight);
+                
+                const srcPixels = srcImageData.data;
+                const destImageData = new ImageData(destWidth, destHeight);
+                const destPixels = destImageData.data;
+
+                const ratioX = srcWidth / destWidth;
+                const ratioY = srcHeight / destHeight;
+                const effectiveLobesX = ratioX < 1 ? Math.max(1, lobes / 2) : lobes;
+                const effectiveLobesY = ratioY < 1 ? Math.max(1, lobes / 2) : lobes;
+                const rangeX = Math.ceil(Math.max(ratioX, 1) * effectiveLobesX);
+                const rangeY = Math.ceil(Math.max(ratioY, 1) * effectiveLobesY);
+
+                let progressInterval = Math.max(1, Math.floor(destHeight / 5));
+                let lastProgress = 0;
+
+                for (let y = 0; y < destHeight; y++) {
+                    if (y % progressInterval === 0 && y > lastProgress) {
+                        lastProgress = y;
+                        const prog = Math.round((y / destHeight) * 100);
+                        self.postMessage({
+                            type: 'progress',
+                            progress: prog
+                        });
+                    }
+
+                    for (let x = 0; x < destWidth; x++) {
+                        let r = 0, g = 0, b = 0, a = 0, weightSum = 0;
+                        const centerX = (x + 0.5) * ratioX;
+                        const centerY = (y + 0.5) * ratioY;
+
+                        for (let yy = Math.floor(centerY) - rangeY; yy <= Math.floor(centerY) + rangeY; yy++) {
+                            for (let xx = Math.floor(centerX) - rangeX; xx <= Math.floor(centerX) + rangeX; xx++) {
+                                if (xx >= 0 && xx < srcWidth && yy >= 0 && yy < srcHeight) {
+                                    const dx = Math.abs(centerX - xx);
+                                    const dy = Math.abs(centerY - yy);
+                                    const weight = lanczosKernel(dx / Math.max(ratioX, 1), effectiveLobesX) * 
+                                                   lanczosKernel(dy / Math.max(ratioY, 1), effectiveLobesY);
+
+                                    const idx = (yy * srcWidth + xx) * 4;
+                                    r += srcPixels[idx] * weight;
+                                    g += srcPixels[idx + 1] * weight;
+                                    b += srcPixels[idx + 2] * weight;
+                                    a += srcPixels[idx + 3] * weight;
+                                    weightSum += weight;
+                                }
+                            }
+                        }
+
+                        const destIdx = (y * destWidth + x) * 4;
+                        destPixels[destIdx] = Math.round(r / weightSum);
+                        destPixels[destIdx + 1] = Math.round(g / weightSum);
+                        destPixels[destIdx + 2] = Math.round(b / weightSum);
+                        destPixels[destIdx + 3] = Math.round(a / weightSum);
+                    }
+                }
+
+                //console.log('[Worker] Resize complete, sending result');
+                self.postMessage({
+                    type: 'complete',
+                    resultImageData: destImageData
+                }, [destImageData.data.buffer]);
+            } catch (error) {
+                console.error('[Worker] Error during resize:', error.message);
+                self.postMessage({
+                    type: 'error',
+                    error: error.message
+                });
+            }
+        }
+    };
+  `;
+  
+  const blob = new Blob([workerCode], { type: 'application/javascript' });
+  const workerUrl = URL.createObjectURL(blob);
+  lanczosWorker = new Worker(workerUrl);
+  console.log('Lanczos Web Worker initialized from Blob');
+} catch (error) {
+  console.warn('Failed to initialize Lanczos Web Worker:', error);
+  console.warn('Will fall back to main-thread Lanczos processing');
+}
+
+/**
+ * Perform Lanczos resize using Web Worker
+ * @param {HTMLCanvasElement|HTMLImageElement} sourceCanvas - Source image
+ * @param {HTMLCanvasElement} resultCanvas - Destination canvas
+ * @param {number} destWidth - Destination width
+ * @param {number} destHeight - Destination height
+ * @returns {Promise<ImageData>} Promise that resolves with resized ImageData
+ */
+function lanczosResizeAsync(sourceCanvas, resultCanvas, destWidth, destHeight) {
+  return new Promise((resolve, reject) => {
+    try {
+      scaleupLog('[Main] lanczosResizeAsync called with target size: ' + destWidth + 'x' + destHeight);
+      
+      // Get source canvas context and data
+      let srcCanvas = sourceCanvas;
+      if (sourceCanvas instanceof HTMLImageElement) {
+        scaleupLog('[Main] Converting HTMLImageElement to canvas');
+        srcCanvas = document.createElement('canvas');
+        srcCanvas.width = sourceCanvas.naturalWidth || sourceCanvas.width;
+        srcCanvas.height = sourceCanvas.naturalHeight || sourceCanvas.height;
+        const ctx = srcCanvas.getContext('2d');
+        ctx.drawImage(sourceCanvas, 0, 0);
+      }
+
+      const srcCtx = srcCanvas.getContext('2d');
+      const srcImageData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+      scaleupLog('[Main] Source image data extracted: ' + srcCanvas.width + 'x' + srcCanvas.height + ', buffer size: ' + srcImageData.data.length);
+
+      if (lanczosWorker) {
+        scaleupLog('[Main] Worker available, sending resize request');
+        
+        // Use worker for non-blocking processing
+        const messageHandler = (event) => {
+          try {
+            scaleupLog('[Main] Received message from worker, type:', event.data.type);
+            
+            if (event.data.type === 'complete') {
+              scaleupLog('[Main] Worker resize complete, applying result to canvas');
+              lanczosWorker.removeEventListener('message', messageHandler);
+              const resultImageData = event.data.resultImageData;
+              scaleupLog('[Main] Result image data received: ' + resultImageData.width + 'x' + resultImageData.height);
+              resolve(resultImageData);
+            } else if (event.data.type === 'progress') {
+              scaleupLog('[Main] Lanczos progress: ' + event.data.progress + '%');
+            } else if (event.data.type === 'error') {
+              console.error('[Main] Worker error:', event.data.error);
+              lanczosWorker.removeEventListener('message', messageHandler);
+              reject(new Error(event.data.error));
+            }
+          } catch (err) {
+            console.error('[Main] Error in message handler:', err);
+            lanczosWorker.removeEventListener('message', messageHandler);
+            reject(err);
+          }
+        };
+
+        lanczosWorker.addEventListener('message', messageHandler);
+        lanczosWorker.addEventListener('error', (err) => {
+          console.error('[Main] Worker error event:', err);
+          lanczosWorker.removeEventListener('message', messageHandler);
+          reject(err);
+        });
+
+        scaleupLog('[Main] Posting resize message to worker');
+        
+        // Send the resize request to the worker
+        lanczosWorker.postMessage(
+          {
+            type: 'resize',
+            srcImageData: srcImageData,
+            srcWidth: srcCanvas.width,
+            srcHeight: srcCanvas.height,
+            destWidth: destWidth,
+            destHeight: destHeight,
+            lobes: 3
+          },
+          [srcImageData.data.buffer]  // Transfer buffer for performance
+        );
+        scaleupLog('[Main] Resize message sent to worker');
+      } else {
+        console.warn('[Main] Worker unavailable, using main thread (UI may freeze)');
+        const resultImageData = lanczosResizeSync(srcCanvas, destWidth, destHeight);
+        resolve(resultImageData);
+      }
+    } catch (error) {
+      console.error('[Main] Error in lanczosResizeAsync:', error);
+      reject(error);
+    }
+  });
+}
+
+/**
+ * Synchronous Lanczos resize (fallback if worker unavailable)
+ */
+function lanczosResizeSync(srcCanvas, destWidth, destHeight) {
+  const srcCtx = srcCanvas.getContext('2d');
+  const srcImageData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+  const srcPixels = srcImageData.data;
+  const destImageData = new ImageData(destWidth, destHeight);
+  const destPixels = destImageData.data;
+
+  const ratioX = srcCanvas.width / destWidth;
+  const ratioY = srcCanvas.height / destHeight;
+  const lobes = 3;
+  const effectiveLobesX = ratioX < 1 ? Math.max(1, lobes / 2) : lobes;
+  const effectiveLobesY = ratioY < 1 ? Math.max(1, lobes / 2) : lobes;
+  const rangeX = Math.ceil(Math.max(ratioX, 1) * effectiveLobesX);
+  const rangeY = Math.ceil(Math.max(ratioY, 1) * effectiveLobesY);
+
+  for (let y = 0; y < destHeight; y++) {
+    for (let x = 0; x < destWidth; x++) {
+      let r = 0, g = 0, b = 0, a = 0, weightSum = 0;
+      const centerX = (x + 0.5) * ratioX;
+      const centerY = (y + 0.5) * ratioY;
+
+      for (let yy = Math.floor(centerY) - rangeY; yy <= Math.floor(centerY) + rangeY; yy++) {
+        for (let xx = Math.floor(centerX) - rangeX; xx <= Math.floor(centerX) + rangeX; xx++) {
+          if (xx >= 0 && xx < srcCanvas.width && yy >= 0 && yy < srcCanvas.height) {
+            const dx = Math.abs(centerX - xx);
+            const dy = Math.abs(centerY - yy);
+            const weight = lanczosKernel(dx / Math.max(ratioX, 1), effectiveLobesX) * 
+                           lanczosKernel(dy / Math.max(ratioY, 1), effectiveLobesY);
+
+            const idx = (yy * srcCanvas.width + xx) * 4;
+            r += srcPixels[idx] * weight;
+            g += srcPixels[idx + 1] * weight;
+            b += srcPixels[idx + 2] * weight;
+            a += srcPixels[idx + 3] * weight;
+            weightSum += weight;
+          }
+        }
+      }
+
+      const destIdx = (y * destWidth + x) * 4;
+      destPixels[destIdx] = r / weightSum;
+      destPixels[destIdx + 1] = g / weightSum;
+      destPixels[destIdx + 2] = b / weightSum;
+      destPixels[destIdx + 3] = a / weightSum;
+    }
+  }
+
+  return destImageData;
+}
 
 })();
 
