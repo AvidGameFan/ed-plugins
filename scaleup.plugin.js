@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.1, last updated: 12/22/2025
+ * v.3.3.2, last updated: 12/23/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -717,6 +717,8 @@ function onUndoImageChange(origRequest, image) {
     const success = undoImageChange(image);
     if (success) {
       scaleupLog(`[UndoButton] Successfully reverted image to previous version`);
+      // Refresh button state after undo to hide it if no more history
+      refreshUndoButtonState(image);
     } else {
       scaleupLog(`[UndoButton] No previous versions available to undo`);
     }
@@ -727,49 +729,15 @@ function onUndoImageChange(origRequest, image) {
 
 /**
  * Filter function for undo button - only show if history is available
- * Hides the button DOM element if no history exists
+ * Returns false to prevent button creation if no history exists
  * @param {Object} origRequest - The original request object
  * @param {HTMLImageElement} image - The image element
- * @returns {boolean} True to allow button creation
+ * @returns {boolean} True to allow button creation, false to prevent it
  */
 function onUndoImageFilter(origRequest, image) {
-  // Always return true to create the button, but hide it initially
-  // It will be shown when history is available via refreshUndoButtonState()
-  
-  // Schedule hiding the button after DOM is rendered
-  setTimeout(() => {
-    // Find the image's parent container
-    let container = image.parentNode;
-    // while (container && !container.id.includes('imageTaskContainer')) {
-    //   container = container.parentNode;
-    // }
-    
-    if (container) {
-
-      const btn = container.querySelector('.fa-undo');
-
-      //this isn't having an effect -- need to investigate
-
-      btn.style.display = 'none';
-      btn.style.disabled = true;
-      
-      // Find all buttons in this container's parent
-      // const buttonGroup = container.parentNode.querySelector('[class*="image-buttons"], .imageTaskContainer-buttons');
-      // if (buttonGroup) {
-      //   // Find the undo button (the one with fa-undo icon)
-      //   const undoButtons = buttonGroup.querySelectorAll('button');
-      //   for (let btn of undoButtons) {
-      //     if (btn.querySelector('.fa-undo') || btn.title.includes('Undo')) {
-      //       btn.style.display = 'none';
-      //       break;
-      //     }
-      //   }
-      // }
-    }
-  }, 300);
-  
-  return true;
-
+  // Don't create button initially if no history
+  // refreshUndoButtonState will create it when history becomes available
+  return hasImageHistory(image);
 }
 
 function onScaleUpFilter2(origRequest, image) {
@@ -836,6 +804,11 @@ function ScaleUpMax(dimension, ratio) {
 }
 
 function onScaleUpMAXClick(origRequest, image) {
+  // if (origRequest._debug_quadrant) {
+  //   console.log(`[SPLIT DEBUG] onScaleUpMAXClick called for ${origRequest._debug_quadrant}`);
+  //   console.log(`[SPLIT DEBUG] image.src length: ${image.src.length}, first 100: ${image.src.substring(0, 100)}`);
+  // }
+  
   var desiredModel=desiredModelName(origRequest);
 
   var isXl=false;
@@ -886,7 +859,7 @@ function onScaleUpMAXClick(origRequest, image) {
   //For the split, we need to know the ratio for stitching.
   newTaskRequest.reqBody.ScaleUpSplitRatio = ratio;
 
-  processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, origRequest)
+  return processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, origRequest)
     .then(() => createTask(newTaskRequest))
     .catch(err => console.error('Error in processTaskRequest:', err));
 
@@ -1368,61 +1341,59 @@ function  onScaleUpSplitClick(origRequest, image) {
 //For each split piece, run ScaleUp MAX
 //In a perfect world, merge together and display locally -- for now, leave it as an external process
 
-let newTaskRequest = getCurrentUserRequest();
-newTaskRequest.reqBody = Object.assign({}, origRequest, {})
+const canvasWidth = Math.floor(image.naturalWidth/2)+splitOverlap;
+const canvasHeight = Math.floor(image.naturalHeight/2)+splitOverlap;
 
-//create working canvas
-let canvas = document.createElement("canvas");
-canvas.width = Math.floor(image.naturalWidth/2)+splitOverlap;
-canvas.height = Math.floor(image.naturalHeight/2)+splitOverlap;
+// Helper function to process each quadrant with complete isolation
+function processQuadrant(sourceX, sourceY, quadrantName) {
+  return new Promise((resolve) => {
+    let canvas = document.createElement("canvas");
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    let ctx = canvas.getContext("2d");
+    ctx.drawImage(image,
+      sourceX, sourceY, canvasWidth, canvasHeight, //source 
+      0, 0, canvasWidth, canvasHeight //destination
+    );
+    
+    // console.log(`[SPLIT DEBUG] ${quadrantName} - Drawing from source (${sourceX}, ${sourceY}) size (${canvasWidth}, ${canvasHeight})`);
+    
+    const dataUrl = canvas.toDataURL('image/png');
+    // console.log(`[SPLIT DEBUG] ${quadrantName} - DataURL length: ${dataUrl.length}, first 100 chars: ${dataUrl.substring(0, 100)}`);
+    
+    let taskRequest = getCurrentUserRequest();
+    taskRequest.reqBody = Object.assign({}, origRequest, {
+      width: canvasWidth,
+      height: canvasHeight,
+      scaleUpSplit: true,
+      // _debug_quadrant: quadrantName  // Debug marker  //just for testing -- can remove
+    });
+    
+    const img = new Image();
+    img.onload = async function() {
+      // console.log(`[SPLIT DEBUG] ${quadrantName} - Image loaded, calling onScaleUpMAXClick`);
+      // Capture variables in closure to ensure isolation
+      const capturedRequest = taskRequest.reqBody;
+      const capturedImage = img;
+      
+      // Wait for processing to complete
+      await onScaleUpMAXClick(capturedRequest, capturedImage);
+      // console.log(`[SPLIT DEBUG] ${quadrantName} - Processing complete`);
+      resolve();
+    };
+    img.src = dataUrl;
+  });
+}
 
-newTaskRequest.reqBody.width=canvas.width;
-newTaskRequest.reqBody.height = canvas.height;
-
-newTaskRequest.reqBody.scaleUpSplit=true;
-
-let ctx = canvas.getContext("2d");
-
-// get the image data of the canvas  -- we only need the part we're going to resize
-//x,y -- upper-left, width & height
-ctx.drawImage( image,
-  0, 0, canvas.width, canvas.height, //source 
-  0, 0, canvas.width, canvas.height //destination
-);
-//var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);  
-var newImage = new Image;
-newImage.onload = function(){onScaleUpMAXClick(newTaskRequest.reqBody, newImage);}
-newImage.src = canvas.toDataURL('image/png');
-
-//lower left
-ctx.drawImage( image,
-  0, canvas.height-splitOverlap*2, canvas.width, canvas.height, //source 
-  0, 0, canvas.width, canvas.height //destination
-);
-//imageData = ctx.getImageData(0,canvas.width-splitOverlap*2, canvas.width, canvas.height); //upper-right
-var newImage2 = new Image;
-newImage2.onload = function(){onScaleUpMAXClick(newTaskRequest.reqBody, newImage2);}
-newImage2.src = canvas.toDataURL('image/png');
-
-//upper-right
-ctx.drawImage( image,
-  canvas.width-splitOverlap*2, 0, canvas.width, canvas.height, //source 
-  0, 0, canvas.width, canvas.height //destination
-);
-//imageData = ctx.getImageData(canvas.height-splitOverlap*2, 0, canvas.width, canvas.height);  //x,y -- lower-r, width & height
-var newImage3 = new Image;
-newImage3.onload = function(){onScaleUpMAXClick(newTaskRequest.reqBody, newImage3);}
-newImage3.src = canvas.toDataURL('image/png');
-
-//lower right
-ctx.drawImage( image,
-  canvas.width-splitOverlap*2,  canvas.height-splitOverlap*2, canvas.width, canvas.height, //source 
-  0, 0, canvas.width, canvas.height //destination
-);
-//imageData = ctx.getImageData(canvas.height-splitOverlap*2, 0, canvas.width, canvas.height);  //x,y -- lower-r, width & height
-var newImage4 = new Image;
-newImage4.onload = function(){onScaleUpMAXClick(newTaskRequest.reqBody, newImage4);}
-newImage4.src = canvas.toDataURL('image/png');
+// Process quadrants sequentially to avoid web worker conflicts
+let processingQueue = Promise.resolve();
+processingQueue = processingQueue
+  .then(() => processQuadrant(0, 0, "UPPER_LEFT"))
+  .then(() => processQuadrant(0, canvasHeight - splitOverlap*2, "LOWER_LEFT"))
+  .then(() => processQuadrant(canvasWidth - splitOverlap*2, 0, "UPPER_RIGHT"))
+  .then(() => processQuadrant(canvasWidth - splitOverlap*2, canvasHeight - splitOverlap*2, "LOWER_RIGHT"))
+  .then(() => scaleupLog("[SPLIT DEBUG] All quadrants processed"))
+  .catch(err => console.error("[SPLIT DEBUG] Error processing quadrants:", err));
 
 }
 
@@ -1857,6 +1828,12 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
 
   //resize the image before scaling back up, to maximize detail
   if (ScaleUpSettings.resizeImage) {
+    // if (newTaskRequest.reqBody._debug_quadrant) {
+    //   console.log(`[SPLIT DEBUG] processTaskRequest for ${newTaskRequest.reqBody._debug_quadrant} - about to resize`);
+    //   console.log(`[SPLIT DEBUG] image parameter: naturalWidth=${image.naturalWidth}, naturalHeight=${image.naturalHeight}`);
+    //   console.log(`[SPLIT DEBUG] image.src length: ${image.src.length}, first 100: ${image.src.substring(0, 100)}`);
+    // }
+    
     //create working canvas
     let canvas = document.createElement("canvas");
     canvas.width = newTaskRequest.reqBody.width; //Math.round(imgWidth * 1.25);
@@ -1881,8 +1858,16 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
       sourceCanvas = cropCanvas;
     }
 
+    // if (newTaskRequest.reqBody._debug_quadrant) {
+    //   console.log(`[SPLIT DEBUG] ${newTaskRequest.reqBody._debug_quadrant} - calling lanczosResizeAsync`);
+    // }
+
     // Use Lanczos resampling for higher quality upscaling (async, non-blocking)
     const resultImageData = await lanczosResizeAsync(sourceCanvas, canvas, newTaskRequest.reqBody.width, newTaskRequest.reqBody.height);
+    
+    // if (newTaskRequest.reqBody._debug_quadrant) {
+    //   console.log(`[SPLIT DEBUG] ${newTaskRequest.reqBody._debug_quadrant} - lanczosResizeAsync completed`);
+    // }
     
     // Put the resized image data into the canvas
     ctx.putImageData(resultImageData, 0, 0);
@@ -1991,6 +1976,9 @@ function saveImageToHistory(image) {
   // Save the current image data
   history.push(image.src);
   scaleupLog(`[ImageHistory] Saved image version. History length: ${history.length}`);
+  
+  // Refresh the undo button to make it visible now that history exists
+  refreshUndoButtonState(image);
 }
 
 /**
@@ -2040,30 +2028,96 @@ function hasImageHistory(image) {
 /**
  * Refresh the undo button visibility for a specific image
  * Finds the undo button in the Region Enhancer section and shows/hides it based on history availability
+ * Uses DOM removal/insertion to avoid conflicts with hover CSS
  * @param {HTMLImageElement} image - The image element
  */
 function refreshUndoButtonState(image) {
   if (!image) return;
 
-  // Navigate up to find the image container
+  // Navigate up to find the imgItemInfo container where buttons are located
   let container = image.parentNode;
+  while (container && !container.classList.contains('imgItemInfo')) {
+    container = container.parentNode;
+    if (container && container.classList && container.classList.contains('imageTaskContainer')) {
+      // Found the task container, look for imgItemInfo within it
+      container = container.querySelector('.imgItemInfo');
+      break;
+    }
+  }
   
   if (!container) return;
   
-  let undoButton = container.querySelector('.fa-undo');
-
-  if (undoButton) {
-    // Show or hide based on whether history is available
-    const hasHistory = hasImageHistory(image);
-
-    //This disable doesn't appear to have any effect.  It could be due to the "hover" of the parent panel.
-
-    undoButton.style.display = hasHistory ? '' : 'none';
-    undoButton.disabled = !hasHistory;
-    scaleupLog(`[UndoButton] Refreshed state: ${hasHistory ? 'visible' : 'hidden'}`);
+  const hasHistory = hasImageHistory(image);
+  
+  // First, find the region enhancer button group (the div containing the expand-arrows button)
+  const allButtons = container.querySelectorAll('button.tasksBtns');
+  let regionEnhancerButton = null;
+  let regionEnhancerDiv = null;
+  
+  for (let btn of allButtons) {
+    if (btn.querySelector('.fa-expand-arrows-alt')) {
+      regionEnhancerButton = btn;
+      regionEnhancerDiv = btn.parentNode;
+      break;
+    }
+  }
+  
+  if (!regionEnhancerDiv) {
+    scaleupLog(`[UndoButton] Could not find Region Enhancer button group`);
     return;
   }
-  scaleupLog(`[UndoButton] Could not find undo button in DOM`);
+  
+  // Now look for the undo button specifically in the Region Enhancer div
+  const buttonsInDiv = regionEnhancerDiv.querySelectorAll('button.tasksBtns');
+  let undoButton = null;
+  for (let btn of buttonsInDiv) {
+    if (btn.querySelector('.fa-undo')) {
+      undoButton = btn;
+      break;
+    }
+  }
+
+  if (undoButton) {
+    if (!hasHistory) {
+      // Remove from DOM completely to avoid hover conflicts
+      undoButton.remove();
+      scaleupLog(`[UndoButton] Removed button (no history)`);
+    } else {
+      scaleupLog(`[UndoButton] Button already exists with history`);
+    }
+  } else if (hasHistory) {
+    // Button doesn't exist but we have history - need to create it
+    if (regionEnhancerButton) {
+      // Create new button from scratch
+      const newButton = document.createElement('button');
+      newButton.classList.add('tasksBtns');
+      newButton.innerHTML = '<i class="fa-solid fa-undo" title="Undo Last Change"></i>';
+      newButton.addEventListener('click', function(event) {
+        const req = getRequestFromImage(image);
+        onUndoImageChange(req, image);
+      });
+      // Insert after region enhancer button (they're in the same button group)
+      regionEnhancerDiv.insertBefore(newButton, regionEnhancerButton.nextSibling);
+      scaleupLog(`[UndoButton] Created new button after Region Enhancer`);
+    }
+  }
+}
+
+
+// Helper to extract request object from image (approximate reconstruction)
+function getRequestFromImage(image) {
+  const container = image.closest('[id^="imageTaskContainer-"]');
+  if (!container) return {};
+  
+  // Try to extract what we can from the DOM
+  const seedElem = container.querySelector('.seed-value');
+  const seed = seedElem ? seedElem.textContent : null;
+  
+  return {
+    seed: seed,
+    width: image.naturalWidth,
+    height: image.naturalHeight
+  };
 }
 
 //________________________________________________________________________________________________________________________________________
