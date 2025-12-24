@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.2, last updated: 12/23/2025
+ * v.3.3.3, last updated: 12/23/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1571,12 +1571,13 @@ function findSplitImages(image, filter) {
   const timestamps = Array.from(containers).map(container => {
     const timestamp = parseInt(container.id.split('-')[1]);
     return { container, timestamp };
-  }).sort((a, b) => a.timestamp - b.timestamp);
+  }).sort((a, b) => a.timestamp - b.timestamp);  //this order is important for knowing the proper sequence for combining
 
-  // Look for groups of 4 images generated within 5 seconds of each other
+  // Look for groups of 4 images generated within 15 seconds of each other
+  //(15 sounds like a long time, but the resize on 4 large images can take some CPU time.)
   for (let i = 0; i < timestamps.length - 3; i++) {
     const group = timestamps.slice(i, i + 4);
-    if (group[3].timestamp - group[0].timestamp < 5000) {
+    if (group[3].timestamp - group[0].timestamp < 15000) {
       // Found a potential group, check if they have similar dimensions
       const groupImages = group.map(g => {
         // Get all images in the container and select the last one (full-size image)
