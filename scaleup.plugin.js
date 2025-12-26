@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.3, last updated: 12/23/2025
+ * v.3.3.4, last updated: 12/26/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1615,7 +1615,7 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
   }
   //If using controlnet --SDXL now supported
   if (scaleUpControlNet /* && !isXl*/) {
-    delete newTaskRequest.reqBody.control_filter_to_apply;
+    //delete newTaskRequest.reqBody.control_filter_to_apply;
 
     //to avoid "halo" artifacts, need to soften the image before passing to control image.
     //create working canvas
@@ -1680,7 +1680,8 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
         }
       }
       else { // controlnetType === "tile"
-        //Tile controlnet doesn't use a filter
+        //Tile controlnet doesn't use a filter.  control_filter_to_apply is generally deleted above, but it's possible for it to get here with it still defined.
+        delete newTaskRequest.reqBody.control_filter_to_apply;
         //Flux can also use SDXL Tile.
         if (isXl || isFlux) {
           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel((isFlux) ? "flux_tile" : "xl_tile");
@@ -2398,8 +2399,9 @@ function processRegionAtPoint(centerX, centerY) {
     const cropH = Math.min(CROP_SIZE, imgH);
 
     // Calculate crop position (clamp to image boundaries)
-    const left = Math.max(0, Math.min(centerX - cropW / 2, imgW - cropW));
-    const top = Math.max(0, Math.min(centerY - cropH / 2, imgH - cropH));
+    // Round to whole pixels to avoid sub-pixel shifts in drawImage
+    const left = Math.round(Math.max(0, Math.min(centerX - cropW / 2, imgW - cropW)));
+    const top = Math.round(Math.max(0, Math.min(centerY - cropH / 2, imgH - cropH)));
 
     scaleupLog(`[ScaleUpRegion] Processing region: [${left.toFixed(0)}, ${top.toFixed(0)}] size ${cropW}x${cropH}`);
 
