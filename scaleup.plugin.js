@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.4, last updated: 12/26/2025
+ * v.3.3.5, last updated: 12/27/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1661,14 +1661,15 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
     // }
     var controlnetType = ScaleUpSettings.controlnetType || "tile";
 
-    let reuseControlNet = ScaleUpSettings.reuseControlnet && newTaskRequest.reqBody.use_controlnet_model != null; /* check if model is null or undefined */
+    //Not currently needed -- see below -- let reuseControlNet = ScaleUpSettings.reuseControlnet && newTaskRequest.reqBody.use_controlnet_model != null; /* check if model is null or undefined */
 
 
 
     //Ideally, would like to only accept certain controlnet selections as valid.  However, control_filter_to_apply is reset above.  Rearrange code if desired.
     // if reusing controlnet, and they've already been using lineart, keep existing model.
     //  && (newTaskRequest.reqBody.control_filter_to_apply?.includes('lineart') || newTaskRequest.reqBody.control_filter_to_apply?.includes('canny') || ...'tile'?    
-    if (!reuseControlNet) {
+
+    //if (!reuseControlNet) { //This would allow making reuseControlNet override the filter choice.
       if (controlnetType === "lineart_anime" || controlnetType === "lineart_realistic") {
         newTaskRequest.reqBody.control_filter_to_apply = controlnetType;
         if (isFlux) {
@@ -1689,7 +1690,7 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_tile");
         }
       }
-    }
+    //}
     newTaskRequest.reqBody.control_alpha = 0.3;
     newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : ((isXl || isFlux) ? 0.45 : 0.5)) - (isFlux ? reduceFluxPromptStrength : 0));
   }
