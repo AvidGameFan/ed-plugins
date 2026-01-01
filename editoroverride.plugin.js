@@ -47,7 +47,7 @@ not generating correctly.  This can be mitigated to some extent by changing the 
             if (expectedHash === null) {
                 console.warn('[Editor Override] ⚠️  FIRST RUN: Copy this hash and set expectedHash to:', computedHash);
                 //console.log('[Editor Override] Original function source:\n', originalSource);
-            } else if (computedHash !== expectedHash) {
+            } else if (computedHash != expectedHash) {
                 console.error('[Editor Override] ❌ WARNING: Original setSize function has changed!');
                 console.error('[Editor Override] Expected hash:', expectedHash);
                 console.error('[Editor Override] Computed hash:', computedHash);
