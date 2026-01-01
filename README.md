@@ -78,6 +78,12 @@ This plugin adds a button that calls a local LLM using an OpenAI API endpoint, r
 
 Tested using Oobabooga's text-generation UI, but other LLM UIs may work if they support the same OpenAI API call.  The default URL is the same URL that is hosting Easy Diffusion, but with :5000 as the port.  If your LLM service is at a different URL or port number, you need to edit the plugin and change the default URL near the top of the file.
 
+### LLM Image to Prompt
+
+Calls a local LLM to create a prompt from the given image.  The model that is used needs to be a "vision" model, along with an LLM UI that supports vision as well as the "chat completions" API.
+
+[Image to Prompt](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/image-to-prompt.plugin.js)
+
 ## Other
 
 ### Custom Modifiers
@@ -115,6 +121,7 @@ The resulting list can be cut-and-pasted into the Prompter! plugin by Duckface.
 
 - Python 3.6 or higher
 - No external dependencies required
+- Download extract_prompts.py and (optionally) extract_prompts.bat
 
 ## Usage
 
