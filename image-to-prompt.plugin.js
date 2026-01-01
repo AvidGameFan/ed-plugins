@@ -2,7 +2,7 @@
  * Image to Prompt Plugin
  *
  * v.1.0.0, last updated: 12/30/2025
- * By GitHub Copilot
+ * Initial version by GitHub Copilot, modified by Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
  * 
@@ -129,12 +129,12 @@ var ImageToPromptSettings = {
             ? `You are an expert at analyzing images and creating detailed prompts for Flux AI image generation models.
 Your task is to analyze the provided image and generate a detailed, descriptive prompt that would recreate it.
 Focus on: subject, composition, lighting, colors, mood, artistic style, technical details, and visual elements.
-Flux models support longer, more natural language prompts. Be descriptive and specific.
+Flux models support longer, more natural language prompts. Be descriptive and specific.  Avoid mixing styles - choose one coherent style.
 Do not include any preamble or explanation - only return the prompt itself.`
             : `You are an expert at analyzing images and creating detailed prompts for SDXL/Stable Diffusion image generation.
 Your task is to analyze the provided image and generate a concise but detailed prompt that would recreate it.
 Focus on: subject, composition, lighting, colors, mood, artistic style, and key visual elements.
-Keep the prompt under 75 tokens due to SDXL limitations. Use comma-separated phrases.
+Keep the prompt under 75 tokens due to SDXL limitations. Use comma-separated phrases. Avoid mixing styles - choose one coherent style.
 Do not include any preamble or explanation - only return the prompt itself.`;
 
         const userPrompt = "Analyze this image and create a detailed Stable Diffusion prompt that would generate a similar image.";
