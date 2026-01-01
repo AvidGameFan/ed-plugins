@@ -33,7 +33,7 @@
     return /xl|playground|disneyrealcartoonmix|mobius|flux|zovya/i.test(modelName);
   }
   function isModelFlux(modelName) {
-    if (/flux|lyhAnime_kor|chroma|sd3|qwen/i.test(modelName)) return true;
+    if (/flux|lyhAnime_kor|chroma|sd3|qwen|z_image/i.test(modelName)) return true;
 
     //No need to check for turbo model, as we're not modifying steps, but selecting initial sizes.
     return false;
