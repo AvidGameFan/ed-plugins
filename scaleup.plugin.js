@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.5, last updated: 12/27/2025
+ * v.3.3.6, last updated: 12/31/2025
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -2550,7 +2550,7 @@ function pollForGeneratedImage(regionTimestamp, seed, timeoutMs = 120000, interv
         const timestamp = parseInt(c.id.split('-')[1]); //timestamp from container id
 
         //scaleupLog(`[ScaleUpRegion] Container timestamp ${timestamp} in container`, c.id);
-        if (regionTimestamp - timestamp + 500 >= 0 && regionTimestamp - timestamp < 4000) { //allow 4 second window, with extra before as time is captured before submission
+        if (regionTimestamp - timestamp + 500 >= 0 && regionTimestamp - timestamp < 7000) { //allow 7 second window, with extra before as time is captured before submission
           //scaleupLog(`[ScaleUpRegion] Found matching timestamp ${regionTimestamp} in container`, c.id);
           
           // Check if task is still processing - extend deadline if so.
