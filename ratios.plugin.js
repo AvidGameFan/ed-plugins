@@ -1,6 +1,6 @@
 // Ratio Buttons Plugin for Easy Diffusion
 // Adds ratio buttons for common aspect ratios, sets width/height fields based on model type
-// v1.0.0, last updated: 6/3/2025
+// v1.0.0, last updated: 12/31/2025
 // Initial code from Cursor/Claude, modified by Gary W.
 //
 // Free to use with the CMDR2 Stable Diffusion UI.
