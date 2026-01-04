@@ -1280,10 +1280,13 @@ function sharpen(ctx, width, height, amount) {
               }
           }
 
-          dstPixels[dstOff] = Math.round(r * amount + srcPixels[dstOff] * (1 - amount));
-          dstPixels[dstOff + 1] = Math.round(g * amount + srcPixels[dstOff + 1] * (1 - amount));
-          dstPixels[dstOff + 2] = Math.round(b * amount + srcPixels[dstOff + 2] * (1 - amount));
-          dstPixels[dstOff + 3] = srcPixels[dstOff + 3]; // alpha channel
+          // FIX: Blend with original source pixel, not destination (which is empty/zero)
+          // This was causing grid artifacts by blending with zeros
+          const originalSrcOff = (y * sw + x) * 4;
+          dstPixels[dstOff] = Math.max(0, Math.min(255, Math.round(r * amount + srcPixels[originalSrcOff] * (1 - amount))));
+          dstPixels[dstOff + 1] = Math.max(0, Math.min(255, Math.round(g * amount + srcPixels[originalSrcOff + 1] * (1 - amount))));
+          dstPixels[dstOff + 2] = Math.max(0, Math.min(255, Math.round(b * amount + srcPixels[originalSrcOff + 2] * (1 - amount))));
+          dstPixels[dstOff + 3] = srcPixels[originalSrcOff + 3]; // alpha channel
       }
   }
 
@@ -1875,15 +1878,10 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
     // Put the resized image data into the canvas
     ctx.putImageData(resultImageData, 0, 0);
 
-    //extra sharpening not necessarily needed with controlnet
-    //if (!scaleUpControlNet) { }
-    //extra sharpening doesn't work well for Flux
-    if (isFlux) { // && !newTaskRequest.reqBody._scaleup_region) {
-      sharpen(ctx, canvas.width, canvas.height, .1);
-    }
-    else {
-      sharpen(ctx, canvas.width, canvas.height, .33);
-    }
+    // IMPORTANT: Do NOT apply additional sharpening after Lanczos resampling!
+    // Lanczos already produces sharp, high-quality results. Additional sharpening
+    // creates grid artifacts and amplifies patterns, especially on Flux/Chroma models.
+    // The sharpen() function is DISABLED when using Lanczos.
 
     // Firefox-compatible image data handling
     var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -1892,7 +1890,12 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
     var imgCopy = ctx.createImageData(img.width, img.height);
     imgCopy.data.set(img.data);
 
-    imgCopy = contrastImage(imgCopy, contrastAmount);
+    // Apply minimal contrast adjustment - reduced for Flux models and high resolutions
+    // to prevent amplification of any residual patterns
+    const totalPixels = canvas.width * canvas.height;
+    const highRes = totalPixels > 2000000;
+    const contrastToUse = (isFlux || highRes) ? 0.7 : contrastAmount;
+    imgCopy = contrastImage(imgCopy, contrastToUse);
     ctx.putImageData(imgCopy, 0, 0);
 
     if (SCALEUP_DEBUG_LOGGING) {
@@ -2825,7 +2828,7 @@ async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedIm
     pctx.imageSmoothingQuality = 'high';
 
     //sharpen before we downsize -- just in case, may not be needed
-    sharpen(pctx, patchCanvas.width, patchCanvas.height, .1);
+    //sharpen(pctx, patchCanvas.width, patchCanvas.height, .1);
 
 
     // Draw downscaled generated image onto patch canvas using Lanczos for higher quality
