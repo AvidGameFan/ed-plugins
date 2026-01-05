@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.6, last updated: 12/31/2025
+ * v.3.3.7, last updated: 1/4/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -33,7 +33,7 @@
 //needs to be outside of the wrapper, as the input items are in the main UI.
 //These initial values can be overwritten upon startup -- do not rely on these as defaults.
 var ScaleUpSettings = {
-  use64PixelChunks: true,
+  pixelChunks: "normal",  // "normal", "16", or "64"
   useChangedPrompt: false,
   useChangedModel: false,
   resizeImage: true,
@@ -354,7 +354,7 @@ function maxRatio(maxRes, height, width) {
 
 function scaleUp(height,width,scalingIncrease) {
   var result=height;
-  let table = (ScaleUpSettings.use64PixelChunks)?resTable:exactResTable;
+  let table = (ScaleUpSettings.pixelChunks === "normal")?exactResTable:resTable;
   table.forEach(function(item){
       if (item[0]==height && 
           item[1]==width)
@@ -797,8 +797,11 @@ function ScaleUp64(dimension, ratio) {
   return Math.round(((dimension*ratio)+32)/64)*64-64;
 }
 function ScaleUpMax(dimension, ratio) {
-  if (ScaleUpSettings.use64PixelChunks) {
+  if (ScaleUpSettings.pixelChunks === "64") {
     return ScaleUp64(dimension, ratio);
+  } else if (ScaleUpSettings.pixelChunks === "16") {
+    // Use 16 pixel chunks
+    return Math.round(((dimension*ratio)+8)/16)*16-16;
   }
   return Math.round(((dimension*ratio)+pixelChunkSize/2)/pixelChunkSize)*pixelChunkSize-pixelChunkSize;
 }
@@ -2503,8 +2506,9 @@ function processRegionAtPoint(centerX, centerY) {
 
       // Poll for resulting image with matching seed, then merge back
       scaleupLog(`[ScaleUpRegion] Waiting for generated image...`);
-      // Flux is slower, so we might as well have a longer timeout
-      pollForGeneratedImage(savedRegionTimestamp, seed, isModelFlux(desiredModelName(origRequest))? 180000:120000).then((generatedImgEl) => {
+      // Flux is slower, so we might as well have a longer timeout.  Also, slower machines may need more time.
+      //isModelFlux(desiredModelName(origRequest))
+      pollForGeneratedImage(savedRegionTimestamp, seed, 300000).then((generatedImgEl) => {
         if (!generatedImgEl) {
           scaleupWarn('Scale region: generated image not found for seed', seed);
           showNotification('Did not find generated image (timeout)', 'error');
@@ -3144,10 +3148,14 @@ function scaleupError(...args) {
         <div id="scaleup-settings-entries" class="collapsible-content" style="display: block;margin-top:15px;">
         <div><ul style="padding-left:0px">
           <li><b class="settings-subheader">ScaleUp Settings</b></li>
-          <li class="pl-5"><div class="input-toggle">
-          <input id="scaleup_64pixel_chunks" name="scaleup_64pixel_chunks" type="checkbox" value="`+ScaleUpSettings.use64PixelChunks+`"  onchange="setScaleUpSettings()"> <label for="scaleup_64pixel_chunks"></label>
-          </div>
-          <label for="scaleup_64pixel_chunks">Use 64 pixel chunks<small>(for compatibility with Latent Upscaler 2X, less accuracy)</small></label>
+          <li class="pl-5">
+          <label for="scaleup_pixel_chunks">Resolution chunks: </label>
+          <select id="scaleup_pixel_chunks" name="scaleup_pixel_chunks" onchange="setScaleUpSettings()">
+            <option value="normal">Normal (exact)</option>
+            <option value="16">16 pixel chunks</option>
+            <option value="64">64 pixel chunks</option>
+          </select>
+          <label><small>(16px for ED v4; 64px for Latent Upscaler 2X compatibility, less accuracy)</small></label>
           </li>
           <li class="pl-5"><div class="input-toggle">
           <input id="scaleup_change_model" name="scaleup_change_model" type="checkbox" value="`+ScaleUpSettings.useChangedModel+`"  onchange="setScaleUpSettings()"> <label for="scaleup_change_model"></label>
@@ -3455,7 +3463,7 @@ function lanczosResizeSync(srcCanvas, destWidth, destHeight) {
 
 
 function setScaleUpSettings() {
-  ScaleUpSettings.use64PixelChunks = scaleup_64pixel_chunks.checked;
+  ScaleUpSettings.pixelChunks = scaleup_pixel_chunks.value;
   ScaleUpSettings.useChangedPrompt = scaleup_change_prompt.checked;
   ScaleUpSettings.useChangedModel = scaleup_change_model.checked;
   ScaleUpSettings.useMaxSplitSize = scaleup_split_size.checked;
@@ -3475,7 +3483,7 @@ function scaleUpResetSettings(reset) {
 
   let settings = JSON.parse(localStorage.getItem('ScaleUp_Plugin_Settings'));
   if (settings == null || reset !=null) {  //if settings not found, just set everything
-    ScaleUpSettings.use64PixelChunks = false;
+    ScaleUpSettings.pixelChunks = "normal";
     ScaleUpSettings.useChangedPrompt = false;
     ScaleUpSettings.useChangedModel = false;
     ScaleUpSettings.useMaxSplitSize = false;
@@ -3487,7 +3495,17 @@ function scaleUpResetSettings(reset) {
     //useControlNet = false;
   }
   else {  //if settings found, but we've added a new setting, use a default value instead.  (Not strictly necessary for this first group.)
-    ScaleUpSettings.use64PixelChunks =settings.use64PixelChunks ?? false;
+    // Migrate from old use64PixelChunks to new pixelChunks
+    if (settings.pixelChunks !== undefined) {
+      ScaleUpSettings.pixelChunks = settings.pixelChunks ?? "normal";
+    } else if (settings.use64PixelChunks !== undefined) {
+      // Migration: old boolean -> new dropdown
+      ScaleUpSettings.pixelChunks = settings.use64PixelChunks ? "64" : "normal";
+      // Remove old use64PixelChunks setting (cleanup after migration)
+      delete settings.use64PixelChunks;
+    } else {
+      ScaleUpSettings.pixelChunks = "normal";
+    }
     ScaleUpSettings.useChangedPrompt =settings.useChangedPrompt ?? false;
     ScaleUpSettings.useChangedModel =settings.useChangedModel ?? false;
     ScaleUpSettings.useMaxSplitSize =settings.useMaxSplitSize ?? false;
@@ -3514,7 +3532,7 @@ function scaleUpResetSettings(reset) {
   localStorage.setItem('ScaleUp_Plugin_Settings', JSON.stringify(ScaleUpSettings));  //Store settings
 
   //set the input fields
-  scaleup_64pixel_chunks.checked = ScaleUpSettings.use64PixelChunks;
+  scaleup_pixel_chunks.value = ScaleUpSettings.pixelChunks || "normal";
   scaleup_change_prompt.checked = ScaleUpSettings.useChangedPrompt;
   scaleup_change_model.checked = ScaleUpSettings.useChangedModel;
   scaleup_split_size.checked = ScaleUpSettings.useMaxSplitSize;
