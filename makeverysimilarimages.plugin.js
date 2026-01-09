@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.1.3.1, last updated: 11/28/2025
+ * v.1.3.2, last updated: 1/8/2026
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -98,7 +98,7 @@ function addNoiseToPixels(imageData) {
 //Determine if model is Turbo or other fast model
 //Model needs to have "turbo" in the filename to be recognized as a turbo model.
 function isModelTurbo(modelName, loraList) {
-  if (modelName.search(/turbo/i)>=0 || modelName.search(/lightning/i)>=0 || modelName.search(/hyper/i)>=0 || modelName.search(/schnell/i)>=0) {
+  if (modelName.search(/turbo/i)>=0 || modelName.search(/lightning/i)>=0 || modelName.search(/hyper/i)>=0 ||  modelName.search(/flash/i)>=0 || modelName.search(/schnell/i)>=0) {
     return true;
   }
   //if any of the Loras contains "lcm", assume turbo lora -- fewer steps needed
@@ -142,7 +142,7 @@ function isModelFlux(modelName) {
   //if we're unsure from the internal check, use the filename as a fall-back.
   
   // Combined regex for all Flux-related terms
-  return /flux|lyhAnime_kor|chroma|sd3|qwen/i.test(modelName);
+  return /flux|lyhAnime_kor|chroma|sd3|qwen|z_image/i.test(modelName);
 }
 
 function isSdxlModel() {
@@ -190,7 +190,7 @@ function isModelXl(modelName) {
     //   * (MakeVerySimilarSettings.preserve ? 2.5 : 1)  //multiply steps to compensate for Prompt Strength being .3 instead of .7
     // )
 
-function stepsToUse(defaultSteps, isFlux, isTurbo, isXl) {
+function stepsToUse(defaultSteps, isFlux, isTurbo, isXl, isLightning) {
   var steps = parseInt(defaultSteps);
   if (MakeVerySimilarSettings.highQuality) {
 
@@ -268,7 +268,7 @@ function onMakeVerySimilarClick(origRequest, image) {
   const newTaskRequest = modifyCurrentRequest(origRequest, {
     num_outputs: 1,
 
-    num_inference_steps: stepsToUse(origRequest.num_inference_steps, isFlux, isTurbo, isXl),
+    num_inference_steps: stepsToUse(origRequest.num_inference_steps, isFlux, isTurbo, isXl, isLightning),
     //large resolutions combined with large steps can cause an error
     prompt_strength: MakeVerySimilarSettings.preserve ? 0.3 : 0.7,
     init_image: image.src,
