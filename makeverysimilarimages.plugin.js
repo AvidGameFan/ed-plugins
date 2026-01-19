@@ -228,7 +228,7 @@ function stepsToUse(defaultSteps, isFlux, isTurbo, isXl, isLightning) {
         steps =  Math.min((isLightning)? Math.max(6, parseInt(steps) + 2): Math.max(7, parseInt(steps) + 3), 7);
       }
       else {
-        steps = Math.min(parseInt(steps) + 5, 11);
+        steps = Math.min(parseInt(steps) + 5, 15);
       }
     }
     else if (isXl) {
