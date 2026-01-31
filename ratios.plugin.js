@@ -1,6 +1,6 @@
 // Ratio Buttons Plugin for Easy Diffusion
 // Adds ratio buttons for common aspect ratios, sets width/height fields based on model type
-// v1.0.0, last updated: 12/31/2025
+// v1.0.1, last updated: 1/30/2026
 // Initial code from Cursor/Claude, modified by Gary W.
 //
 // Free to use with the CMDR2 Stable Diffusion UI.
@@ -11,14 +11,17 @@
   //Comment or uncomment lines to add/remove ratios.
   const ratioTable = [
 //    ["16:9",   { SD: [704, 396], SDXL: [1216, 684], Flux: [1280, 720] }], //less aggressive settings
-    ["16:9",   { SD: [768, 432], SDXL: [1280, 720], Flux: [1408, 792] }], //larger resolutions
+//    ["16:9",   { SD: [768, 432], SDXL: [1280, 720], Flux: [1408, 792] }], //larger resolutions
+      ["16:9",   { SD: [768, 432], SDXL: [1280, 720], Flux: [1472, 832] }], //larger resolutions, 64-pixel boundaries works with v4
 //    ["4:3",    { SD: [512, 384], SDXL: [1024, 768], Flux: [1280, 960] }], //less aggressive settings
     ["4:3",    { SD: [768, 576], SDXL: [1280, 960], Flux: [1280, 960] }],
 //    ["3:2",    { SD: [768, 512], SDXL: [1152, 768], Flux: [1152, 768] }],
-    ["3:2",    { SD: [768, 512], SDXL: [1296, 864], Flux: [1296, 864] }],
+//    ["3:2",    { SD: [768, 512], SDXL: [1296, 864], Flux: [1296, 864] }],
+    ["3:2",    { SD: [768, 512], SDXL: [1248, 832], Flux: [1248, 832] }], //v4 friendly
     ["1:1",    { SD: [512, 512], SDXL: [1024, 1024], Flux: [1280, 1280] }],
-    ["21:9",   { SD: [672, 288], SDXL: [1344, 576], Flux: [1680, 720] }],
-    ["32:9",   { SD: [1280, 360], SDXL: [1536, 432], Flux: [1820, 512] }], //2560, 720
+    ["21:9",   { SD: [704, 320], SDXL: [1344, 576], Flux: [1792, 768] }],  //896x384 is closer to the actual 21:9 ratio, but 704x320 may fit better for SD 1.5.
+//    ["32:9",   { SD: [1280, 360], SDXL: [1536, 432], Flux: [1820, 512] }], //2560, 720
+    ["32:9",   { SD: [1344,384], SDXL: [1792, 512], Flux: [2048, 576] }], //v4 friendly 
 //    ["2:3",    { SD: [384, 576], SDXL: [768, 1152], Flux: [512, 768] }],
     ["3:4",    { SD: [576, 768], SDXL: [960, 1280], Flux: [960, 1280]}],
 //   ["3:4",    { SD: [384, 512], SDXL: [768, 1024], Flux: [960, 1280] }],
