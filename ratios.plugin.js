@@ -78,6 +78,19 @@
     }
   }
 
+  // --- Round image sizes to pixel boundary ---
+  function roundImageSizes(boundary) {
+    const widthField = document.querySelector("#width");
+    const heightField = document.querySelector("#height");
+    if (widthField && heightField) {
+      const currentW = parseInt(widthField.value) || 512;
+      const currentH = parseInt(heightField.value) || 512;
+      const roundedW = Math.round(currentW / boundary) * boundary;
+      const roundedH = Math.round(currentH / boundary) * boundary;
+      setImageSize(roundedW, roundedH);
+    }
+  }
+
   // --- Create and insert the button group ---
   function insertRatioButtons() {
     if (document.getElementById("ratio-buttons-group")) return; // Already inserted
@@ -99,6 +112,24 @@
       };
       container.appendChild(btn);
     });
+
+    // Add rounding buttons
+    const round64Btn = document.createElement("button");
+    round64Btn.textContent = "⌊64⌉";
+    round64Btn.className = "tertiaryButton";
+    round64Btn.style.padding = "0.3em 1em";
+    round64Btn.title = "Round to 64 pixel boundary";
+    round64Btn.onclick = () => roundImageSizes(64);
+    container.appendChild(round64Btn);
+
+    const round16Btn = document.createElement("button");
+    round16Btn.textContent = "⌊16⌉";
+    round16Btn.className = "tertiaryButton";
+    round16Btn.style.padding = "0.3em 1em";
+    round16Btn.title = "Round to 16 pixel boundary";
+    round16Btn.onclick = () => roundImageSizes(16);
+    container.appendChild(round16Btn);
+
     const outercontainer = document.createElement("tr");
     outercontainer.class="pl-5";
     outercontainer.appendChild(document.createElement("td"));  //empty td node
