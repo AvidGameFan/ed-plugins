@@ -1,6 +1,6 @@
 /* Clone Brush Plugin
 
- v. 1.2.1, last updated: 11/25/2025
+ v. 1.2.2, last updated: 2/12/2026
  By Gary W.
 
  Inital version created with the help of Cursor/Claude AI.
@@ -121,7 +121,7 @@ Also supports a pen/stylus.
 		// The mousemove handler will call updateCloneSourceCursor with proper screen coordinates
 	}
 
-function stampClone(editor, ctx, x, y) {
+function stampClone(editor, ctx, x, y, isDragging) {
 	if (!editor.cloneSourcePoint || !editor._cloneOffset) {
 		console.log('Missing clone source or offset:', { source: editor.cloneSourcePoint, offset: editor._cloneOffset })
 		return
@@ -184,10 +184,21 @@ function stampClone(editor, ctx, x, y) {
 		offCtx.fillRect(0, 0, size, size)
 	}
 
-	// Draw the offscreen patch onto destination; respect existing ctx alpha/filter
+	// Draw the offscreen patch onto destination; respect opacity and existing ctx state
 	ctx.save()
 	ctx.imageSmoothingQuality = "high"; //smoothing is enabled by default, but this ensures it maintains higher quality
-	// ctx.globalAlpha already set by setBrush -> respect editor.options.opacity
+	const rawOpacity = editor.options && typeof editor.options.opacity === 'number' ? editor.options.opacity : 1
+	let alpha = rawOpacity
+	if (alpha > 1) alpha = alpha / 100
+	alpha = Math.max(0, Math.min(1, alpha))
+	alpha = 1 - alpha  // Invert: opacity 0 = fully opaque, opacity 1 = fully transparent
+	
+	// When dragging, reduce opacity to compensate for overlapping stamps (spacing is 60% so ~40% overlap)
+	if (isDragging) {
+		alpha = alpha * 0.55  // Reduce opacity by ~45% to compensate for overlap buildup
+	}
+	
+	ctx.globalAlpha = alpha
 	ctx.drawImage(off, dx, dy)
 	ctx.restore()
 }
@@ -199,7 +210,7 @@ function stampAlongLine(editor, ctx, from, to) {
 	var dy = to.y - from.y
 	var dist = Math.sqrt(dx * dx + dy * dy)
 	if (dist === 0) {
-		stampClone(editor, ctx, to.x, to.y)
+		stampClone(editor, ctx, to.x, to.y, false)
 		return
 	}
 	var steps = Math.floor(dist / spacing)
@@ -207,10 +218,10 @@ function stampAlongLine(editor, ctx, from, to) {
 		var t = i / steps
 		var px =  from.x + dx * t
 		var py =  from.y + dy * t
-		stampClone(editor, ctx, px, py)
+		stampClone(editor, ctx, px, py, true)  // Pass true to indicate dragging
 	}
 	// Always stamp at the final point to ensure complete coverage
-	stampClone(editor, ctx, to.x, to.y)
+	stampClone(editor, ctx, to.x, to.y, true)  // Pass true to indicate dragging
 }
 
 // --- Define the Clone tool ---
@@ -246,14 +257,17 @@ var cloneTool = {
 		}
 		
 		editor._clonePrevPoint = { x: x, y: y }
-		stampClone(editor, ctx, x, y)
+		stampClone(editor, ctx, x, y, false)  // First stamp is not dragging
 	},
 			move: (editor, ctx, x, y, is_overlay = false) => {
 			if (is_overlay) return
 			if (!editor._clonePrevPoint || !editor._cloneOffset) return
 			
 			// Update source cursor position during move
-			updateCloneSourceCursor(editor, x, y)
+			// x, y are in canvas coordinates, convert to screen coordinates for cursor update
+			const screenX = x * editor.containerScale
+			const screenY = y * editor.containerScale
+			updateCloneSourceCursor(editor, screenX, screenY)
 			
 			// Draw along the line from previous point to current point
 			stampAlongLine(editor, ctx, editor._clonePrevPoint, { x: x, y: y })
@@ -366,11 +380,15 @@ function attachRightClickSourceSetter(editor) {
 		}
 	}, true)
 	
-	// Handle Microsoft Surface Pen button (button 1) via pointer events
+	// Handle Microsoft Surface Pen button via pointer events
+	// Button 1 = right-click equivalent, Button 5 = barrel/side button
 	editor.container.addEventListener('pointerdown', function(e) {
-		// Check if it's a Surface Pen button (button 1)
-		if (e.pointerType === 'pen' && e.button === 1) {
-			setCloneSourcePoint(e)
+		if (e.pointerType === 'pen') {
+			console.log('Pen button pressed:', e.button, 'buttons:', e.buttons, 'tool:', editor.tool?.id)
+			// Check for pen barrel button (5) or right-click equivalent (1)
+			if (e.button === 5 || e.button === 1) {
+				setCloneSourcePoint(e)
+			}
 		}
 	}, true)
 	
@@ -392,9 +410,29 @@ function attachRightClickSourceSetter(editor) {
 		}
 	})
 	
+	// Track pointer movement (for pen/touch) to show source cursor and ensure cursor updates
+	// Use non-capturing listener to not interfere with editor's own event handling
+	editor.container.addEventListener('pointermove', function(e) {
+		// Only handle pen input here (mouse is handled by mousemove above)
+		if (e.pointerType === 'pen' && editor.tool && editor.tool.id === 'clone' && editor.cloneSourcePoint && editor._cloneOffset) {
+			var bbox = editor.layers.overlay.canvas.getBoundingClientRect()
+			var x = (e.clientX || 0) - bbox.left
+			var y = (e.clientY || 0) - bbox.top
+			updateCloneSourceCursor(editor, x, y)
+		}
+		// Don't call preventDefault or stopPropagation - let the editor handle cursor updates
+	}, false) // Explicitly use bubble phase, not capture
+	
 	// Hide source cursor when mouse leaves canvas
 	editor.container.addEventListener('mouseleave', function(e) {
 		if (editor.tool && editor.tool.id === 'clone') {
+			hideCloneSourceCursor(editor)
+		}
+	})
+	
+	// Hide source cursor when pointer leaves (for pen/touch)
+	editor.container.addEventListener('pointerleave', function(e) {
+		if (e.pointerType === 'pen' && editor.tool && editor.tool.id === 'clone') {
 			hideCloneSourceCursor(editor)
 		}
 	})
