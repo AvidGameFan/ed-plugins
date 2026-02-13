@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.7, last updated: 1/4/2026
+ * v.3.3.8, last updated: 2/12/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -435,7 +435,7 @@ function isModelFlux(modelName) {
   //if we're unsure from the internal check, use the filename as a fall-back.
   
   // Combined regex for all Flux-related terms
-  return /flux|lyhAnime_kor|chroma|sd3|qwen/i.test(modelName);
+  return /flux|lyhAnime_kor|chroma|sd3|z-image|z_image|qwen/i.test(modelName);
 }
 
 
