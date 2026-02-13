@@ -1,6 +1,6 @@
 // Ratio Buttons Plugin for Easy Diffusion
 // Adds ratio buttons for common aspect ratios, sets width/height fields based on model type
-// v1.0.1, last updated: 1/30/2026
+// v1.0.2, last updated: 2/12/2026
 // Initial code from Cursor/Claude, modified by Gary W.
 //
 // Free to use with the CMDR2 Stable Diffusion UI.
@@ -36,7 +36,7 @@
     return /xl|playground|disneyrealcartoonmix|mobius|flux|zovya/i.test(modelName);
   }
   function isModelFlux(modelName) {
-    if (/flux|lyhAnime_kor|chroma|sd3|qwen|z_image/i.test(modelName)) return true;
+    if (/flux|lyhAnime_kor|chroma|sd3|qwen|z-image|z_image/i.test(modelName)) return true;
 
     //No need to check for turbo model, as we're not modifying steps, but selecting initial sizes.
     return false;
