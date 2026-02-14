@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.8, last updated: 2/12/2026
+ * v.3.3.9, last updated: 2/12/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -383,7 +383,7 @@ function scaleUp(height,width,scalingIncrease) {
 //Model needs to have "turbo" in the filename to be recognized as a turbo model.
 function isModelTurbo(modelName, loraList) {
   // Combined regex for all turbo-related terms
-  if (/turbo|lightning|hyper|schnell|flash/i.test(modelName)) {
+  if (/turbo|lightning|hyper|schnell|klein|flash/i.test(modelName)) {
     return true;
   }
   
@@ -625,6 +625,7 @@ function scaleupRound(value) {
   return Math.round(value * 100) / 100;
 }
 const reduceFluxPromptStrength = 0.0; //was: 0.03;
+const reduceKleinPromptStrength = 0.04;
 
 //Javascript doesn't have enums
 const SCALEUP_NORMAL = 0;
@@ -838,7 +839,7 @@ function onScaleUpMAXClick(origRequest, image) {
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: scaleupRound(((origRequest.scaleUpSplit || isXl || isFlux)? (scaleUpPreserve ? 0.13 : 0.25):(scaleUpPreserve ? 0.15 : 0.3)) - (isFlux? reduceFluxPromptStrength:0)),  //Lower this number to make results closer to the original
+    prompt_strength: scaleupRound(((origRequest.scaleUpSplit || isXl || isFlux)? (scaleUpPreserve ? 0.13 : 0.25):(scaleUpPreserve ? 0.15 : 0.3)) - (isFlux &&  /klein/i.test(modelName)? reduceKleinPromptStrength:0)),  //Lower this number to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
 
@@ -1203,7 +1204,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
     prompt_strength: scaleupRound(((origRequest.scaleUpSplit || isXl || isFlux)? (scaleUpPreserve ? 0.11 : 0.25):(scaleUpPreserve ? 0.15 : 0.33))
-      + (doScaleUp?.05:0) - (isFlux? reduceFluxPromptStrength:0)), // + (ScaleUpSettings.resizeImage?.03:0), 
+      + (doScaleUp?.05:0) - (isFlux &&  /klein/i.test(modelName)? reduceKleinPromptStrength:0)), // + (ScaleUpSettings.resizeImage?.03:0), 
     //Lower prompt_strength to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
@@ -1698,7 +1699,7 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
       }
     //}
     newTaskRequest.reqBody.control_alpha = 0.3;
-    newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : ((isXl || isFlux) ? 0.45 : 0.5)) - (isFlux ? reduceFluxPromptStrength : 0));
+    newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : ((isXl || isFlux) ? 0.45 : 0.5)) - (isFlux &&  /klein/i.test(modelName)? reduceKleinPromptStrength:0));
   }
 
   newTaskRequest.seed = newTaskRequest.reqBody.seed;
@@ -2451,7 +2452,7 @@ function processRegionAtPoint(centerX, centerY) {
       init_image: cropDataUrl,
       width: targetWidth,
       height: targetHeight,
-      prompt_strength: scaleupRound((scaleUpPreserve ? 0.15 : 0.33) - (isModelFlux(desiredModelName(origRequest)) ? reduceFluxPromptStrength : 0)),
+      prompt_strength: scaleupRound((scaleUpPreserve ? 0.15 : 0.33) - ((isModelFlux(desiredModelName(origRequest)) &&  /klein/i.test(modelName)) ? reduceKleinPromptStrength : 0)),
       num_inference_steps: stepsToUse(origRequest.num_inference_steps, isModelFlux(desiredModelName(origRequest)), isModelTurbo(desiredModelName(origRequest), origRequest.use_lora_model), isModelXl(desiredModelName(origRequest))),
       num_outputs: 1,
       use_vae_model: desiredVaeName(origRequest),
