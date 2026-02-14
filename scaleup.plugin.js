@@ -624,8 +624,24 @@ document.head.append(style);
 function scaleupRound(value) {
   return Math.round(value * 100) / 100;
 }
-const reduceFluxPromptStrength = 0.0; //was: 0.03;
-const reduceKleinPromptStrength = 0.08;
+const reduceFluxPromptStrength = 0.05; //was: 0.03;
+const reduceKleinPromptStrength = 0.1; //Klein models appear to be more sensitive to prompt strength, so reduce more.  This is an arbitrary value, but seems to work well in testing.
+
+// Helper function to get prompt strength modifier based on model type
+function getPromptStrengthModifier(origRequest) {
+  const modelName = desiredModelName(origRequest);
+  const isFlux = isModelFlux(modelName);
+  
+  if (!isFlux) {
+    return 0;
+  }
+  
+  if (/klein/i.test(modelName)) {
+    return reduceKleinPromptStrength;
+  }
+  
+  return reduceFluxPromptStrength;
+}
 
 //Javascript doesn't have enums
 const SCALEUP_NORMAL = 0;
@@ -839,7 +855,7 @@ function onScaleUpMAXClick(origRequest, image) {
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
-    prompt_strength: scaleupRound(((origRequest.scaleUpSplit || isXl || isFlux)? (scaleUpPreserve ? 0.13 : 0.25):(scaleUpPreserve ? 0.15 : 0.3)) - (isFlux &&  /klein/i.test(desiredModelName(origRequest))? reduceKleinPromptStrength:0)),  //Lower this number to make results closer to the original
+    prompt_strength: scaleupRound(((origRequest.scaleUpSplit || isXl || isFlux)? (scaleUpPreserve ? 0.13 : 0.25):(scaleUpPreserve ? 0.15 : 0.3)) - getPromptStrengthModifier(origRequest)),  //Lower this number to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
 
@@ -1008,7 +1024,7 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
     prompt_strength: scaleupRound(((origRequest.scaleUpSplit || isXl || isFlux)? (scaleUpPreserve ? 0.11 : 0.25):(scaleUpPreserve ? 0.15 : 0.33))
-      + (doScaleUp?.05:0) - (isFlux &&  /klein/i.test(desiredModelName(origRequest))? reduceKleinPromptStrength:0)), // + (ScaleUpSettings.resizeImage?.03:0), 
+      + (doScaleUp?.05:0) - getPromptStrengthModifier(origRequest)), // + (ScaleUpSettings.resizeImage?.03:0), 
     //Lower prompt_strength to make results closer to the original
     // - 0.35 makes minor variations that can include facial expressions and details on objects -- can make image better or worse
     // - 0.15 sticks pretty close to the original, adding detail
@@ -1505,7 +1521,7 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
       }
     //}
     newTaskRequest.reqBody.control_alpha = 0.3;
-    newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : ((isXl || isFlux) ? 0.45 : 0.5)) - ((isFlux && isKlein) ? reduceKleinPromptStrength:0));
+    newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : ((isXl || isFlux) ? 0.45 : 0.5)) - getPromptStrengthModifier(origRequest));
   }
 
   newTaskRequest.seed = newTaskRequest.reqBody.seed;
@@ -1704,7 +1720,7 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
     // to prevent amplification of any residual patterns
     const totalPixels = canvas.width * canvas.height;
     const highRes = totalPixels > 2000000;
-    const contrastToUse = (isFlux || highRes) ? (isKlein ? 0.4 : 0.6) : contrastAmount;
+    const contrastToUse = (isFlux || highRes) ? (isKlein ? 0.5 : 0.6) : contrastAmount;
     imgCopy = contrastImage(imgCopy, contrastToUse);
     ctx.putImageData(imgCopy, 0, 0);
 
@@ -2258,7 +2274,7 @@ function processRegionAtPoint(centerX, centerY) {
       init_image: cropDataUrl,
       width: targetWidth,
       height: targetHeight,
-      prompt_strength: scaleupRound((scaleUpPreserve ? 0.15 : 0.33) - ((isModelFlux(desiredModelName(origRequest)) &&  /klein/i.test(desiredModelName(origRequest))) ? reduceKleinPromptStrength : 0)),
+      prompt_strength: scaleupRound((scaleUpPreserve ? 0.15 : 0.33) - getPromptStrengthModifier(origRequest)),
       num_inference_steps: stepsToUse(origRequest.num_inference_steps, isModelFlux(desiredModelName(origRequest)), isModelTurbo(desiredModelName(origRequest), origRequest.use_lora_model), isModelXl(desiredModelName(origRequest))),
       num_outputs: 1,
       use_vae_model: desiredVaeName(origRequest),
