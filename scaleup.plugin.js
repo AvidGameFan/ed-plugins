@@ -625,7 +625,7 @@ function scaleupRound(value) {
   return Math.round(value * 100) / 100;
 }
 const reduceFluxPromptStrength = 0.0; //was: 0.03;
-const reduceKleinPromptStrength = 0.04;
+const reduceKleinPromptStrength = 0.08;
 
 //Javascript doesn't have enums
 const SCALEUP_NORMAL = 0;
@@ -867,202 +867,6 @@ function onScaleUpMAXClick(origRequest, image) {
     .then(() => createTask(newTaskRequest))
     .catch(err => console.error('Error in processTaskRequest:', err));
 
-//   //May want to delete the original controlnet, as it's normally not neccessary once scaling-up,
-//   //but it can be useful to carry-forward while scaling-up (such as to preserve fingers), so it's left as a user option.
-//   if (!ScaleUpSettings.reuseControlnet)
-//   {
-//     delete newTaskRequest.reqBody.use_controlnet_model;
-//     delete newTaskRequest.reqBody.control_filter_to_apply;
-//     delete newTaskRequest.reqBody.control_image;
-//   }
-//   //If using controlnet --SDXL now supported
-//   if (scaleUpControlNet /* && !isXl*/)  {
-//     delete newTaskRequest.reqBody.control_filter_to_apply;
-//     //to avoid "halo" artifacts, need to soften the image before passing to control image.
-  
-//     //create working canvas
-//     let canvasSoft = document.createElement("canvas");
-//     canvasSoft.width = image.naturalWidth; //*1.75;
-//     canvasSoft.height = image.naturalHeight; //*1.75;
-//     let ctx2 = canvasSoft.getContext("2d", {
-//       willReadFrequently: true,
-//       alpha: false  // Firefox optimization
-//     });
-//     ctx2.filter = "blur(1.5px)"; // Adjust the blur radius 
-//     // get the image data of the canvasSoft  -- we only need the part we're going to resize
-//     //x,y -- upper-left, width & height
-//     ctx2.drawImage( image,
-//       0, 0, image.naturalWidth, image.naturalHeight, //source 
-//       0, 0, canvasSoft.width, canvasSoft.height //destination
-//     );
-//     //      sharpen(ctx2, canvasSoft.width, canvasSoft.height, .8, true);
-//     //  document.querySelector('body').appendChild(canvasSoft);   //Testing -- let's see what we have
-//     var img2 =  ctx2.getImageData(0, 0, canvasSoft.width, canvasSoft.height);
-//     ctx2.putImageData(img2, 0, 0);
-//     var newImage2 = new Image;
-//     newImage2.src = canvasSoft.toDataURL('image/png');
-//     newTaskRequest.reqBody.control_image = newImage2.src;
-//     //TODO: Only for SDXL, search for an appropriate model
-//     //let xlCnModel = "diffusers_xl_canny_full"; //default -- canny doesn't work that well
-//     // if (isXl)  {
-//         // if (inCnList("TTPLANET_Controlnet_Tile_realistic_v2_fp16")); 
-//         //document.getElementById('controlnet_model-model-list').getElementsByTagName("li"); -- can cycle through to find available models
-//     // }
-//     var controlnetType = ScaleUpSettings.controlnetType || "tile";
-    
-//     let reuseControlNet = ScaleUpSettings.reuseControlnet && newTaskRequest.reqBody.use_controlnet_model != null; /* check if model is null or undefined */
-//     //Ideally, would like to only accept certain controlnet selections as valid.  However, control_filter_to_apply is reset above.  Rearrange code if desired.
-//     // if reusing controlnet, and they've already been using lineart, keep existing model.
-//     //  && (newTaskRequest.reqBody.control_filter_to_apply?.includes('lineart') || newTaskRequest.reqBody.control_filter_to_apply?.includes('canny') || ...'tile'?    
-//     if (!reuseControlNet) {
-//       if (controlnetType === "lineart_anime" || controlnetType === "lineart_realistic") {
-//         newTaskRequest.reqBody.control_filter_to_apply = controlnetType;
-//         if (isFlux) {
-//           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("flux_canny");
-//         } else if (isXl) {
-//           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("xl_canny");
-//         } else {
-//           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_canny");
-//         }
-//       }
-//       else { // controlnetType === "tile"
-//         //Tile controlnet doesn't use a filter
-//         //Flux can also use SDXL Tile.
-//         if (isXl || isFlux) {
-//           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel((isFlux) ? "flux_tile" : "xl_tile");
-//         } else {
-//           newTaskRequest.reqBody.use_controlnet_model = findAvailableControlnetModel("sd15_tile");
-//         }
-//       }
-//     }
-//     newTaskRequest.reqBody.control_alpha = 0.3;
-//     newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : (isXl? 0.45:0.5)) - (isFlux? reduceFluxPromptStrength:0));
-//   }
-
-
-//   newTaskRequest.seed = newTaskRequest.reqBody.seed
-// //  newTaskRequest.reqBody.sampler_name = 'ddim'  //ensure img2img sampler change is properly reflected in log file
-//   newTaskRequest.batchCount = 1  // assume user only wants one at a time to evaluate, if selecting one out of a batch
-//   newTaskRequest.numOutputsTotal = 1 // "
-//   //If you have a lower-end graphics card, the below will automatically disable turbo mode for larger images.
-//   //Each person needs to test with different resolutions to find the limit of their card when using Balanced or modes other than 'low'.
-//   if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxTurboResolution) {  //put max normal resolution here
-//     //newTaskRequest.reqBody.turbo = false;
-//     newTaskRequest.reqBody.vram_usage_level = 'low';
-//   }
-
-//   //Grab the prompt from the user-input area instead of the original image.
-//   if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
-//     if (ScaleUpSettings.useChangedPrompt ) {
-//       newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
-//     };
-//   }
-
-//   if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
-//     newTaskRequest.reqBody.enable_vae_tiling = true; //Force vae tiling on, if image is large
-//   }
-
-//   delete newTaskRequest.reqBody.use_upscale; //if previously used upscaler, we don't want to automatically do it again, particularly combined with the larger resolution
-
-//   newTaskRequest.reqBody.use_stable_diffusion_model=desiredModel;
-
-//   //special case where you use Flux to do an initial generate, but want to use a smaller model for later generates
-//   if (ScaleUpSettings.useChangedModel ) {
-
-//     //Use the user's new guidance first, but if it doesn't match Flux/SDXL's requirements, then change as needed, below.
-//     newTaskRequest.reqBody.guidance_scale=parseFloat(guidanceScaleField.value); 
-
-
-//     // //This could use some tweaking.
-//     // //If old model (from image) is flux and new desired model is not
-//     // if (isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && !isFlux /*calculated with UI prompt*/) {
-//     //   let guidance = parseFloat(guidanceScaleField.value); //$("#guidance_scale").val();
-//     //   //Change Guidance Scale of new image -- it's assumed that the flux run used <= 1.1
-//     //   //  If GuidanceScale in UI is still 1, change it to 6
-//     //   if (guidance <= 1.1) {
-//     //     newTaskRequest.reqBody.guidance_scale=6;
-//     //   }
-//     //   else {  //  If GuidanceScale in UI is >1.1, change it to the UI value
-//     //     newTaskRequest.reqBody.guidance_scale=guidance;
-//     //   }
-//     // }
-//     // // if switching to flux, force GS to 1
-//     // else if (!isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && isFlux /*calculated with UI prompt*/) {
-//     //     newTaskRequest.reqBody.guidance_scale=1;
-        
-//     // }
-//     //Because flux and SDXL have very different requirements for guidance, set it to the input in case it has changed.
-//     newTaskRequest.reqBody.guidance_scale=parseFloat(guidanceScaleField.value); 
-
-//     //Switch the sampler (and scheduler) at the same time, if switching to a new model.  Some Sampler/scheduler combinations don't work with Flux and vice-versa.
-//      newTaskRequest.reqBody.sampler_name = $("#sampler_name")[0].value;
-//      newTaskRequest.reqBody.scheduler_name = $("#scheduler_name")[0].value;
-
-//     const loras = JSON.parse($('#lora_model')[0].dataset.path);
-//     const selectedLoras = loras.modelNames;
-//     const selectedLoraWeights = loras.modelWeights;
-
-//     // Update the lora setting in the request
-//     if (selectedLoras.length === 1 && selectedLoras[0] != '') {
-//       newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
-//     } else if (selectedLoras.length > 1) {
-//       newTaskRequest.reqBody.use_lora_model = selectedLoras;
-//     } else {
-//       delete newTaskRequest.reqBody.use_lora_model;
-//     }
-//     // Update the lora weight setting in the request
-//     if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
-//       newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
-//     } else if (selectedLoraWeights.length > 1) {
-//       newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
-//     } else {
-//       delete newTaskRequest.reqBody.lora_alpha;
-//     }
-//   }
-
-//   //Beta makes stronger changes, so reduce the prompt_strength to compensate
-//   if ( newTaskRequest.reqBody.scheduler_name == 'beta') {
-//     newTaskRequest.reqBody.prompt_strength = scaleupRound(newTaskRequest.reqBody.prompt_strength - .04);
-//   }
-
-//   delete newTaskRequest.reqBody.mask
-
-//   //resize the image before scaling back up, to maximize detail
-//   if(ScaleUpSettings.resizeImage) {
-//     //create working canvas
-//     let canvas = document.createElement("canvas");
-//     canvas.width = Math.round(imageWidth*1.25);
-//     canvas.height = Math.round(imageHeight*1.25);
-
-//     let ctx = canvas.getContext("2d", {
-//       alpha: false  // Firefox optimization
-//     });
-
-//     // get the image data of the canvas  -- we only need the part we're going to resize
-//     //x,y -- upper-left, width & height
-//     ctx.drawImage( image,
-//       0, 0, imageWidth, imageHeight, //source 
-//       0, 0, canvas.width, canvas.height //destination
-//     );
-
-//     //extra sharpening doesn't work well for Flux
-//     if (isFlux) {
-//       sharpen(ctx, canvas.width, canvas.height, .1);
-//     }
-//     else {
-//       sharpen(ctx, canvas.width, canvas.height, .33);
-//     }
-    
-//     var img =  ctx.getImageData(0, 0, canvas.width, canvas.height);
-//     img = contrastImage(img, contrastAmount);
-//     ctx.putImageData(img, 0, 0);
-//     var newImage = new Image;
-//     newImage.src = canvas.toDataURL('image/png');
-//     newTaskRequest.reqBody.init_image = newImage.src;
-//   }
-  
-
-  //createTask(newTaskRequest)
 }
 
 function scaleUpMaxScalingRatio(origRequest, image) {
@@ -1611,6 +1415,8 @@ function findSplitImages(image, filter) {
 }
 
 async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, origRequest, imageWidth, imageHeight, cropOriginX = 0, cropOriginY = 0) {
+  const isKlein = /klein/i.test(desiredModelName(origRequest));
+
   // Allow optional dimensions to override image.naturalWidth/Height (useful for region crops)
   const imgWidth = imageWidth || image.naturalWidth;
   const imgHeight = imageHeight || image.naturalHeight;
@@ -1699,7 +1505,7 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
       }
     //}
     newTaskRequest.reqBody.control_alpha = 0.3;
-    newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : ((isXl || isFlux) ? 0.45 : 0.5)) - (isFlux &&  /klein/i.test(desiredModelName(origRequest))? reduceKleinPromptStrength:0));
+    newTaskRequest.reqBody.prompt_strength = scaleupRound((scaleUpPreserve ? 0.3 : ((isXl || isFlux) ? 0.45 : 0.5)) - ((isFlux && isKlein) ? reduceKleinPromptStrength:0));
   }
 
   newTaskRequest.seed = newTaskRequest.reqBody.seed;
@@ -1898,7 +1704,7 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
     // to prevent amplification of any residual patterns
     const totalPixels = canvas.width * canvas.height;
     const highRes = totalPixels > 2000000;
-    const contrastToUse = (isFlux || highRes) ? 0.7 : contrastAmount;
+    const contrastToUse = (isFlux || highRes) ? (isKlein ? 0.4 : 0.6) : contrastAmount;
     imgCopy = contrastImage(imgCopy, contrastToUse);
     ctx.putImageData(imgCopy, 0, 0);
 
