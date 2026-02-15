@@ -1,6 +1,6 @@
 /* Smear Brush Plugin
 
- v. 1.0.0, last updated: 2/12/2026
+ v. 1.1.0, last updated: 2/14/2026
  By Gary W.
 
  Created with the help of CoPilot/Claude AI.
@@ -57,15 +57,18 @@ focuses more on rearranging pixels than pure blending.
 		var width = editor.width
 		var height = editor.height
 		
-		// Sample area slightly behind the current position in the direction opposite to movement
+		// Sample area further behind for more lag and smoother smear
 		// This creates the "pulling" effect
-		var sampleOffset = radius * 0.3 // How far back to sample
+		var sampleOffset = radius * 0.6 // Increased lag for smoother trailing
 		var sx_center = x - dirX * sampleOffset
 		var sy_center = y - dirY * sampleOffset
-		var sx = sx_center - radius
-		var sy = sy_center - radius
-		var sw = size
-		var sh = size
+		// Use smaller stamp size for finer control
+		var stampSize = size * 0.7 // Reduce to 70% for smaller, more refined effect
+		var halfStamp = stampSize / 2
+		var sx = sx_center - halfStamp
+		var sy = sy_center - halfStamp
+		var sw = stampSize
+		var sh = stampSize
 		
 		// Clear the offscreen buffer
 		offCtx.clearRect(0, 0, size, size)
@@ -79,16 +82,20 @@ focuses more on rearranging pixels than pure blending.
 		if (sy + sh > height) { sh = height - sy }
 		if (sw <= 0 || sh <= 0) return
 		
-		// Draw sampled patch into offscreen
-		offCtx.globalCompositeOperation = 'source-over'
-		offCtx.drawImage(sourceCanvas, sx, sy, sw, sh, px, py, sw, sh)
+		// Calculate offset to center the smaller stamp in the offscreen buffer
+		var offsetX = (size - stampSize) / 2
+		var offsetY = (size - stampSize) / 2
 		
-		// Create radial gradient for edge feathering
+		// Draw sampled patch into offscreen, centered
+		offCtx.globalCompositeOperation = 'source-over'
+		offCtx.drawImage(sourceCanvas, sx, sy, sw, sh, px + offsetX, py + offsetY, sw, sh)
+		
+		// Create radial gradient for edge feathering with softer, more gradual fade
 		var g = offCtx.createRadialGradient(radius, radius, 0, radius, radius, radius)
-		g.addColorStop(0, 'rgba(255,255,255,1)')     // fully opaque at center
-		g.addColorStop(0.5, 'rgba(255,255,255,1)')   // stay opaque in inner region
-		g.addColorStop(0.75, 'rgba(255,255,255,0.6)') // start fading
-		g.addColorStop(0.9, 'rgba(255,255,255,0.2)')  // continue fading
+		g.addColorStop(0, 'rgba(255,255,255,0.8)')   // Slightly reduced opacity at center
+		g.addColorStop(0.3, 'rgba(255,255,255,0.7)')  // Earlier fade start
+		g.addColorStop(0.6, 'rgba(255,255,255,0.4)') // Progressive fade
+		g.addColorStop(0.8, 'rgba(255,255,255,0.15)') // Softer edge
 		g.addColorStop(1, 'rgba(255,255,255,0)')     // fully transparent at edge
 		offCtx.globalCompositeOperation = 'destination-in'
 		offCtx.fillStyle = g
@@ -112,20 +119,46 @@ focuses more on rearranging pixels than pure blending.
 		alpha = Math.max(0, Math.min(1, alpha))
 		alpha = 1 - alpha  // Invert: opacity 0 = fully opaque, opacity 1 = fully transparent
 		
-		// Reduce opacity slightly for dragging to prevent over-accumulation
-		alpha = alpha * 0.7
+		// Reduce opacity for lighter, more refined smear effect
+		alpha = alpha * 0.5 // Reduced from 0.7 for subtler effect
 		
 		ctx.globalAlpha = alpha
 		
 		var targetX = x - radius
 		var targetY = y - radius
 		ctx.drawImage(off, targetX, targetY)
+		
+		// Additional step: blend colors on the leading edge
+		// Sample a small area ahead of the brush for color blending
+		var blendOffset = radius * 0.5 // Sample ahead
+		var bx_center = x + dirX * blendOffset
+		var by_center = y + dirY * blendOffset
+		
+		// Only blend if we're within canvas bounds
+		if (bx_center >= 0 && bx_center < width && by_center >= 0 && by_center < height) {
+			var blendRadius = radius * 0.4 // Smaller blend area on leading edge
+			ctx.globalCompositeOperation = 'source-atop' // Only blend where we just drew
+			ctx.filter = 'blur(' + Math.max(1, blendRadius * 0.15) + 'px)'
+			ctx.globalAlpha = alpha * 0.3 // Subtle blending
+			
+			// Sample and blend the leading edge area
+			var bx = bx_center - blendRadius
+			var by = by_center - blendRadius
+			var bsize = blendRadius * 2
+			
+			if (bx >= 0 && by >= 0 && bx + bsize <= width && by + bsize <= height) {
+				ctx.drawImage(sourceCanvas, bx, by, bsize, bsize, 
+					x - blendRadius, y - blendRadius, bsize, bsize)
+			}
+			ctx.filter = 'none'
+		}
+		
 		ctx.restore()
 	}
 
 	function smearAlongLine(editor, ctx, from, to, isFirstStamp) {
 		var radius = Math.max(1, Math.round(editor.options.brush_size / 2))
-		var spacing = Math.max(1, Math.round(radius * 0.15)) // Tighter spacing for smoother smear
+		var spacing = Math.max(1, Math.round(radius * 0.08)) // Much tighter spacing for ultra-smooth smear
 		var dx = to.x - from.x
 		var dy = to.y - from.y
 		var dist = Math.sqrt(dx * dx + dy * dy)
