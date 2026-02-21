@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.9, last updated: 2/12/2026
+ * v.3.3.10, last updated: 2/21/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1961,6 +1961,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { html: '<span class="region-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">'
     +regLabel+':</span>', type: 'label'},
   { html: '<i class="fa-solid fa-expand-arrows-alt" title="Enhance 512px Region"></i>', on_click: onScaleUpRegionClick, filter: onScaleUpRegionFilter },
+  { html: '<i class="fa-solid fa-face-smile" title="Enhance Face"></i>', on_click: onScaleUpRegionFaceClick, filter: onScaleUpRegionFilter },
+  { html: '<i class="fa-solid fa-hand" title="Enhance Hand"></i>', on_click: onScaleUpRegionHandClick, filter: onScaleUpRegionFilter },
   { html: '<i class="fa-solid fa-undo" title="Undo Last Change"></i>', on_click: onUndoImageChange, filter: onUndoImageFilter }
 ])
 
@@ -1973,13 +1975,17 @@ let regionSelectionState = {
   imgH: 0,
   CROP_SIZE: 512,
   overlay: null,
-  rect: null
+  rect: null,
+  enhancementType: null  // 'face', 'hand', or null for general enhancement
 };
 
 /**
- * Start region selection mode. User clicks to select center point.
+ * Start region selection mode with optional enhancement type.
+ * @param {Object} origRequest - The original request object
+ * @param {HTMLImageElement} image - The image element
+ * @param {string|null} enhancementType - 'face', 'hand', or null for general enhancement
  */
-function onScaleUpRegionClick(origRequest, image) {
+function startRegionSelection(origRequest, image, enhancementType = null) {
   try {
     // Clean up any previous selection state first
     cleanupSelectionOverlay();
@@ -1989,7 +1995,8 @@ function onScaleUpRegionClick(origRequest, image) {
     const imgW = image.naturalWidth || origRequest.width;
     const imgH = image.naturalHeight || origRequest.height;
 
-    scaleupLog(`[ScaleUpRegion] Entering selection mode, image size: ${imgW}x${imgH}`);
+    const modeText = enhancementType ? `${enhancementType.toUpperCase()} enhancement` : '';
+    scaleupLog(`[ScaleUpRegion] Entering ${modeText} selection mode, image size: ${imgW}x${imgH}`);
 
     // Set up selection state (fresh for each click)
     regionSelectionState.active = true;
@@ -1998,18 +2005,40 @@ function onScaleUpRegionClick(origRequest, image) {
     regionSelectionState.imgW = imgW;
     regionSelectionState.imgH = imgH;
     regionSelectionState.containerId = container?.id || null;
+    regionSelectionState.enhancementType = enhancementType;
 
     // Create overlay for selection UI
-    createSelectionOverlay(image);
+    createSelectionOverlay(image, enhancementType);
   } catch (err) {
-    scaleupError('onScaleUpRegionClick failed', err);
+    scaleupError(`startRegionSelection failed (${enhancementType || 'general'})`, err);
   }
+}
+
+/**
+ * Start region selection mode. User clicks to select center point.
+ */
+function onScaleUpRegionClick(origRequest, image) {
+  startRegionSelection(origRequest, image, null);
+}
+
+/**
+ * Start region selection mode for face enhancement.
+ */
+function onScaleUpRegionFaceClick(origRequest, image) {
+  startRegionSelection(origRequest, image, 'face');
+}
+
+/**
+ * Start region selection mode for hand enhancement.
+ */
+function onScaleUpRegionHandClick(origRequest, image) {
+  startRegionSelection(origRequest, image, 'hand');
 }
 
 /**
  * Create an interactive overlay for selecting the region
  */
-function createSelectionOverlay(imageEl) {
+function createSelectionOverlay(imageEl, enhancementType = null) {
   // Find the imgContainer parent div
   const imgContainer = imageEl.closest('.imgContainer');
   if (!imgContainer) {
@@ -2048,10 +2077,16 @@ function createSelectionOverlay(imageEl) {
   rect.setAttribute('display', 'none');
   svg.appendChild(rect);
 
-  // Create instruction text
+  // Create instruction text with enhancement type indication
   const instruction = document.createElement('div');
   instruction.id = 'scaleup-region-instruction';
-  instruction.textContent = 'Click to select region center point | Scroll wheel to adjust size (Press Escape to cancel)';
+  let instructionText = 'Click to select region center point | Scroll wheel to adjust size (Press Escape to cancel)';
+  if (enhancementType === 'face') {
+    instructionText = 'FACE Enhancement - ' + instructionText;
+  } else if (enhancementType === 'hand') {
+    instructionText = 'HAND Enhancement - ' + instructionText;
+  }
+  instruction.textContent = instructionText;
   instruction.style.cssText = `
     position: fixed;
     top: 20px;
@@ -2270,10 +2305,25 @@ function processRegionAtPoint(centerX, centerY) {
 
     scaleupLog(`[ScaleUpRegion] Target upscale size: ${targetWidth}x${targetHeight}, using seed: ${seed}`);
 
+    // Modify prompt based on enhancement type
+    const enhancementType = regionSelectionState.enhancementType;
+    let modifiedPrompt = fakeOrig.prompt || '';
+    
+    if (enhancementType === 'face') {
+      // Prepend face enhancement instructions while keeping original prompt for context
+      modifiedPrompt = 'enhance and improve the face, fix facial features, correct face anatomy, detailed face, perfect face, ' + modifiedPrompt;
+      scaleupLog(`[ScaleUpRegion] Using FACE enhancement prompt`);
+    } else if (enhancementType === 'hand') {
+      // Prepend hand enhancement instructions while keeping original prompt for context
+      modifiedPrompt = 'enhance and improve the hand, fix hand anatomy, correct fingers, detailed hand, perfect hand, five fingers, ' + modifiedPrompt;
+      scaleupLog(`[ScaleUpRegion] Using HAND enhancement prompt`);
+    }
+
     newTaskRequest.reqBody = Object.assign({}, fakeOrig, {
       init_image: cropDataUrl,
       width: targetWidth,
       height: targetHeight,
+      prompt: modifiedPrompt,
       prompt_strength: scaleupRound((scaleUpPreserve ? 0.15 : 0.33) - getPromptStrengthModifier(origRequest)),
       num_inference_steps: stepsToUse(origRequest.num_inference_steps, isModelFlux(desiredModelName(origRequest)), isModelTurbo(desiredModelName(origRequest), origRequest.use_lora_model), isModelXl(desiredModelName(origRequest))),
       num_outputs: 1,
