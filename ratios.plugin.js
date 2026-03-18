@@ -1,30 +1,31 @@
 // Ratio Buttons Plugin for Easy Diffusion
 // Adds ratio buttons for common aspect ratios, sets width/height fields based on model type
-// v1.0.2, last updated: 2/12/2026
+// v1.1.0, last updated: 3/17/2026
 // Initial code from Cursor/Claude, modified by Gary W.
 //
 // Free to use with the CMDR2 Stable Diffusion UI.
 
 
 (function() { "use strict"
-  // --- Ratio table: [label, {SD: [w,h], SDXL: [w,h], Flux: [w,h]}] ---
+  // Currently, ExtraLarge resolutions are between 2 and 2.5 megapixels.
+  // --- Ratio table: [label, {SD: [w,h], SDXL: [w,h], Flux: [w,h], ExtraLarge: [w,h]}] ---
   //Comment or uncomment lines to add/remove ratios.
   const ratioTable = [
-//    ["16:9",   { SD: [704, 396], SDXL: [1216, 684], Flux: [1280, 720] }], //less aggressive settings
-//    ["16:9",   { SD: [768, 432], SDXL: [1280, 720], Flux: [1408, 792] }], //larger resolutions
-      ["16:9",   { SD: [768, 432], SDXL: [1280, 720], Flux: [1472, 832] }], //larger resolutions, 64-pixel boundaries works with v4
-//    ["4:3",    { SD: [512, 384], SDXL: [1024, 768], Flux: [1280, 960] }], //less aggressive settings
-    ["4:3",    { SD: [768, 576], SDXL: [1280, 960], Flux: [1280, 960] }],
-//    ["3:2",    { SD: [768, 512], SDXL: [1152, 768], Flux: [1152, 768] }],
-//    ["3:2",    { SD: [768, 512], SDXL: [1296, 864], Flux: [1296, 864] }],
-    ["3:2",    { SD: [768, 512], SDXL: [1248, 832], Flux: [1248, 832] }], //v4 friendly
-    ["1:1",    { SD: [512, 512], SDXL: [1024, 1024], Flux: [1280, 1280] }],
-    ["21:9",   { SD: [704, 320], SDXL: [1344, 576], Flux: [1792, 768] }],  //896x384 is closer to the actual 21:9 ratio, but 704x320 may fit better for SD 1.5.
-//    ["32:9",   { SD: [1280, 360], SDXL: [1536, 432], Flux: [1820, 512] }], //2560, 720
-    ["32:9",   { SD: [1344,384], SDXL: [1792, 512], Flux: [2048, 576] }], //v4 friendly 
-//    ["2:3",    { SD: [384, 576], SDXL: [768, 1152], Flux: [512, 768] }],
-    ["3:4",    { SD: [576, 768], SDXL: [960, 1280], Flux: [960, 1280]}],
-//   ["3:4",    { SD: [384, 512], SDXL: [768, 1024], Flux: [960, 1280] }],
+//    ["16:9",   { SD: [704, 396], SDXL: [1216, 684], Flux: [1280, 720],  ExtraLarge: [2048, 1152] }], //less aggressive settings
+//    ["16:9",   { SD: [768, 432], SDXL: [1280, 720], Flux: [1408, 792],  ExtraLarge: [2048, 1152] }], //larger resolutions
+      ["16:9",   { SD: [768, 432], SDXL: [1280, 720], Flux: [1472, 832],  ExtraLarge: [2048, 1152] }], //larger resolutions, 64-pixel boundaries works with v4
+//    ["4:3",    { SD: [512, 384], SDXL: [1024, 768], Flux: [1280, 960],  ExtraLarge: [2048, 1536] }], //less aggressive settings
+    ["4:3",    { SD: [768, 576], SDXL: [1280, 960], Flux: [1280, 960],   ExtraLarge: [1792, 1344] }],
+//    ["3:2",    { SD: [768, 512], SDXL: [1152, 768], Flux: [1152, 768],  ExtraLarge: [2048, 1344] }],
+//    ["3:2",    { SD: [768, 512], SDXL: [1296, 864], Flux: [1296, 864],  ExtraLarge: [2048, 1344] }],
+    ["3:2",    { SD: [768, 512], SDXL: [1248, 832], Flux: [1248, 832],   ExtraLarge: [1920, 1280] }], //v4 friendly
+    ["1:1",    { SD: [512, 512], SDXL: [1024, 1024], Flux: [1280, 1280], ExtraLarge: [1536, 1536] }],
+    ["21:9",   { SD: [704, 320], SDXL: [1344, 576], Flux: [1792, 768],   ExtraLarge: [2368, 1024] }],  //896x384 is closer to the actual 21:9 ratio, but 704x320 may fit better for SD 1.5.
+//    ["32:9",   { SD: [1280, 360], SDXL: [1536, 432], Flux: [1820, 512], ExtraLarge: [2688, 768]  }], //2560, 720
+    ["32:9",   { SD: [1344,384], SDXL: [1792, 512], Flux: [2048, 576],   ExtraLarge: [2944, 832]  }], //v4 friendly
+//    ["2:3",    { SD: [384, 576], SDXL: [768, 1152], Flux: [512, 768],   ExtraLarge: [1024, 1536] }],
+    ["3:4",    { SD: [576, 768], SDXL: [960, 1280], Flux: [960, 1280],   ExtraLarge: [1344, 1792] }],
+//   ["3:4",    { SD: [384, 512], SDXL: [768, 1024], Flux: [960, 1280],  ExtraLarge: [1536, 2048] }],
 ];
 
   // --- Model type detection ---
@@ -46,6 +47,12 @@
     if (isModelFlux(name)) return "Flux";
     if (isModelXl(name)) return "SDXL";
     return "SD";
+  }
+
+  // Returns the dropdown value when present, otherwise auto-detects from the loaded model.
+  function getEffectiveModelType() {
+    const dropdown = document.getElementById("ratio-model-type");
+    return dropdown ? dropdown.value : getModelType();
   }
 
   function addImageSizeOption(size) {
@@ -100,13 +107,34 @@
     //container.style.flexWrap = "wrap";
     container.style.gap = "0.5em";
     container.style.margin = "1em 0";
+
+    // --- Model type / size-set selector ---
+    const modelLabel = document.createElement("label");
+    modelLabel.textContent = "Size set:";
+    modelLabel.htmlFor = "ratio-model-type";
+    modelLabel.style.marginRight = "0.4em";
+    container.appendChild(modelLabel);
+
+    const modelTypeSelect = document.createElement("select");
+    modelTypeSelect.id = "ratio-model-type";
+    modelTypeSelect.title = "Select resolution set (auto-updates when model changes)";
+    modelTypeSelect.style.marginRight = "0.8em";
+    [["SD", "SD"], ["SDXL", "SDXL"], ["Flux", "Flux"], ["ExtraLarge", "Extra Large"]].forEach(([value, text]) => {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.text = text;
+      modelTypeSelect.appendChild(opt);
+    });
+    modelTypeSelect.value = getModelType();
+    container.appendChild(modelTypeSelect);
+
     ratioTable.forEach(([label, values]) => {
       const btn = document.createElement("button");
       btn.textContent = label;
       btn.className = "tertiaryButton";
       btn.style.padding = "0.3em 1em";
       btn.onclick = () => {
-        const modelType = getModelType();
+        const modelType = getEffectiveModelType();
         const [w, h] = values[modelType] || values["SD"];
         setImageSize(w, h);
       };
@@ -150,5 +178,24 @@
       setTimeout(waitForTarget, 500);
     }
   }
+
+  // --- Watch for model changes and keep the dropdown in sync ---
+  function setupModelWatcher() {
+    const modelEl = document.querySelector("#editor-settings #stable_diffusion_model");
+    if (!modelEl) {
+      setTimeout(setupModelWatcher, 500);
+      return;
+    }
+    const syncDropdown = () => {
+      const dropdown = document.getElementById("ratio-model-type");
+      if (dropdown) dropdown.value = getModelType();
+    };
+    modelEl.addEventListener("change", syncDropdown);
+    // Also catch programmatic model path changes (data-path attribute updates)
+    const observer = new MutationObserver(syncDropdown);
+    observer.observe(modelEl, { attributes: true });
+  }
+
   waitForTarget();
+  setupModelWatcher();
 })();
