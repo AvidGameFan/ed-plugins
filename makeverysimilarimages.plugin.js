@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.1.3.2, last updated: 1/8/2026
+ * v.1.3.3, last updated: 2/21/2026
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -141,8 +141,8 @@ function isModelFlux(modelName) {
   }
   //if we're unsure from the internal check, use the filename as a fall-back.
   
-  // Combined regex for all Flux-related terms
-  return /flux|lyhAnime_kor|chroma|sd3|qwen|z_image/i.test(modelName);
+  // Combined regex for all Flux-related terms (including Klein)
+  return /flux|lyhAnime_kor|chroma|sd3|qwen|z_image|klein/i.test(modelName);
 }
 
 function isSdxlModel() {
@@ -163,6 +163,24 @@ function isModelXl(modelName) {
   
   // Combined regex for all XL-related terms
   return /xl|playground|disneyrealcartoonmix|mobius|zovya/i.test(modelName) || isModelFlux(modelName); //Zovya models appear to mostly be Pony XL -- need to update if there are SD 1.5 models instead
+}
+
+const reduceFluxPromptStrength = 0.05;
+const reduceKleinPromptStrength = 0.1; //Klein models appear to be more sensitive to prompt strength, so reduce more.
+
+// Helper function to get prompt strength modifier based on model type
+function getPromptStrengthModifier(modelName) {
+  const isFlux = isModelFlux(modelName);
+  
+  if (!isFlux) {
+    return 0;
+  }
+  
+  if (/klein/i.test(modelName)) {
+    return reduceKleinPromptStrength;
+  }
+  
+  return reduceFluxPromptStrength;
 }
 
 
@@ -270,7 +288,7 @@ function onMakeVerySimilarClick(origRequest, image) {
 
     num_inference_steps: stepsToUse(origRequest.num_inference_steps, isFlux, isTurbo, isXl, isLightning),
     //large resolutions combined with large steps can cause an error
-    prompt_strength: MakeVerySimilarSettings.preserve ? 0.3 : 0.7,
+    prompt_strength: (MakeVerySimilarSettings.preserve ? 0.3 : 0.7) - getPromptStrengthModifier(origRequest.use_stable_diffusion_model),
     init_image: image.src,
     seed: Math.floor(Math.random() * 10000000),
 })
