@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.10, last updated: 2/21/2026
+ * v.3.3.11, last updated: 3/17/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1559,7 +1559,7 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
 
     //Use the user's new guidance first, but if it doesn't match Flux/SDXL's requirements, then change as needed, below.
     newTaskRequest.reqBody.guidance_scale = parseFloat(guidanceScaleField.value);
-
+    newTaskRequest.reqBody.clip_skip = clipSkipField.checked;
 
     //If old model (from image) is flux and new desired model is not
     if (isModelFlux(desiredModelName(origRequest, true /* force using image prompt */)) && !isFlux /*calculated with UI prompt*/) {
