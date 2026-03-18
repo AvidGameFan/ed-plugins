@@ -1,7 +1,7 @@
 /* 
  * LLM Prompt Generator Plugin
  *
- * v.1.2.4, last updated: 12/9/2025
+ * v.1.2.5, last updated: 2/21/2026
  * By Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -291,7 +291,7 @@ var LLMSettings = {
       }
     const commonInstructions = ` Focus on visual elements and avoid extraneous information. 
 Keep to a a consistent style and avoid multiple styles; only choose one of anime, octane render, realistic, photographic, painterly, or other such core style. 
-Keep prompts concise but detailed. Do not include any other text than the prompt. `;
+Keep prompts concise but detailed. Do not include any other text than the prompt. No explanation; just the prompt.`;
     // Prompt type configurations
     const promptTypes = {
         enhance: {
