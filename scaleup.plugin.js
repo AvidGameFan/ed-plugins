@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.11, last updated: 3/17/2026
+ * v.3.3.13, last updated: 3/19/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -73,6 +73,37 @@ var maxTotalResolutionFlux = 3072*2304;  //GGUF Flux models can probably go furt
 var maxTotalResolutionXL = 4096*3072; //10000000; //3072	* 2304;  //maximum resolution to use in 'low' mode for SDXL.  Even for 8GB video cards, this number may be able to be raised.
 var maxLatentUpscaler = 1728*1152; //1600*1152; //Max resolution in which to do the 2x.  Much larger, and Latent Upscaler will run out of memory.
 var maxNoVaeTiling = 2200000; //5500000;  //max resolution to allow no VAE tiling.  Turn on VAE tiling for larger images, otherwise it loads more slowly.
+
+// VRAM detection: updated by the system_info_update event dispatched by the main app.
+// null = not yet detected; will fall back to the safe default of 768 in getSplitFilterMinSize().
+var detectedVRAM = null;  // GB
+document.addEventListener("system_info_update", function(e) {
+    const devices = e.detail;
+    if (!devices) return;
+    // Prefer the active GPU; fall back to scanning devices.all.
+    const sources = [
+        ...Object.values(devices.active  || {}),
+        ...Object.values(devices.all     || {}),
+    ];
+    for (const info of sources) {
+        if (info && "mem_total" in info && info.mem_total > 0) {
+            detectedVRAM = info.mem_total*0.9313225746;  // GB (float) - convert from bytes
+            break;
+        }
+    }
+});
+
+// Returns the minimum short-side pixel size that triggers split-filter processing.
+// <=6 GB  : None (always split)
+// <8 GB  : 512
+// >=8 GB : 768
+// VRAM unknown: 768  (default / safe)
+function getSplitFilterMinSize() {
+    if (detectedVRAM === null) return 768;  // unknown – use safe default
+    if (detectedVRAM <= 6)    return null;  // 6 GB or less – no minimum (always split)
+    if (detectedVRAM < 8)     return 512;
+    return 768;
+}
 //Note that the table entries go in pairs, if not 1:1 square ratio.
 //Ratios that don't match exactly may slightly stretch or squish the image, but should be slight enough to not be noticeable.
 //First two entries are the x,y resolutions of the image, and last entry is the upscale resolution for x.
@@ -1225,7 +1256,9 @@ processingQueue = processingQueue
 }
 
 function  onScaleUpSplitFilter(origRequest, image) {
-  if (Math.min(getWidth(origRequest, image),getHeight(origRequest, image))>=768)
+  const minSize = getSplitFilterMinSize();
+  if (minSize === null) return true;  // <=6 GB VRAM: always allow split
+  if (Math.min(getWidth(origRequest, image), getHeight(origRequest, image)) >= minSize)
   {
     return true;
   }
@@ -1624,27 +1657,29 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
      delete newTaskRequest.reqBody.lora_alpha;
    }
      */
-    const loras = JSON.parse($('#lora_model')[0].dataset.path);
-    const selectedLoras = loras.modelNames;
-    const selectedLoraWeights = loras.modelWeights;
 
-    // Update the lora setting in the request
-    if (selectedLoras.length === 1 && selectedLoras[0] != '') {
-      newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
-    } else if (selectedLoras.length > 1) {
-      newTaskRequest.reqBody.use_lora_model = selectedLoras;
-    } else {
-      delete newTaskRequest.reqBody.use_lora_model;
-    }
-    // Update the lora weight setting in the request
-    if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
-      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
-    } else if (selectedLoraWeights.length > 1) {
-      newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
-    } else {
-      delete newTaskRequest.reqBody.lora_alpha;
-    }
+    if ($('#lora_model')[0].dataset.path != undefined && $('#lora_model')[0].dataset.path != '') {
+      const loras = JSON.parse($('#lora_model')[0].dataset.path);
+      const selectedLoras = loras.modelNames;
+      const selectedLoraWeights = loras.modelWeights;
 
+      // Update the lora setting in the request
+      if (selectedLoras.length === 1 && selectedLoras[0] != '') {
+        newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
+      } else if (selectedLoras.length > 1) {
+        newTaskRequest.reqBody.use_lora_model = selectedLoras;
+      } else {
+        delete newTaskRequest.reqBody.use_lora_model;
+      }
+      // Update the lora weight setting in the request
+      if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
+        newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
+      } else if (selectedLoraWeights.length > 1) {
+        newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
+      } else {
+        delete newTaskRequest.reqBody.lora_alpha;
+      }
+    }
   }
 
 
