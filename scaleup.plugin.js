@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.14, last updated: 4/6/2026
+ * v.3.4.0, last updated: 4/6/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -648,6 +648,29 @@ style.textContent = `
   }
 }
 
+
+.region-label .region-tooltiptext {
+  visibility: hidden;
+  width: 400px;
+  background-color: #444;
+  color: #fff;
+  text-align: center;
+  border-radius: 6px;
+  padding: 5px 0;
+  position: absolute;
+  z-index: 1;
+  top: 100%;
+  right: 50%;
+  opacity: 1;
+  transition: opacity 1s;
+}
+
+.region-label:hover .region-tooltiptext {
+  visibility: visible;
+  animation: tooltipkeys 1s 1;
+  opacity: 1;
+}
+
 `;
 document.head.append(style);
 
@@ -707,10 +730,12 @@ function onScaleUpLabelClick(origRequest, image) {
 //________________________________________________________________________________________________________________________________________
 
 function onScaleUpClick(origRequest, image) {
-   scaleUpOnce(origRequest, image, true, scalingIncrease1) ;
+  clearPendingRegionSave(image);
+  scaleUpOnce(origRequest, image, true, scalingIncrease1) ;
 }
 
 function onScaleUpClick2(origRequest, image) {
+  clearPendingRegionSave(image);
   scaleUpOnce(origRequest, image, true, scalingIncrease2) ;
 }
 
@@ -855,6 +880,7 @@ function ScaleUpMax(dimension, ratio) {
 }
 
 function onScaleUpMAXClick(origRequest, image) {
+  clearPendingRegionSave(image);
   // if (origRequest._debug_quadrant) {
   //   console.log(`[SPLIT DEBUG] onScaleUpMAXClick called for ${origRequest._debug_quadrant}`);
   //   console.log(`[SPLIT DEBUG] image.src length: ${image.src.length}, first 100: ${image.src.substring(0, 100)}`);
@@ -970,6 +996,7 @@ const asyncFunctionCall = async (origRequest, image, tools) => {
 };
 
 function onScaleUp2xClick(origRequest, image, e, tools) {
+  clearPendingRegionSave(image);
   //first, run the latent 2x upscale.
   let path = upscaleModelField.value;
   let scale = 2;
@@ -1199,6 +1226,7 @@ function onScaleUp2xFilter(origRequest, image) {
 const splitOverlap = 64;  //This can be modified by increments/decrements of 64, as desired
 
 function  onScaleUpSplitClick(origRequest, image) {
+  clearPendingRegionSave(image);
 
 //split original image into 4 overlapping pieces
 //For each split piece, run ScaleUp MAX
@@ -1274,6 +1302,7 @@ function  onScaleUpSplitFilter(origRequest, image) {
 
 const numScaleUps = 3;
 function onScaleUpMultiClick(origRequest, image) {
+  clearPendingRegionSave(image);
   if (origRequest.MultiScaleUpCount == undefined) {
     origRequest.MultiScaleUpCount = numScaleUps-1;
     scaleUpOnce(origRequest, image, true, scalingIncrease1) ;
@@ -1998,7 +2027,8 @@ function getRequestFromImage(image) {
 // Click handler registration (adds a single-button array so it appears alongside other image buttons)
 const regLabel = 'Region Enhancer';  //base label prefix
 PLUGINS['IMAGE_INFO_BUTTONS'].push([
-  { html: '<span class="region-label" style="background-color:transparent;background: rgba(0,0,0,0.5)">'
+  { html: '<span class="region-label" data-region-enhancer-label="1" style="background-color:transparent;background: rgba(0,0,0,0.5)">'
+    +'<span class="region-tooltiptext"></span>'
     +regLabel+':</span>', type: 'label'},
   { html: '<i class="fa-solid fa-expand-arrows-alt" title="Enhance 512px Region"></i>', on_click: onScaleUpRegionClick, filter: onScaleUpRegionFilter },
   { html: '<i class="fa-solid fa-face-smile" title="Enhance Face"></i>', on_click: onScaleUpRegionFaceClick, filter: onScaleUpRegionFilter },
@@ -2417,6 +2447,9 @@ function processRegionAtPoint(centerX, centerY) {
       scaleupLog(`[ScaleUpRegion] Submitting task to server`);
       createTask(newTaskRequest);
 
+      // Mark this image as having a Region Enhancer operation in progress
+      setProcessingRegionSave(image);
+
       // Poll for resulting image with matching seed, then merge back
       scaleupLog(`[ScaleUpRegion] Waiting for generated image...`);
       // Flux is slower, so we might as well have a longer timeout.  Also, slower machines may need more time.
@@ -2424,15 +2457,19 @@ function processRegionAtPoint(centerX, centerY) {
       pollForGeneratedImage(savedRegionTimestamp, seed, 300000).then((generatedImgEl) => {
         if (!generatedImgEl) {
           scaleupWarn('Scale region: generated image not found for seed', seed);
+          clearProcessingRegionSave(image);
           showNotification('Did not find generated image (timeout)', 'error');
           return;
         }
         scaleupLog(`[ScaleUpRegion] Generated image found, starting merge`);
+        clearProcessingRegionSave(image);
         mergeGeneratedPatchBack(containerId, image, generatedImgEl, newTaskRequest.reqBody._scaleup_origin);
       }).catch((err) => {
+        clearProcessingRegionSave(image);
         scaleupError('Scale region error:', err);
       });
       } catch (err) {
+        clearProcessingRegionSave(image);
         scaleupError('Error in processTaskRequest or task submission:', err);
       }
     }, 5);
@@ -2892,6 +2929,7 @@ async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedIm
       saveImageToHistory(targetImg);
       refreshUndoButtonState(targetImg);  // Refresh undo button visibility after saving history
       targetImg.src = mergedDataUrl;
+      setPendingRegionSave(targetImg);  // Signal that this image has unsaved Region Enhancer changes
     } else {
       // fallback: open merged result in new tab
       scaleupLog(`[ScaleUpRegion] Could not find target image, downloading merged result`);
@@ -3012,6 +3050,76 @@ function scaleupWarn(...args) {
 function scaleupError(...args) {
   console.error(...args);
 }
+
+// ===== PENDING REGION SAVE INDICATOR =====
+// Tracks images that have had a Region Enhancer merge applied but not yet saved/acted-upon.
+const pendingRegionSaveImages = new WeakSet();
+// Tracks images currently being processed by the Region Enhancer (in-flight).
+const processingRegionImages = new WeakSet();
+
+function setPendingRegionSave(image) {
+  if (!image) return;
+  pendingRegionSaveImages.add(image);
+  updateRegionSaveIndicator(image);
+}
+
+function clearPendingRegionSave(image) {
+  if (!image) return;
+  pendingRegionSaveImages.delete(image);
+  updateRegionSaveIndicator(image);
+}
+
+function setProcessingRegionSave(image) {
+  if (!image) return;
+  processingRegionImages.add(image);
+  updateRegionSaveIndicator(image);
+}
+
+function clearProcessingRegionSave(image) {
+  if (!image) return;
+  processingRegionImages.delete(image);
+  updateRegionSaveIndicator(image);
+}
+
+function updateRegionSaveIndicator(image) {
+  const container = image.closest('[id^="imageTaskContainer-"]');
+  if (!container) return;
+  const label = container.querySelector('[data-region-enhancer-label="1"]');
+  if (!label) return;
+  const isPending    = pendingRegionSaveImages.has(image);
+  const isProcessing = processingRegionImages.has(image);
+  const tooltip = label.querySelector('.region-tooltiptext');
+  if (isProcessing && isPending) {
+    // Was already orange (unsaved changes) — use yellow-orange to distinguish
+    label.style.background = 'rgba(220, 194, 0, 0.75)';
+    if (tooltip) tooltip.textContent = 'Region Enhancer processing — previous changes also pending save';
+  } else if (isProcessing) {
+    label.style.background = 'rgba(249, 249, 67, 0.75)';
+    if (tooltip) tooltip.textContent = 'Region Enhancer processing…';
+  } else if (isPending) {
+    label.style.background = 'rgba(220, 120, 0, 0.75)';
+    if (tooltip) tooltip.textContent = 'Region Enhancer changes not yet saved — download or use ScaleUp to save';
+  } else {
+    label.style.background = 'rgba(0, 0, 0, 0.5)';
+    if (tooltip) tooltip.textContent = '';
+  }
+}
+
+// Monkey-patch: clear per-image indicator when the image is downloaded
+const _origOnDownloadImageClick = onDownloadImageClick;
+onDownloadImageClick = function(req, img) {
+  clearPendingRegionSave(img);
+  return _origOnDownloadImageClick(req, img);
+};
+
+// Clear all warnings - may want to reserve for "Download Images"
+// Monkey-patch: clear all indicators when Make Image is clicked
+//  const _origMakeImage = makeImage;
+//  makeImage = function () {
+//    document.querySelectorAll('[id^="imageTaskContainer-"] img').forEach(img => clearPendingRegionSave(img));
+//    return _origMakeImage();
+//  };
+
 //________________________________________________________________________________________________________________________________________
 
   //UI insertion adapted from Rabbit Hole plugin
