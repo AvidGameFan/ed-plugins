@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.3.13, last updated: 3/19/2026
+ * v.3.3.14, last updated: 4/6/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1050,7 +1050,8 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     //maxRes=maxTotalResolutionXL;
     isXl=true;
   }
-
+//If desired model has changed from prior run, set a flag.  If it has changed, set the reqBody element ref_images to undefined, to remove the reference image, in case the new model doesn't support it.
+  const modelChanged = desiredModel !== origRequest.use_stable_diffusion_model;
   let newTaskRequest = getCurrentUserRequest();
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
@@ -1075,6 +1076,10 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     //Using a new seed will allow some variation as it up-sizes; if results are not ideal, rerunning will give different results.
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
+
+  if (modelChanged) {
+    newTaskRequest.reqBody.ref_images = undefined;  // Remove reference image; new model may not support it.
+  }
 
   //The Lanczos filter is time-consuming, so bump this into the background.  It doesn't run in parallel, but frees up the UI for a moment.
   setTimeout(async () => {
