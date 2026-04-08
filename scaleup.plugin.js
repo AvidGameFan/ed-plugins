@@ -813,6 +813,35 @@ function onUndoImageFilter(origRequest, image) {
   return hasImageHistory(image);
 }
 
+/**
+ * Click handler for the Redo button
+ * @param {Object} origRequest - The original request object
+ * @param {HTMLImageElement} image - The image element to redo
+ */
+function onRedoImageChange(origRequest, image) {
+  try {
+    const success = redoImageChange(image);
+    if (success) {
+      scaleupLog(`[RedoButton] Successfully re-applied change`);
+      refreshUndoButtonState(image);
+    } else {
+      scaleupLog(`[RedoButton] No redo history available`);
+    }
+  } catch (err) {
+    scaleupError('onRedoImageChange failed', err);
+  }
+}
+
+/**
+ * Filter function for redo button - only show if redo history is available
+ * @param {Object} origRequest - The original request object
+ * @param {HTMLImageElement} image - The image element
+ * @returns {boolean} True to allow button creation, false to prevent it
+ */
+function onRedoImageFilter(origRequest, image) {
+  return hasImageRedoHistory(image);
+}
+
 function onScaleUpFilter2(origRequest, image) {
   // this is an optional function. return true/false to show/hide the button
   // if this function isn't set, the button will always be visible
@@ -1820,6 +1849,7 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
 // Map to associate image history with image data hash
 // Using hash of base64 data as key allows history to persist across DOM element changes
 const imageHistoryMap = new Map();
+const imageRedoMap = new Map();
 
 /**
  * Generate a simple hash of the base64 image data
@@ -1865,6 +1895,23 @@ function getImageHistory(image) {
 }
 
 /**
+ * Get the redo stack for an image. Creates one if it doesn't exist.
+ * @param {HTMLImageElement} image - The image element
+ * @returns {Array} Array of redo image data URIs
+ */
+function getImageRedoHistory(image) {
+  let container = image.parentNode;
+  while (container && !container.id.includes('imageTaskContainer')) {
+    container = container.parentNode;
+  }
+  const key = container.id.valueOf();
+  if (!imageRedoMap.has(key)) {
+    imageRedoMap.set(key, []);
+  }
+  return imageRedoMap.get(key);
+}
+
+/**
  * Save current image to history buffer
  * @param {HTMLImageElement} image - The image element to save
  */
@@ -1877,7 +1924,12 @@ function saveImageToHistory(image) {
   // Save the current image data
   history.push(image.src);
   scaleupLog(`[ImageHistory] Saved image version. History length: ${history.length}`);
-  
+
+  // Clear redo stack — a new region enhancer run resets redo
+  const redoHistory = getImageRedoHistory(image);
+  redoHistory.length = 0;
+  scaleupLog(`[ImageHistory] Redo stack cleared`);
+
   // Refresh the undo button to make it visible now that history exists
   refreshUndoButtonState(image);
 }
@@ -1895,6 +1947,9 @@ function undoImageChange(image) {
     return false;
   }
   
+  // Save current state to redo stack before undoing
+  getImageRedoHistory(image).push(image.src);
+
   // Get the previous version
   const previousSrc = history.pop();
   image.src = previousSrc;
@@ -1909,8 +1964,9 @@ function undoImageChange(image) {
 
   if (!imageHistoryMap.has(key)) {
     imageHistoryMap.set(key, []);
-    refreshUndoButtonState(image); //if empty, refresh button state -- ideally, should disable
   }
+
+  refreshUndoButtonState(image);
   
   scaleupLog(`[ImageHistory] Reverted to previous version. Remaining history: ${history.length}`);
   return true;
@@ -1924,6 +1980,34 @@ function undoImageChange(image) {
 function hasImageHistory(image) {
   const history = getImageHistory(image);
   return history.length > 0;
+}
+
+/**
+ * Re-apply a previously undone change
+ * @param {HTMLImageElement} image - The image element
+ * @returns {boolean} True if redo was successful, false if no redo history available
+ */
+function redoImageChange(image) {
+  const redoHistory = getImageRedoHistory(image);
+  if (redoHistory.length === 0) {
+    scaleupLog(`[ImageHistory] No redo history available for this image`);
+    return false;
+  }
+  // Save current state back to undo stack before redoing
+  getImageHistory(image).push(image.src);
+  image.src = redoHistory.pop();
+  refreshUndoButtonState(image);
+  scaleupLog(`[ImageHistory] Redid change. Remaining redo history: ${redoHistory.length}`);
+  return true;
+}
+
+/**
+ * Check if redo is available for an image
+ * @param {HTMLImageElement} image - The image element
+ * @returns {boolean} True if redo history is available
+ */
+function hasImageRedoHistory(image) {
+  return getImageRedoHistory(image).length > 0;
 }
 
 /**
@@ -2049,7 +2133,39 @@ function refreshUndoButtonState(image) {
     // Insert after the undo button, or after the expand-arrows button if undo is absent
     const insertAfter = undoButton || regionEnhancerButton;
     regionEnhancerDiv.insertBefore(newReviewBtn, insertAfter.nextSibling);
+    reviewButton = newReviewBtn;
     scaleupLog(`[ReviewButton] Created new button`);
+  }
+
+  // Manage the Redo button
+  const hasRedo = hasImageRedoHistory(image);
+  let redoButton = null;
+  for (let btn of regionEnhancerDiv.querySelectorAll('button.tasksBtns')) {
+    if (btn.querySelector('.fa-redo')) {
+      redoButton = btn;
+      break;
+    }
+  }
+
+  if (redoButton) {
+    if (!hasRedo) {
+      redoButton.remove();
+      scaleupLog(`[RedoButton] Removed button (no redo history)`);
+    } else {
+      scaleupLog(`[RedoButton] Button already exists with redo history`);
+    }
+  } else if (hasRedo) {
+    const newRedoBtn = document.createElement('button');
+    newRedoBtn.classList.add('tasksBtns');
+    newRedoBtn.innerHTML = '<i class="fa-solid fa-redo" title="Redo Last Undone Change"></i>';
+    newRedoBtn.addEventListener('click', function(event) {
+      const req = getRequestFromImage(image);
+      onRedoImageChange(req, image);
+    });
+    // Insert after review button, or after undo button, or after expand-arrows
+    const insertAfterRedo = reviewButton || undoButton || regionEnhancerButton;
+    regionEnhancerDiv.insertBefore(newRedoBtn, insertAfterRedo.nextSibling);
+    scaleupLog(`[RedoButton] Created new button`);
   }
 }
 
@@ -2082,7 +2198,8 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { html: '<i class="fa-solid fa-expand-arrows-alt" title="Enhance 512px Region"></i>', on_click: onScaleUpRegionClick, filter: onScaleUpRegionFilter },
   { html: '<i class="fa-solid fa-face-smile" title="Enhance Face"></i>', on_click: onScaleUpRegionFaceClick, filter: onScaleUpRegionFilter },
   { html: '<i class="fa-solid fa-hand" title="Enhance Hand"></i>', on_click: onScaleUpRegionHandClick, filter: onScaleUpRegionFilter },
-  { html: '<i class="fa-solid fa-undo" title="Undo Last Change"></i>', on_click: onUndoImageChange, filter: onUndoImageFilter }
+  { html: '<i class="fa-solid fa-undo" title="Undo Last Change"></i>', on_click: onUndoImageChange, filter: onUndoImageFilter },
+  { html: '<i class="fa-solid fa-redo" title="Redo Last Undone Change"></i>', on_click: onRedoImageChange, filter: onRedoImageFilter }
 ])
 
 // Store region selection state
