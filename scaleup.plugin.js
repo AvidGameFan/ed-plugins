@@ -1966,6 +1966,11 @@ function undoImageChange(image) {
     imageHistoryMap.set(key, []);
   }
 
+  // If all changes have been undone, clear the pending save indicator
+  if (history.length === 0) {
+    clearPendingRegionSave(image);
+  }
+
   refreshUndoButtonState(image);
   
   scaleupLog(`[ImageHistory] Reverted to previous version. Remaining history: ${history.length}`);
@@ -1996,6 +2001,8 @@ function redoImageChange(image) {
   // Save current state back to undo stack before redoing
   getImageHistory(image).push(image.src);
   image.src = redoHistory.pop();
+  // Restore the pending save indicator — this image has Region Enhancer changes again
+  setPendingRegionSave(image);
   refreshUndoButtonState(image);
   scaleupLog(`[ImageHistory] Redid change. Remaining redo history: ${redoHistory.length}`);
   return true;
