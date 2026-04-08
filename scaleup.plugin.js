@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.4.0, last updated: 4/6/2026
+ * v.3.4.0kllllllllllllll,, last updated: 4/6/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1982,6 +1982,7 @@ function refreshUndoButtonState(image) {
     if (!hasHistory) {
       // Remove from DOM completely to avoid hover conflicts
       undoButton.remove();
+      undoButton = null;
       scaleupLog(`[UndoButton] Removed button (no history)`);
     } else {
       scaleupLog(`[UndoButton] Button already exists with history`);
@@ -1999,8 +2000,56 @@ function refreshUndoButtonState(image) {
       });
       // Insert after region enhancer button (they're in the same button group)
       regionEnhancerDiv.insertBefore(newButton, regionEnhancerButton.nextSibling);
+      undoButton = newButton;
       scaleupLog(`[UndoButton] Created new button after Region Enhancer`);
     }
+  }
+
+  // Manage the Review (hold-to-compare) button — shows original while held
+  let reviewButton = null;
+  for (let btn of regionEnhancerDiv.querySelectorAll('button.tasksBtns')) {
+    if (btn.querySelector('.fa-eye')) {
+      reviewButton = btn;
+      break;
+    }
+  }
+
+  if (reviewButton) {
+    if (!hasHistory) {
+      reviewButton.remove();
+      scaleupLog(`[ReviewButton] Removed button (no history)`);
+    } else {
+      scaleupLog(`[ReviewButton] Button already exists with history`);
+    }
+  } else if (hasHistory) {
+    const newReviewBtn = document.createElement('button');
+    newReviewBtn.classList.add('tasksBtns');
+    newReviewBtn.innerHTML = '<i class="fa-solid fa-eye" title="Hold to compare with original"></i>';
+
+    let savedCurrentSrc = null;
+
+    newReviewBtn.addEventListener('pointerdown', function(e) {
+      const hist = getImageHistory(image);
+      if (hist.length === 0) return;
+      savedCurrentSrc = image.src;
+      image.src = hist[0];  // show the original (oldest saved) version
+      newReviewBtn.setPointerCapture(e.pointerId);
+    });
+
+    const restoreImage = function() {
+      if (savedCurrentSrc !== null) {
+        image.src = savedCurrentSrc;
+        savedCurrentSrc = null;
+      }
+    };
+
+    newReviewBtn.addEventListener('pointerup', restoreImage);
+    newReviewBtn.addEventListener('pointercancel', restoreImage);
+
+    // Insert after the undo button, or after the expand-arrows button if undo is absent
+    const insertAfter = undoButton || regionEnhancerButton;
+    regionEnhancerDiv.insertBefore(newReviewBtn, insertAfter.nextSibling);
+    scaleupLog(`[ReviewButton] Created new button`);
   }
 }
 
