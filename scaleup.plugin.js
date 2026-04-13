@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.4.2, last updated: 4/12/2026
+ * v.3.4.3, last updated: 4/12/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -2423,8 +2423,10 @@ function createSelectionOverlay(imageEl, enhancementType = null) {
     const cropH = Math.min(regionSelectionState.CROP_SIZE, regionSelectionState.imgH);
 
     // Calculate region bounds (clamp to image boundaries)
-    const left = Math.max(0, Math.min(imgX - cropW / 2, regionSelectionState.imgW - cropW));
-    const top = Math.max(0, Math.min(imgY - cropH / 2, regionSelectionState.imgH - cropH));
+    // Math.round matches the integer snapping used in processRegionAtPoint so the
+    // visual box is always aligned with the actual crop that will be taken.
+    const left = Math.round(Math.max(0, Math.min(imgX - cropW / 2, regionSelectionState.imgW - cropW)));
+    const top  = Math.round(Math.max(0, Math.min(imgY - cropH / 2, regionSelectionState.imgH - cropH)));
 
     // Draw rectangle on overlay (convert back to screen coordinates)
     const rectLeft = (left / scaleX);
@@ -2566,11 +2568,12 @@ function processRegionAtPoint(centerX, centerY) {
     const cropH = Math.min(CROP_SIZE, imgH);
 
     // Calculate crop position (clamp to image boundaries)
-    // Round to whole pixels to avoid sub-pixel shifts in drawImage
-    const left = Math.round(Math.max(0, Math.min(centerX - cropW / 2, imgW - cropW)));
-    const top = Math.round(Math.max(0, Math.min(centerY - cropH / 2, imgH - cropH)));
+    // Use exact float coordinates — canvas drawImage supports sub-pixel source coords,
+    // and rounding towards zero introduces a consistent shift towards the origin.
+    const left = Math.max(0, Math.min(centerX - cropW / 2, imgW - cropW));
+    const top  = Math.max(0, Math.min(centerY - cropH / 2, imgH - cropH));
 
-    scaleupLog(`[ScaleUpRegion] Processing region: [${left.toFixed(0)}, ${top.toFixed(0)}] size ${cropW}x${cropH}`);
+    scaleupLog(`[ScaleUpRegion] Processing region: [${left.toFixed(2)}, ${top.toFixed(2)}] size ${cropW}x${cropH}`);
 
     // create crop canvas
     const cropCanvas = document.createElement('canvas');
