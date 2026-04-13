@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.4.1, last updated: 4/12/2026
+ * v.3.4.2, last updated: 4/12/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -579,7 +579,7 @@ style.textContent = `
   transition: opacity 1s;
 }
 
-.scaleup-label .tooltiptext::after {
+.scaleup-label .scaleup-tooltiptext::after {
   content: " ";
   position: absolute;
   top: 50%;
@@ -670,6 +670,38 @@ style.textContent = `
   animation: tooltipkeys 1s 1;
   opacity: 1;
 }
+
+/* Styled tooltips for individual Region Enhancer buttons */
+.re-btn-tip-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.re-btn-tip-wrap .re-btn-tip {
+  visibility: hidden;
+  width: 180px;
+  background-color: #444;
+  color: #fff;
+  text-align: center;
+  border-radius: 6px;
+  padding: 5px 8px;
+  position: absolute;
+  z-index: 10001;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 1s;
+  pointer-events: none;
+  white-space: normal;
+}
+
+.re-btn-tip-wrap:hover .re-btn-tip {
+  visibility: visible;
+  animation: tooltipkeys 1s 1;
+  opacity: 1;
+}
+
 
 `;
 document.head.append(style);
@@ -2084,7 +2116,7 @@ function refreshUndoButtonState(image) {
       // Create new button from scratch
       const newButton = document.createElement('button');
       newButton.classList.add('tasksBtns');
-      newButton.innerHTML = '<i class="fa-solid fa-undo" title="Undo Last Change"></i>';
+      newButton.innerHTML = '<span class="re-btn-tip-wrap"><i class="fa-solid fa-undo"></i><span class="re-btn-tip">Undo Last Change</span></span>';
       newButton.addEventListener('click', function(event) {
         const req = getRequestFromImage(image);
         onUndoImageChange(req, image);
@@ -2115,7 +2147,7 @@ function refreshUndoButtonState(image) {
   } else if (hasHistory) {
     const newReviewBtn = document.createElement('button');
     newReviewBtn.classList.add('tasksBtns');
-    newReviewBtn.innerHTML = '<i class="fa-solid fa-eye" title="Hold to compare with original"></i>';
+    newReviewBtn.innerHTML = '<span class="re-btn-tip-wrap"><i class="fa-solid fa-eye"></i><span class="re-btn-tip">Hold to compare with original</span></span>';
 
     let savedCurrentSrc = null;
 
@@ -2164,7 +2196,7 @@ function refreshUndoButtonState(image) {
   } else if (hasRedo) {
     const newRedoBtn = document.createElement('button');
     newRedoBtn.classList.add('tasksBtns');
-    newRedoBtn.innerHTML = '<i class="fa-solid fa-redo" title="Redo Last Undone Change"></i>';
+    newRedoBtn.innerHTML = '<span class="re-btn-tip-wrap"><i class="fa-solid fa-redo"></i><span class="re-btn-tip">Redo Last Undone Change</span></span>';
     newRedoBtn.addEventListener('click', function(event) {
       const req = getRequestFromImage(image);
       onRedoImageChange(req, image);
@@ -2202,11 +2234,11 @@ PLUGINS['IMAGE_INFO_BUTTONS'].push([
   { html: '<span class="region-label" data-region-enhancer-label="1" style="background-color:transparent;background: rgba(0,0,0,0.5)">'
     +'<span class="region-tooltiptext"></span>'
     +regLabel+':</span>', type: 'label'},
-  { html: '<i class="fa-solid fa-expand-arrows-alt" title="Enhance 512px Region"></i>', on_click: onScaleUpRegionClick, filter: onScaleUpRegionFilter },
-  { html: '<i class="fa-solid fa-face-smile" title="Enhance Face"></i>', on_click: onScaleUpRegionFaceClick, filter: onScaleUpRegionFilter },
-  { html: '<i class="fa-solid fa-hand" title="Enhance Hand"></i>', on_click: onScaleUpRegionHandClick, filter: onScaleUpRegionFilter },
-  { html: '<i class="fa-solid fa-undo" title="Undo Last Change"></i>', on_click: onUndoImageChange, filter: onUndoImageFilter },
-  { html: '<i class="fa-solid fa-redo" title="Redo Last Undone Change"></i>', on_click: onRedoImageChange, filter: onRedoImageFilter }
+  { html: '<span class="re-btn-tip-wrap"><i class="fa-solid fa-expand-arrows-alt"></i><span class="re-btn-tip">Enhance Region</span></span>', on_click: onScaleUpRegionClick, filter: onScaleUpRegionFilter },
+  { html: '<span class="re-btn-tip-wrap"><i class="fa-solid fa-face-smile"></i><span class="re-btn-tip">Enhance Face</span></span>', on_click: onScaleUpRegionFaceClick, filter: onScaleUpRegionFilter },
+  { html: '<span class="re-btn-tip-wrap"><i class="fa-solid fa-hand"></i><span class="re-btn-tip">Enhance Hand</span></span>', on_click: onScaleUpRegionHandClick, filter: onScaleUpRegionFilter },
+  { html: '<span class="re-btn-tip-wrap"><i class="fa-solid fa-undo"></i><span class="re-btn-tip">Undo Last Change</span></span>', on_click: onUndoImageChange, filter: onUndoImageFilter },
+  { html: '<span class="re-btn-tip-wrap"><i class="fa-solid fa-redo"></i><span class="re-btn-tip">Redo Last Undone Change</span></span>', on_click: onRedoImageChange, filter: onRedoImageFilter }
 ])
 
 // Store region selection state
@@ -2320,6 +2352,20 @@ function createSelectionOverlay(imageEl, enhancementType = null) {
   rect.setAttribute('display', 'none');
   svg.appendChild(rect);
 
+  // Resolution label drawn inside the selection rectangle
+  const sizeLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  sizeLabel.setAttribute('fill', '#00ff00');
+  sizeLabel.setAttribute('opacity', '0.5');
+  sizeLabel.setAttribute('font-family', 'monospace');
+  sizeLabel.setAttribute('font-size', '13');
+  sizeLabel.setAttribute('text-anchor', 'middle');
+  sizeLabel.setAttribute('dominant-baseline', 'middle');
+  sizeLabel.setAttribute('display', 'none');
+  sizeLabel.setAttribute('pointer-events', 'none');
+  svg.appendChild(sizeLabel);
+
+  regionSelectionState.sizeLabel = sizeLabel;
+
   // Create instruction text with enhancement type indication
   const instruction = document.createElement('div');
   instruction.id = 'scaleup-region-instruction';
@@ -2391,9 +2437,21 @@ function createSelectionOverlay(imageEl, enhancementType = null) {
     rect.setAttribute('width', rectWidth);
     rect.setAttribute('height', rectHeight);
     rect.setAttribute('display', 'block');
+
+    // Update resolution label inside the box — lower-right corner with padding
+    const sizeLabel = regionSelectionState.sizeLabel;
+    if (sizeLabel) {
+      const fontSize = 13;
+      const pad = 4;
+      sizeLabel.setAttribute('x', rectLeft + rectWidth - pad);
+      sizeLabel.setAttribute('y', rectTop + rectHeight - fontSize / 2 - pad);
+      sizeLabel.setAttribute('text-anchor', 'end');
+      sizeLabel.setAttribute('dominant-baseline', 'auto');
+      sizeLabel.textContent = `${cropW}x${cropH}`;
+      sizeLabel.setAttribute('display', 'block');
+    }
   }
 
-  // Handle region selection click
   function onClick(e) {
     const containerBounds = imgContainer.getBoundingClientRect();
     const x = e.clientX - containerBounds.left;
@@ -2488,6 +2546,7 @@ function cleanupSelectionOverlay() {
   }
 
   regionSelectionState.rect = null;
+  regionSelectionState.sizeLabel = null;
 }
 
 /**
