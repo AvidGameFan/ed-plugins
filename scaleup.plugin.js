@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.4.0kllllllllllllll,, last updated: 4/6/2026
+ * v.3.4.1, last updated: 4/12/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -2426,7 +2426,7 @@ function createSelectionOverlay(imageEl, enhancementType = null) {
   function onWheel(e) {
     e.preventDefault();
     
-    const MIN_SIZE = 384; // 448;
+    const MIN_SIZE = 192;
     const maxSize = Math.floor(Math.max(Math.min(regionSelectionState.imgW, regionSelectionState.imgH) * 0.75,Math.min(regionSelectionState.imgW, regionSelectionState.imgH)));
     const step = 32; // Adjust in 32-pixel increments
     
@@ -2541,8 +2541,10 @@ function processRegionAtPoint(centerX, centerY) {
     // Prepare a new task request copying current user request and using the cropped image as init_image.
     let newTaskRequest = getCurrentUserRequest();
     // Use scalingIncreaseRegion to get stronger upscale; generate target dims with existing helpers
-    const targetWidth = scaleUp(cropW, cropH, scalingIncreaseRegion);
-    const targetHeight = scaleUp(cropH, cropW, scalingIncreaseRegion);
+    // For small crops (< 384px), use 3x scaling to compensate for the reduced starting resolution
+    const effectiveScaling = (cropW < 384 || cropH < 384) ? 2.5 : scalingIncreaseRegion;
+    const targetWidth = scaleUp(cropW, cropH, effectiveScaling);
+    const targetHeight = scaleUp(cropH, cropW, effectiveScaling);
 
     const seed = Math.floor(Math.random() * 100000000);
 
