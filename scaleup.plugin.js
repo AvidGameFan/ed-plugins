@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.4.3, last updated: 4/12/2026
+ * v.3.4.4, last updated: 4/14/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1606,8 +1606,28 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
       document.body.appendChild(canvasSoft); //DEBUG
       document.body.appendChild(document.createElement("br"));
     }
+
+    // Pre-upscale the control image to the generation resolution so the backend does not need
+    // to resize it internally.  A backend resize may use a different algorithm / convention than
+    // our Lanczos upscale of init_image, which can introduce a sub-pixel positional shift.
+    // By sending both images at the same target size we guarantee pixel-perfect alignment.
+    const cnTargetW = newTaskRequest.reqBody.width;
+    const cnTargetH = newTaskRequest.reqBody.height;
+    let cnSourceCanvas = canvasSoft;
+    if (cnTargetW !== canvasSoft.width || cnTargetH !== canvasSoft.height) {
+      const canvasCnUp = document.createElement("canvas");
+      canvasCnUp.width = cnTargetW;
+      canvasCnUp.height = cnTargetH;
+      const ctxCnUp = canvasCnUp.getContext("2d", { willReadFrequently: true, alpha: false });
+      ctxCnUp.imageSmoothingEnabled = true;
+      ctxCnUp.imageSmoothingQuality = 'high';
+      ctxCnUp.drawImage(canvasSoft, 0, 0, cnTargetW, cnTargetH);
+      cnSourceCanvas = canvasCnUp;
+    }
+
     var newImage2 = new Image;
-    newImage2.src = canvasSoft.toDataURL('image/png');
+    //If not using the above controlnet resize block, simply use this line:  newImage2.src = canvasSoft.toDataURL('image/png');
+    newImage2.src = cnSourceCanvas.toDataURL('image/png');
     newTaskRequest.reqBody.control_image = newImage2.src;
 
     //TODO: Only for SDXL, search for an appropriate model
@@ -1820,24 +1840,28 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
       sourceCanvas = cropCanvas;
     }
 
-    // if (newTaskRequest.reqBody._debug_quadrant) {
-    //   console.log(`[SPLIT DEBUG] ${newTaskRequest.reqBody._debug_quadrant} - calling lanczosResizeAsync`);
-    // }
+    //    const resultImageData = await lanczosResizeAsync(sourceCanvas, canvas, newTaskRequest.reqBody.width, newTaskRequest.reqBody.height);
+    //    ctx.putImageData(resultImageData, 0, 0);
 
-    // Use Lanczos resampling for higher quality upscaling (async, non-blocking)
-    const resultImageData = await lanczosResizeAsync(sourceCanvas, canvas, newTaskRequest.reqBody.width, newTaskRequest.reqBody.height);
-    
-    // if (newTaskRequest.reqBody._debug_quadrant) {
-    //   console.log(`[SPLIT DEBUG] ${newTaskRequest.reqBody._debug_quadrant} - lanczosResizeAsync completed`);
-    // }
-    
-    // Put the resized image data into the canvas
-    ctx.putImageData(resultImageData, 0, 0);
+    // Use the browser's own drawImage for the upscale.
+    // Lanczos uses (x+0.5)*ratio to map dest pixels to source positions, which shifts the
+    // content ~0.5 source pixels toward the origin.  That shift rides through SD's generation
+    // and survives the downscale-back in mergeGeneratedPatchBack, producing the visible
+    // upper-left offset.  Using drawImage here (same as the downscale in mergeGeneratedPatchBack)
+    // ensures both operations share the identical browser sampling convention, so any
+    // sub-pixel offset is applied equally and cancels in the round-trip.
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
 
-    // IMPORTANT: Do NOT apply additional sharpening after Lanczos resampling!
-    // Lanczos already produces sharp, high-quality results. Additional sharpening
-    // creates grid artifacts and amplifies patterns, especially on Flux/Chroma models.
-    // The sharpen() function is DISABLED when using Lanczos.
+    // Sharpen after upscaling to recover the softness introduced by the browser's bilinear/bicubic
+    // resampler.  Without this, SD receives a blurry input and its output retains that softness.
+    // Use a lighter touch for Flux and high-res to avoid amplifying noise.
+    const totalPixels = canvas.width * canvas.height;
+    const highRes = totalPixels > 2000000;
+    const sharpenAmount = (isFlux || highRes) ? 0.3 : 0.45;
+
+    sharpen(ctx, canvas.width, canvas.height, sharpenAmount);
 
     // Firefox-compatible image data handling
     var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -1848,8 +1872,6 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
 
     // Apply minimal contrast adjustment - reduced for Flux models and high resolutions
     // to prevent amplification of any residual patterns
-    const totalPixels = canvas.width * canvas.height;
-    const highRes = totalPixels > 2000000;
     const contrastToUse = (isFlux || highRes) ? (isKlein ? 0.5 : 0.6) : contrastAmount;
     imgCopy = contrastImage(imgCopy, contrastToUse);
     ctx.putImageData(imgCopy, 0, 0);
@@ -2568,10 +2590,11 @@ function processRegionAtPoint(centerX, centerY) {
     const cropH = Math.min(CROP_SIZE, imgH);
 
     // Calculate crop position (clamp to image boundaries)
-    // Use exact float coordinates — canvas drawImage supports sub-pixel source coords,
-    // and rounding towards zero introduces a consistent shift towards the origin.
-    const left = Math.max(0, Math.min(centerX - cropW / 2, imgW - cropW));
-    const top  = Math.max(0, Math.min(centerY - cropH / 2, imgH - cropH));
+    // Use integer coordinates for the crop extraction so that the pixel grid aligns exactly.
+    // Float source coords cause the browser to interpolate, shifting content by a sub-pixel
+    // amount that doesn't match the stored origin used during the merge paste-back.
+    const left = Math.round(Math.max(0, Math.min(centerX - cropW / 2, imgW - cropW)));
+    const top  = Math.round(Math.max(0, Math.min(centerY - cropH / 2, imgH - cropH)));
 
     scaleupLog(`[ScaleUpRegion] Processing region: [${left.toFixed(2)}, ${top.toFixed(2)}] size ${cropW}x${cropH}`);
 
@@ -3003,8 +3026,8 @@ async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedIm
     workCanvas.height = origH;
     const wctx = workCanvas.getContext('2d', { willReadFrequently: true, alpha: true });
 
-    // Draw original image as base
-    wctx.drawImage(originalImageEl, 0, 0, origW, origH);
+    // Draw original image as base — use 3-arg form to avoid any resampling/scaling
+    wctx.drawImage(originalImageEl, 0, 0);
 
     // Create patch canvas with feathered alpha mask (downscale generated image to original crop size)
     const patchCanvas = document.createElement('canvas');
@@ -3018,12 +3041,12 @@ async function mergeGeneratedPatchBack(containerId, originalImageEl, generatedIm
     pctx.imageSmoothingEnabled = true;
     pctx.imageSmoothingQuality = 'high';
 
-    //sharpen before we downsize -- just in case, may not be needed
-    //sharpen(pctx, patchCanvas.width, patchCanvas.height, .1);
+    // Draw downscaled generated image onto patch canvas using browser's built-in high-quality resampler.
+    pctx.drawImage(generatedImageEl, 0, 0, origin.w, origin.h);
 
-
-    // Draw downscaled generated image onto patch canvas using Lanczos for higher quality
-    lanczosResize(generatedImageEl, patchCanvas, origin.w, origin.h);
+    // Sharpen after downscaling to recover fine detail from the SD output that the resampler softened.
+    // Kept light so it doesn't introduce halos at the feather boundary.
+    sharpen(pctx, patchCanvas.width, patchCanvas.height, 0.3);
     
     // Blend patch into work canvas using per-pixel alpha blending (similar to onCombineSplitClick)
     // This handles edges and corners smoothly without sharp transitions
