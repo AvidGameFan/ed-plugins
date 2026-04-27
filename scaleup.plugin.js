@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.4.4, last updated: 4/14/2026
+ * v.3.4.5, last updated: 4/26/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -453,7 +453,7 @@ function isModelXl(modelName) {
   //if we're unsure from the internal check, use the filename as a fall-back.
   
   // Combined regex for all XL-related terms
-  return /xl|playground|disneyrealcartoonmix|mobius|zovya/i.test(modelName) || isModelFlux(modelName); //Zovya models appear to mostly be Pony XL -- need to update if there are SD 1.5 models instead
+  return /xl|playground|disneyrealcartoonmix|mobius|zovya|anima(?=[^a-zA-Z]|$)/i.test(modelName) || isModelFlux(modelName); //Zovya models appear to mostly be Pony XL -- need to update if there are SD 1.5 models instead
 }
 
 //If flux, can use fewer steps
@@ -997,6 +997,9 @@ function onScaleUpMAXClick(origRequest, image) {
   //For the split, we need to know the ratio for stitching.
   newTaskRequest.reqBody.ScaleUpSplitRatio = ratio;
 
+  // Doing img2img at larger sizes with a reference image will greatly increase the time to generate.
+  delete newTaskRequest.reqBody.ref_images;  // Remove reference image; if model has changed, new model may not support it.
+
   return processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredModel, origRequest)
     .then(() => createTask(newTaskRequest))
     .catch(err => console.error('Error in processTaskRequest:', err));
@@ -1165,9 +1168,10 @@ function scaleUpOnce(origRequest, image, doScaleUp, scalingIncrease) {
     seed: Math.floor(Math.random() * 10000000)  //Remove or comment-out this line to retain original seed when resizing
   })
 
-  if (modelChanged) {
-    newTaskRequest.reqBody.ref_images = undefined;  // Remove reference image; new model may not support it.
-  }
+  //if (modelChanged) {
+  // Doing img2img at larger sizes with a reference image will greatly increase the time to generate.
+  delete newTaskRequest.reqBody.ref_images;  // Remove reference image; if model has changed, new model may not support it.
+  //}
 
   //The Lanczos filter is time-consuming, so bump this into the background.  It doesn't run in parallel, but frees up the UI for a moment.
   setTimeout(async () => {
@@ -2698,6 +2702,9 @@ function processRegionAtPoint(centerX, centerY) {
       if (newTaskRequest.reqBody.width * newTaskRequest.reqBody.height > maxNoVaeTiling) {
         newTaskRequest.reqBody.enable_vae_tiling = true;
       }
+
+      // Doing img2img at larger sizes with a reference image will greatly increase the time to generate.
+      delete newTaskRequest.reqBody.ref_images;  // Remove reference image; if model has changed, new model may not support it.
 
       // Save timestamp to match later
       const savedRegionTimestamp = parseInt(Date.now());
