@@ -414,7 +414,7 @@ function scaleUp(height,width,scalingIncrease) {
 //Model needs to have "turbo" in the filename to be recognized as a turbo model.
 function isModelTurbo(modelName, loraList) {
   // Combined regex for all turbo-related terms
-  if (/turbo|lightning|hyper|schnell|klein|flash/i.test(modelName)) {
+  if (/turbo|lightning|hyper|schnell|klein|flash|distill/i.test(modelName)) {
     return true;
   }
   
