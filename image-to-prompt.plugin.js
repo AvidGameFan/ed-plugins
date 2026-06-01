@@ -470,14 +470,14 @@ Do not include any preamble or explanation - only return the prompt itself.`;
             </div>
         `;
         
-        // Insert after the LLM settings if it exists, otherwise at the end of settings
+        // Insert after the LLM settings if it exists, otherwise after editor-settings
         const llmSettings = document.querySelector('#llm-settings');
-        const settingsBox = document.querySelector('#settings');
+        const editorSettings = document.querySelector('#editor-settings');
         
         if (llmSettings && llmSettings.parentNode) {
             llmSettings.parentNode.insertBefore(imageToPromptSettings, llmSettings.nextSibling);
-        } else if (settingsBox) {
-            settingsBox.appendChild(imageToPromptSettings);
+        } else if (editorSettings && editorSettings.parentNode) {
+            editorSettings.parentNode.insertBefore(imageToPromptSettings, editorSettings.nextSibling);
         }
         
         // Make collapsible using the built-in function
