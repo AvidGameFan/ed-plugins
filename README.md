@@ -5,22 +5,32 @@ These tools are intended for use with the Stable Diffusion UI, [Easy Diffusion](
 
 ### ScaleUp
 
-Adds options to easily scale-up to a slightly-higher resolution.  This will add detail, as well as increase resolution.
+Adds options to easily scale-up to a slightly-higher resolution.  This will add detail, as well as increase resolution, using the existing prompt and model.
 
 Various settings are tweaked automatically, to get the best out of each model.  Click on the ScaleUp label to cycle through various options.  Avoid using the ControlNet option with higher resolutions.  Eventually, you may hit a limit where the model is just too large for a given resolution on your video card; if you still want higher resolution, use the split/merge option that will generate 4 separate images and stitch them together.
 [ScaleUp](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/master/scaleup.plugin.js)
 
-If you want to use the ControlNet feature with SDXL or Flux, you need to download these models:
+If you want to use the ControlNet feature with SDXL or Flux, you need to download these models and place them in the appropriate controlnet folder:
 ```
 Canny/SDXL: https://huggingface.co/lllyasviel/sd_control_collection/tree/main
 Canny/Flux: https://huggingface.co/XLabs-AI/flux-controlnet-canny-v3
 Tile for SDXL and Flux: https://huggingface.co/TTPlanet/TTPLanet_SDXL_Controlnet_Tile_Realistic/tree/main
 ```
 
+**Tips:**
+* Choose the first or second resolution buttons to ScaleUp in increments. Do this 3 or 4 times for optimal results for many models.  Some models might only look their best with one round of ScaleUp.
+* Faces will often improve with each ScaleUp.  The Region Enhancement allows you to target just the face, for a faster workflow, and to make it easier to work when you have low VRAM.  Use the scroll-wheel to change the size of the region.
+* The Region Enhancement has a review button to compare changes to the original image, and an Undo, in case the results were poor.  If desired, Undo, and try again.
+* And when you're at the limit of what can be generated with your VRAM and you can't go any larger... the tiled-scaleup generates 4 images and then stitches them together (you have to press the stitch button when they're done). You get a 2x increase where you couldn't do it before -- and usually with better results than the ESRGAN upscalers. 
+
 ### OutpaintIt
 
 Allows painting outside of the original image.  Simple one-click interface.
 [OutpaintIt](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/master/OutpaintIt.plugin.js)
+
+### Make Very Similar Images
+
+Much like the Make Similar Images button, but with optimizations for different model types and more options.
 
 ### Favorites
 
@@ -60,6 +70,10 @@ As of April 2025, the Easy Diffusion Draw editor does not handle large resolutio
 Adds a clone brush/tool to the editor.  Right-click to set the source texture, and left-click to draw with the pattern.  Draw over odd objects, 3rd legs, etc., leaving a texture, rather than the Draw tool's solid colors.
 [Clone Brush](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/clonebrush.plugin.js)
 
+### Smear Brush
+
+Adds a smear brush/tool to the editor.  Unlike the normal brush, this one will slightly blend and push the "paint" around, allowing for more creative editing.
+
 ### Ratios
 
 Adds buttons to allow easy selection of starting values at the selected ratio.  It uses smaller values for SD 1.x, larger for SDXL, and largest for Flux.
@@ -76,13 +90,30 @@ This plugin adds a button that calls a local LLM using an OpenAI API endpoint, r
 
 [LLM Prompt Generation](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/llm-image-generator.plugin.js)
 
-Tested using Oobabooga's text-generation UI, but other LLM UIs may work if they support the same OpenAI API call.  The default URL is the same URL that is hosting Easy Diffusion, but with :5000 as the port.  If your LLM service is at a different URL or port number, you need to edit the plugin and change the default URL near the top of the file.
+Tested using Oobabooga's text-generation UI and LM Studio, but other LLM UIs may work if they support the same OpenAI API call.  The default URL is the same URL that is hosting Easy Diffusion, but with :5000 as the port.  If your LLM service is at a different URL or port number, you need to edit the LLM Settings in the left-panel to change the default URL.
 
 ### LLM Image to Prompt
 
 Calls a local LLM to create a prompt from the given image.  The model that is used needs to be a "vision" model, along with an LLM UI that supports vision as well as the "chat completions" API.
 
 [Image to Prompt](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/image-to-prompt.plugin.js)
+
+### AI Image Critic
+
+Uses an LLM to provide analysis of the image and make suggestions for improvement.  LLM settings are similar to the above plugins.
+
+### Reference Images
+
+Adds a toggle button to enable the reference images panel for non-Flux models
+(e.g., Qwen image editing). Flux models already show reference images automatically.
+
+### Use As Reference
+
+Adds an overlay button to send generated image to the Reference Image list.
+
+### Load Image
+
+Loads an image into the browser queue, to make it available to the tools that only operate in that section.
 
 ## Other
 
