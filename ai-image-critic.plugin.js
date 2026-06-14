@@ -157,11 +157,12 @@ If the image looks clean with no issues, return severity "none", an empty issues
 
                 const data = await response.json();
                 const raw  = data?.choices?.[0]?.message?.content?.trim();
-                if (!raw) throw new Error('Empty response from LLM');
+                return parseJsonFromModelText(raw);
+                // if (!raw) throw new Error('Empty response from LLM');
 
-                // Strip accidental markdown code fences if the model added them
-                const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-                return JSON.parse(cleaned);
+                // // Strip accidental markdown code fences if the model added them
+                // const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+                // return JSON.parse(cleaned);
 
             } catch (e) {
                 lastError = e;
@@ -172,6 +173,64 @@ If the image looks clean with no issues, return severity "none", an empty issues
             }
         }
         throw lastError || new Error('All retry attempts failed');
+    }
+
+    function parseJsonFromModelText(raw) {
+        if (!raw || typeof raw !== "string") {
+            throw new Error("Empty response from LLM");
+        }
+
+        const candidates = [];
+
+        // 1) Raw as-is
+        candidates.push(raw.trim());
+
+        // 2) Remove common reasoning/channel wrappers
+        const noThinking = raw
+            .replace(/<\|[a-zA-Z0-9_.-]+\|>[\s\S]*?[a-zA-Z0-9_.-]+\|>/g, " ")
+            .replace(/<think>[\s\S]*?<\/think>/gi, " ")
+            .replace(/<analysis>[\s\S]*?<\/analysis>/gi, " ")
+            .trim();
+        candidates.push(noThinking);
+
+        // 3) Extract fenced JSON (```json ... ``` or ``` ... ```)
+        const fenceMatch = noThinking.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+        if (fenceMatch?.[1]) candidates.push(fenceMatch[1].trim());
+
+        // 4) Extract first balanced {...} object
+        const balanced = extractFirstBalancedJsonObject(noThinking);
+        if (balanced) candidates.push(balanced);
+
+        for (const c of candidates) {
+            try {
+                return JSON.parse(c);
+            } catch (_) {}
+        }
+        throw new Error("LLM returned non-JSON content");
+    }
+
+    function extractFirstBalancedJsonObject(text) {
+        let start = -1, depth = 0, inStr = false, esc = false;
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (inStr) {
+                if (esc) esc = false;
+                else if (ch === "\\") esc = true;
+                else if (ch === "\"") inStr = false;
+                continue;
+            }
+            if (ch === "\"") { inStr = true; continue; }
+            if (ch === "{") {
+                if (depth === 0) start = i;
+                depth++;
+            } else if (ch === "}") {
+                if (depth > 0) depth--;
+                if (depth === 0 && start !== -1) {
+                    return text.slice(start, i + 1);
+                }
+            }
+        }
+        return null;
     }
 
     // ── Button handler ───────────────────────────────────────────────────────
