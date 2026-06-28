@@ -107,7 +107,7 @@ var JsonComposerSettings = {
         // Auto-parse if prompt already contains JSON
         const pf = getPromptField();
         if (pf) {
-            const raw = pf.value.trim();
+            const raw = unescapeFromPrompt(pf.value.trim());
             if (raw.startsWith('{')) {
                 try { hydrateStateFromSchema(JSON.parse(raw)); } catch (_) {}
             }
@@ -989,14 +989,15 @@ var JsonComposerSettings = {
     }
 
     // ── Parse from prompt ─────────────────────────────────────────────────────
-    function parseFromPrompt() {
+    async function parseFromPrompt() {
         const pf  = getPromptField();
         const raw = pf ? pf.value.trim() : '';
         if (!raw) { showNotification('Prompt field is empty', 'warning'); return; }
 
-        if (raw.startsWith('{')) {
+        const unescaped = unescapeFromPrompt(raw);
+        if (unescaped.startsWith('{')) {
             try {
-                const parsed = JSON.parse(raw);
+                const parsed = JSON.parse(unescaped);
                 state = freshState();
                 hydrateStateFromSchema(parsed);
                 populateFields();
@@ -1012,7 +1013,13 @@ var JsonComposerSettings = {
         }
 
         // Plain text – offer to seed scene description
-        if (confirm('Prompt is plain text (not JSON).\nSeed the "Scene Description" field with the current prompt text?')) {
+        const shouldSeed = await showYesCancelDialog({
+            title: 'Parse From Prompt',
+            message: 'Prompt is plain text (not JSON).\nSeed the "Scene Description" field with the current prompt text?',
+            yesLabel: 'Yes',
+            cancelLabel: 'Cancel'
+        });
+        if (shouldSeed) {
             state = freshState();
             state.highLevelDescription = raw;
             populateFields();
@@ -1057,7 +1064,7 @@ var JsonComposerSettings = {
         const pf = getPromptField();
         if (!pf) { showNotification('Prompt field not found', 'error'); return; }
 
-        pf.value = JSON.stringify(schema, null, 2);
+        pf.value = escapeForPrompt(JSON.stringify(schema, null, 2));
         pf.dispatchEvent(new Event('input',  { bubbles: true }));
         pf.dispatchEvent(new Event('change', { bubbles: true }));
         showNotification('JSON schema applied to prompt field', 'success');
@@ -1246,6 +1253,16 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
             || document.querySelector('#prompt');
     }
 
+    // Escape curly braces so the prompt field doesn't interpret them specially.
+    function escapeForPrompt(json) {
+        return json.replace(/[{}]/g, m => '\\' + m);
+    }
+
+    // Reverse escapeForPrompt before JSON.parse.
+    function unescapeFromPrompt(text) {
+        return text.replace(/\\([{}])/g, '$1');
+    }
+
     function showNotification(message, type = 'info', persistent = false) {
         const n = document.createElement('div');
         const bg = { success: '#28a745', error: '#dc3545', warning: '#fd7e14', info: '#17a2b8' };
@@ -1270,6 +1287,64 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
+    }
+
+    // Modal confirm helper so both affirmative and cancel actions are always visible.
+    function showYesCancelDialog(options) {
+        const title = options?.title || 'Confirm';
+        const message = options?.message || '';
+        const yesLabel = options?.yesLabel || 'OK';
+        const cancelLabel = options?.cancelLabel || 'Cancel';
+
+        return new Promise(resolve => {
+            const existing = document.getElementById('jpc-confirm-modal');
+            if (existing) existing.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'jpc-confirm-modal';
+            overlay.style.cssText = `
+                position:fixed;inset:0;z-index:22000;
+                display:flex;align-items:center;justify-content:center;
+                background:rgba(0,0,0,0.65);
+            `;
+
+            const htmlMessage = escHtml(message).replace(/\n/g, '<br>');
+            overlay.innerHTML = `
+                <div id="jpc-confirm-box" style="
+                    background:#1e1e2e;color:#cdd6f4;border-radius:10px;
+                    border:1px solid #313244;
+                    padding:18px;max-width:460px;width:90%;
+                    box-shadow:0 8px 32px rgba(0,0,0,0.75);font-family:sans-serif;
+                ">
+                    <h4 style="margin:0 0 10px 0;color:#89b4fa;">${escHtml(title)}</h4>
+                    <div style="font-size:13px;line-height:1.5;white-space:normal;">${htmlMessage}</div>
+                    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+                        <button id="jpc-confirm-cancel" class="btn btn-secondary">${escHtml(cancelLabel)}</button>
+                        <button id="jpc-confirm-yes" class="btn btn-primary">${escHtml(yesLabel)}</button>
+                    </div>
+                </div>
+            `;
+
+            function cleanup(value) {
+                document.removeEventListener('keydown', onKeyDown);
+                overlay.remove();
+                resolve(value);
+            }
+
+            function onKeyDown(e) {
+                if (e.key === 'Escape') cleanup(false);
+                if (e.key === 'Enter') cleanup(true);
+            }
+
+            overlay.addEventListener('click', e => {
+                if (e.target === overlay) cleanup(false);
+            });
+
+            document.body.appendChild(overlay);
+            document.getElementById('jpc-confirm-cancel').addEventListener('click', () => cleanup(false));
+            document.getElementById('jpc-confirm-yes').addEventListener('click', () => cleanup(true));
+            document.addEventListener('keydown', onKeyDown);
+        });
     }
 
     // ── Settings panel (sidebar) ──────────────────────────────────────────────
