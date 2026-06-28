@@ -1064,7 +1064,7 @@ var JsonComposerSettings = {
         const pf = getPromptField();
         if (!pf) { showNotification('Prompt field not found', 'error'); return; }
 
-        pf.value = escapeForPrompt(JSON.stringify(schema, null, 2));
+        pf.value = escapeForPrompt(JSON.stringify(schema)).replace(/[\r\n]+/g, ' ');
         pf.dispatchEvent(new Event('input',  { bubbles: true }));
         pf.dispatchEvent(new Event('change', { bubbles: true }));
         showNotification('JSON schema applied to prompt field', 'success');
