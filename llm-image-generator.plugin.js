@@ -1,7 +1,7 @@
 /* 
  * LLM Prompt Generator Plugin
  *
- * v.1.2.5, last updated: 2/21/2026
+ * v.1.2.6, last updated: 2/21/2026
  * By Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -291,7 +291,7 @@ var LLMSettings = {
       }
     const commonInstructions = ` Focus on visual elements and avoid extraneous information. 
 Keep to a a consistent style and avoid multiple styles; only choose one of anime, octane render, realistic, photographic, painterly, or other such core style. 
-Keep prompts concise but detailed. Do not include any other text than the prompt. No explanation; just the prompt.`;
+Keep prompts concise but detailed. Do not include any other text than the prompt. Do not explain your resoning or display your thought process - only include the prompt. `;
     // Prompt type configurations
     const promptTypes = {
         enhance: {
@@ -306,7 +306,7 @@ Refine the prompt to keep the overall vision intact while enhancing the descript
                 currentPrompt 
                     ? `Improve and expand this image prompt with more artistic and technical details: "${currentPrompt}"`
                     : 'Create an image prompt using a subject and artistic and technical details',
-            temperature: 0.7,
+            temperature: 0.85,
             requiresInput: false
         },
         variation: {
@@ -320,7 +320,7 @@ Or, change the subject and use the same artistic style. Do not change all elemen
             userPromptTemplate: (currentPrompt) => 
                 `Create a creative variation of this image prompt. Make it somewhat different while maintaining artistic quality: "${currentPrompt}"
 Think about: different art styles, alternative lighting, new compositions, different moods, creative reinterpretations, or artistic techniques.`,
-            temperature: 0.8,
+            temperature: 0.9,
             requiresInput: true
         },
         difference: {
@@ -336,7 +336,7 @@ Not all elements need to be changed - sometimes it's better to change only one o
             userPromptTemplate: (currentPrompt) => 
                 `Create a creative variation of this image prompt. Make it significantly different while maintaining artistic quality: "${currentPrompt}"
 Think about: different art styles, alternative lighting, new compositions, different moods, creative reinterpretations, or artistic techniques.`,
-            temperature: 0.8,
+            temperature: 0.9,
             requiresInput: true
         },
         booru: {
@@ -348,18 +348,18 @@ Your goal is to take an existing prompt and embellish it using a few booru-style
                 + commonInstructions +
 `Not all elements of the prompt need to be turned into booru tags.
 Use tags appropriately, taking care not to mix styles and types haphazardly nor randomly. For example, don't mix anime-related tags with painterly or brush stroke.
-Keep most of the prompt descriptive, only adding a few booru tags. Some booru tags can be varied by color or other minor changes.
+Keep part of the prompt descriptive, only adding a few booru tags. Some booru tags can be varied by color or other minor changes.
 Do not include any other text than the prompt. Here is an example (partial) list of possible tags (comma-separated): 1girl, 1boy, female, solo, from above, from side, holding sword,
-battoujutsu stance, fighting stance, ready to draw, shirt, long sleeves, jacket, white shirt, necktie, collared shirt, pants, miniskirt, skirt, black jacket, floating hair,
-unsheathing, katana, hair between eyes, looking at viewer, looking away, parted lips, absurdres, fingerless gloves, thighhighs, full body, cowboy shot, hand on own hip, contrapposto,
-painterly, brush stroke, masterpiece, portrait, landscape, digitigrade, furry, feral, sidelocks, ahoge, bangs, ponytail, twintails, braids, blush, 1980s (style), 1990s (style), 2000s (style), retro artstyle,
-mole, fang, closed mouth, scarf, jeans, grin, blonde hair, mug, alcohol, green eyes, white hair, brown hair, multicolored hair, long hair, dark skin, tan, earrings, hair ornament, sunglasses, holding food,
-^ ^, > <, v, one eye closed, shoes, crop top, black gloves, blue eyes, clenched teeth, official art, anime coloring, cel rendering, outline, synthwave, vaporwave, cyberpunk, steampunk, happy, nervous`,
+battoujutsu stance, fighting stance, ready to draw, shirt, long sleeves, jacket, white shirt, necktie, choker, collared shirt, pants, jeans, miniskirt, skirt, black jacket, floating hair, ribbon, sitting, standing,
+unsheathing, katana, hair between eyes, looking at viewer, looking away, parted lips, absurdres, fingerless gloves, thighhighs, full body, cowboy shot, hand on own hip, hand on belt, elbow on thigh, contrapposto,
+painterly, brush stroke, masterpiece, portrait, landscape, digitigrade, furry, feral, sidelocks, ahoge, bangs, ponytail, twintails, braids, twin braids, blush, 1980s (style), 1990s (style), 2000s (style), retro artstyle,
+mole, fang, closed mouth, scarf, jeans, grin, blonde hair, mug, alcohol, green eyes, white hair, brown hair, multicolored hair, long hair, dark skin, tan, earrings, elf ears, hair ornament, sunglasses, holding food,
+^ ^, > <, v, one eye closed, shoes, crop top, black gloves, blue eyes, clenched teeth, official art, anime coloring, cel rendering, pixel_art, outline, synthwave, vaporwave, cyberpunk, steampunk, happy, nervous`,
             userPromptTemplate: (currentPrompt) => 
                 currentPrompt 
                 ? `Improve and expand this image prompt with more artistic and technical details, adding booru tags as appropriate: "${currentPrompt}"`
                 : 'Create an image prompt using a subject and artistic and technical details, including booru tags.',
-            temperature: 0.8,
+            temperature: 0.9,
             requiresInput: false
         }
     };
@@ -387,7 +387,7 @@ mole, fang, closed mouth, scarf, jeans, grin, blonde hair, mug, alcohol, green e
 
         let requestPayload = {
             prompt: `${systemPrompt}\n\nUser: ${userPrompt}\n\nAssistant:`,
-            max_tokens: 235,
+            max_tokens: 300,
             temperature: typeConfig.temperature,
             top_p: 0.95,
             top_k: 20,
