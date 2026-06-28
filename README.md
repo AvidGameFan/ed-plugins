@@ -98,6 +98,8 @@ Calls a local LLM to create a prompt from the given image.  The model that is us
 
 [Image to Prompt](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/image-to-prompt.plugin.js)
 
+> **Note:** When downloading a vision-based model, ensure you also pull down the `mmproj` file. Without it, the image-to-prompt and AI critic features will not function properly.
+
 ### AI Image Critic
 
 Uses an LLM to provide analysis of the image and make suggestions for improvement.  LLM settings are similar to the above plugins.

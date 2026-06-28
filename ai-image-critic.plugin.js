@@ -1,8 +1,8 @@
 /*
  * AI Image Critic Plugin
  *
- * v1.0.0, last updated: 05/15/2026
- * Initial version by GitHub Copilot
+ * v1.1.0, last updated: 06/14/2026
+ * Initial version by GitHub Copilot 5/2026
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
  *
@@ -127,7 +127,7 @@ If the image looks clean with no issues, return severity "none", an empty issues
                     ]
                 }
             ],
-            max_tokens: 800,
+            max_tokens: 2500, // we really don't want this many tokens, but thinking models end up with a lot of extra tokens we need to remove.
             temperature: 0.3   // lower = more deterministic / factual
         };
 
@@ -202,6 +202,7 @@ If the image looks clean with no issues, return severity "none", an empty issues
         if (balanced) candidates.push(balanced);
 
         for (const c of candidates) {
+            //console.log('parsing:', c); //DEBUG
             try {
                 return JSON.parse(c);
             } catch (_) {}
