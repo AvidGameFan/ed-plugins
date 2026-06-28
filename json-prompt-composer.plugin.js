@@ -1,7 +1,7 @@
 /*
  * JSON Prompt Composer
  *
- * v1.0.0, last updated: 6/27/2026
+ * v1.0.1, last updated: 6/28/2026
  * By GitHub Copilot
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -12,6 +12,7 @@
  * expansion via an OpenAI-compatible LLM.
  *
  * Schema fields:
+ *   aspect_ratio            – optional, best-fit ratio from current width/height (e.g. 16:9)
  *   high_level_description  – optional scene summary
  *   style_description       – aesthetics, lighting, photo|art_style, medium, color_palette
  *   compositional_deconstruction – background + elements[]
@@ -30,7 +31,7 @@ var JsonComposerSettings = {
     apiUrl:     '',    // e.g. "http://localhost:1234"
     apiKey:     '',    // optional Bearer token
     model:      '',    // model name, e.g. "gpt-4o", "mistral"
-    timeout:    60000, // ms
+    timeout:    120000, // ms
     maxRetries: 2
 };
 
@@ -52,6 +53,7 @@ var JsonComposerSettings = {
 
     function freshState() {
         return {
+            aspectRatio: '',
             highLevelDescription: '',
             style: {
                 aesthetics:   '',
@@ -91,7 +93,7 @@ var JsonComposerSettings = {
 
         const anchor = document.querySelector('#prompt_history')
             || (typeof negativePromptField !== 'undefined' && negativePromptField)
-            || document.querySelector('#negative_prompt');
+            || document.querySelector('#negative_prompt_handle');//|| document.querySelector('#negative_prompt');
         if (anchor && anchor.parentNode) {
             anchor.parentNode.insertBefore(btn, anchor.nextSibling);
         }
@@ -883,6 +885,12 @@ var JsonComposerSettings = {
     function buildSchema() {
         const out = {};
 
+        // aspect_ratio – optional, inserted first when derivable from main UI size
+        const derivedAspectRatio = deriveAspectRatioFromMainUi();
+        if (derivedAspectRatio) {
+            out.aspect_ratio = derivedAspectRatio;
+        }
+
         // high_level_description – only if non-empty
         if (state.highLevelDescription.trim()) {
             out.high_level_description = state.highLevelDescription.trim();
@@ -926,6 +934,16 @@ var JsonComposerSettings = {
     // ── Validator / auto-fixer ────────────────────────────────────────────────
     function validateAndFix(schema) {
         const warns = [];
+
+        if (schema.aspect_ratio !== undefined) {
+            const aspectRatio = String(schema.aspect_ratio || '').trim();
+            if (/^\d+:\d+$/.test(aspectRatio)) {
+                schema.aspect_ratio = aspectRatio;
+            } else {
+                warns.push('aspect_ratio is not in n:n format and was removed');
+                delete schema.aspect_ratio;
+            }
+        }
 
         // style_description
         const sd = schema.style_description || {};
@@ -1029,6 +1047,7 @@ var JsonComposerSettings = {
     }
 
     function hydrateStateFromSchema(schema) {
+        state.aspectRatio = schema.aspect_ratio || '';
         state.highLevelDescription = schema.high_level_description || '';
         const sd = schema.style_description || {};
         state.style.aesthetics   = sd.aesthetics   || '';
@@ -1125,10 +1144,7 @@ var JsonComposerSettings = {
         }
 
         syncStateFromFields();
-        const seedText = state.highLevelDescription.trim()
-            || state.background.trim()
-            || (getPromptField() ? getPromptField().value.trim() : '')
-            || '';
+        const magicPromptInput = buildMagicPromptUserInput();
 
         const btn      = document.getElementById('jpc-magic-btn');
         const origHtml = btn.innerHTML;
@@ -1137,7 +1153,7 @@ var JsonComposerSettings = {
 
         const loadingNote = showNotification('Magic Prompt: generating JSON schema…', 'info', true);
         try {
-            const rawText = await callMagicPromptApi(seedText);
+            const rawText = await callMagicPromptApi(magicPromptInput);
             if (loadingNote) loadingNote.remove();
             const parsed = extractJsonFromText(rawText);
             state = freshState();
@@ -1163,23 +1179,24 @@ var JsonComposerSettings = {
         }
     }
 
-    async function callMagicPromptApi(description) {
+    async function callMagicPromptApi(userInput) {
         const system = `You are an expert at creating structured JSON image prompts.
 Given a plain-text description, produce a valid JSON object with EXACTLY these top-level keys in order:
-1. high_level_description  – one or two sentence scene summary
-2. style_description       – object with keys IN ORDER: aesthetics, lighting, photo (for photos) OR art_style (for illustrations), medium, and optionally color_palette (hex array, MUST be last)
-3. compositional_deconstruction – object with: background (string) and elements (array of objects)
+1. aspect_ratio            – optional, if present this MUST be first and use n:n format (example "16:9")
+2. high_level_description  – one or two sentence scene summary
+3. style_description       – object with keys IN ORDER: aesthetics, lighting, photo (for photos) OR art_style (for illustrations), medium, and optionally color_palette (hex array, MUST be last)
+4. compositional_deconstruction – object with: background (string) and elements (array of objects)
    Each element object has keys IN ORDER: type ("obj" or "text"), optional bbox ([y_min, x_min, y_max, x_max] integers 0-1000), optional text (only for type "text", between bbox and desc), desc (detailed description).
 
 Return ONLY the raw JSON object. No markdown fences, no explanation, no other text.`;
 
-        const user = description.trim()
-            ? `Create a schema-compliant JSON image prompt for: "${description}"`
+        const user = (userInput || '').trim()
+            ? userInput
             : 'Create a detailed example schema-compliant JSON image prompt for an interesting scene.';
 
         const endpoint  = JsonComposerSettings.apiUrl.trim().replace(/\/$/, '') + '/v1/chat/completions';
         const controller = new AbortController();
-        const tId = setTimeout(() => controller.abort(), JsonComposerSettings.timeout || 60000);
+        const tId = setTimeout(() => controller.abort(), JsonComposerSettings.timeout || 120000);
 
         try {
             const resp = await fetch(endpoint, {
@@ -1193,8 +1210,8 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
                 body: JSON.stringify({
                     ...(JsonComposerSettings.model ? { model: JsonComposerSettings.model } : {}),
                     messages:    [{ role: 'system', content: system }, { role: 'user', content: user }],
-                    max_tokens:  1200,
-                    temperature: 0.7
+                    max_tokens:  2400,
+                    temperature: 0.8
                 }),
                 signal: controller.signal
             });
@@ -1213,8 +1230,14 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
     function extractJsonFromText(text) {
         if (!text) throw new Error('Empty response from model');
 
-        // Strip markdown code fences
-        let cleaned = text.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+        let cleaned = sanitizeLlmJsonText(text);
+
+        // Some providers return JSON as a quoted string; unwrap and parse again.
+        try {
+            const parsed = JSON.parse(cleaned);
+            if (parsed && typeof parsed === 'object') return parsed;
+            if (typeof parsed === 'string') cleaned = sanitizeLlmJsonText(parsed);
+        } catch (_) {}
 
         try { return JSON.parse(cleaned); } catch (_) {}
 
@@ -1225,6 +1248,31 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
         }
 
         throw new Error('Model returned non-JSON content');
+    }
+
+    function sanitizeLlmJsonText(text) {
+        let cleaned = String(text || '').trim();
+
+        // Unwrap simple outer quotes when the whole payload is quoted.
+        if ((cleaned.startsWith('"') && cleaned.endsWith('"'))
+            || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+            cleaned = cleaned.slice(1, -1).trim();
+        }
+
+        // Normalize common escaped sequences seen in LLM outputs.
+        cleaned = cleaned
+            .replace(/\\r\\n/g, '\n')
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"');
+
+        // Remove markdown fences, including escaped forms.
+        cleaned = cleaned
+            .replace(/\\`\\`\\`(?:json)?/gi, '')
+            .replace(/```(?:json)?\s*/gi, '')
+            .replace(/```/g, '')
+            .trim();
+
+        return cleaned;
     }
 
     function findBalancedObject(text) {
@@ -1245,6 +1293,106 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
             }
         }
         return null;
+    }
+
+    function buildMagicPromptUserInput() {
+        const lines = [];
+        const fallbackPrompt = (getPromptField() ? getPromptField().value.trim() : '') || '';
+
+        lines.push('Create or refine a schema-compliant JSON image prompt using the context below.');
+
+        if (state.highLevelDescription.trim()) {
+            lines.push('Scene Description: ' + state.highLevelDescription.trim());
+        }
+
+        if (state.background.trim()) {
+            lines.push('Background: ' + state.background.trim());
+        }
+
+        const styleParts = [];
+        if (state.style.aesthetics.trim()) styleParts.push('aesthetics=' + state.style.aesthetics.trim());
+        if (state.style.lighting.trim()) styleParts.push('lighting=' + state.style.lighting.trim());
+        if (state.style.medium.trim()) styleParts.push('medium=' + state.style.medium.trim());
+        if (state.style.styleMode === 'photo' && state.style.photo.trim()) {
+            styleParts.push('photo=' + state.style.photo.trim());
+        }
+        if (state.style.styleMode === 'art_style' && state.style.art_style.trim()) {
+            styleParts.push('art_style=' + state.style.art_style.trim());
+        }
+        if (Array.isArray(state.style.colorPalette) && state.style.colorPalette.length > 0) {
+            styleParts.push('color_palette=' + state.style.colorPalette.join(', '));
+        }
+        if (styleParts.length > 0) {
+            lines.push('Style Context: ' + styleParts.join(' | '));
+        }
+
+        const aspect = deriveAspectRatioFromMainUi();
+        if (aspect) {
+            lines.push('Suggested aspect_ratio: ' + aspect);
+        }
+
+        const existingElements = Array.isArray(state.elements) ? state.elements : [];
+        if (existingElements.length > 0) {
+            lines.push('Existing elements (preserve intent; improve clarity and consistency):');
+            existingElements.forEach((el, idx) => {
+                const parts = [];
+                parts.push('type=' + (el.type || 'obj'));
+                if (Array.isArray(el.bbox) && el.bbox.length === 4) {
+                    parts.push('bbox=[' + el.bbox.map(v => Math.round(Number(v) || 0)).join(', ') + ']');
+                }
+                if (el.type === 'text' && (el.text || '').trim()) {
+                    parts.push('text=' + (el.text || '').trim());
+                }
+                if ((el.desc || '').trim()) {
+                    parts.push('desc=' + (el.desc || '').trim());
+                }
+                lines.push((idx + 1) + '. ' + parts.join(' | '));
+            });
+        }
+
+        if (!state.highLevelDescription.trim() && fallbackPrompt) {
+            lines.push('Fallback freeform prompt text: ' + fallbackPrompt);
+        }
+
+        lines.push('Return only valid JSON matching the required schema.');
+        return lines.join('\n');
+    }
+
+    // Pick the closest common ratio using current main UI width/height settings.
+    function deriveAspectRatioFromMainUi() {
+        const widthEl  = document.querySelector('#width');
+        const heightEl = document.querySelector('#height');
+        if (!widthEl || !heightEl) return '';
+
+        const width  = parseInt(widthEl.value, 10);
+        const height = parseInt(heightEl.value, 10);
+        if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return '';
+
+        const ratio = width / height;
+        const commonRatios = [
+            { label: '1:1',  value: 1 },
+            { label: '4:3',  value: 4 / 3 },
+            { label: '3:4',  value: 3 / 4 },
+            { label: '3:2',  value: 3 / 2 },
+            { label: '2:3',  value: 2 / 3 },
+            { label: '16:9', value: 16 / 9 },
+            { label: '9:16', value: 9 / 16 },
+            { label: '21:9', value: 21 / 9 },
+            { label: '32:9', value: 32 / 9 }
+        ];
+
+        let best = commonRatios[0];
+        let bestDelta = Math.abs(ratio - best.value);
+        for (let i = 1; i < commonRatios.length; i++) {
+            const candidate = commonRatios[i];
+            const delta = Math.abs(ratio - candidate.value);
+            if (delta < bestDelta) {
+                best = candidate;
+                bestDelta = delta;
+            }
+        }
+
+        return best.label;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -1393,6 +1541,13 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
     </div>
 
     <div class="input-group">
+        <label for="jpc_timeout_seconds">Request Timeout (seconds):</label>
+        <input id="jpc_timeout_seconds" name="jpc_timeout_seconds" type="number" min="1" step="1" size="10"
+            placeholder="120"
+            onchange="setJsonComposerSettings()" autocomplete="off">
+    </div>
+
+    <div class="input-group">
         <button class="btn btn-secondary" onclick="jsonComposerResetSettings(event)">
             Reset to Defaults
         </button>
@@ -1445,6 +1600,13 @@ function setJsonComposerSettings() {
     JsonComposerSettings.apiUrl = g('jpc_api_url');
     JsonComposerSettings.apiKey = g('jpc_api_key');
     JsonComposerSettings.model  = g('jpc_model');
+
+    const timeoutSecondsRaw = parseFloat(g('jpc_timeout_seconds'));
+    const timeoutSeconds = Number.isFinite(timeoutSecondsRaw) && timeoutSecondsRaw > 0
+        ? timeoutSecondsRaw
+        : 120;
+    JsonComposerSettings.timeout = Math.round(timeoutSeconds * 1000);
+
     localStorage.setItem('JsonComposer_Plugin_Settings', JSON.stringify(JsonComposerSettings));
 }
 
@@ -1456,7 +1618,7 @@ function jsonComposerResetSettings(resetEvent) {
         JsonComposerSettings.apiUrl     = '';
         JsonComposerSettings.apiKey     = '';
         JsonComposerSettings.model      = '';
-        JsonComposerSettings.timeout    = 60000;
+        JsonComposerSettings.timeout    = 120000;
         JsonComposerSettings.maxRetries = 2;
     } else {
         Object.assign(JsonComposerSettings, saved);
@@ -1466,4 +1628,5 @@ function jsonComposerResetSettings(resetEvent) {
     set('jpc_api_url', JsonComposerSettings.apiUrl);
     set('jpc_api_key', JsonComposerSettings.apiKey);
     set('jpc_model',   JsonComposerSettings.model);
+    set('jpc_timeout_seconds', Math.max(1, Math.round((JsonComposerSettings.timeout || 120000) / 1000)));
 }
