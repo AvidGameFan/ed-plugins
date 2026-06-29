@@ -287,11 +287,11 @@ var LLMSettings = {
         //if we're unsure from the internal check, use the filename as a fall-back.
         
         // Combined regex for all Flux-related terms
-        return /flux|lyhAnime_kor|chroma|sd3|qwen/i.test(modelName);
+        return /flux|lyhAnime_kor|chroma|sd3|qwen|krea/i.test(modelName);
       }
     const commonInstructions = ` Focus on visual elements and avoid extraneous information. 
 Keep to a a consistent style and avoid multiple styles; only choose one of anime, octane render, realistic, photographic, painterly, or other such core style. 
-Keep prompts concise but detailed. Do not include any other text than the prompt. Do not explain your resoning or display your thought process - only include the prompt. `;
+Keep prompts concise but detailed. Do not include any other text than the prompt. Do not explain your reasoning or display your thought process - only include the prompt. `;
     // Prompt type configurations
     const promptTypes = {
         enhance: {

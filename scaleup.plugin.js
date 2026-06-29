@@ -466,7 +466,7 @@ function isModelFlux(modelName) {
   //if we're unsure from the internal check, use the filename as a fall-back.
   
   // Combined regex for all Flux-related terms
-  return /flux|lyhAnime_kor|chroma|sd3|z-image|z_image|qwen/i.test(modelName);
+  return /flux|lyhAnime_kor|chroma|sd3|z-image|z_image|qwen|krea/i.test(modelName);
 }
 
 
