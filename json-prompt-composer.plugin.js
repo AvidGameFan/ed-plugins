@@ -1,7 +1,7 @@
 /*
  * JSON Prompt Composer
  *
- * v1.0.1, last updated: 6/28/2026
+ * v1.1.0, last updated: 6/29/2026
  * By GitHub Copilot
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -28,11 +28,12 @@
 
 // Settings live outside IIFE so global save/load functions can reach them.
 var JsonComposerSettings = {
-    apiUrl:     '',    // e.g. "http://localhost:1234"
-    apiKey:     '',    // optional Bearer token
-    model:      '',    // model name, e.g. "gpt-4o", "mistral"
-    timeout:    120000, // ms
-    maxRetries: 2
+    apiUrl:       '',    // e.g. "http://localhost:1234"
+    apiKey:       '',    // optional Bearer token
+    model:        '',    // model name, e.g. "gpt-4o", "mistral"
+    timeout:      120000, // ms
+    maxRetries:   2,
+    swapBboxAxes: true  // Krea/Qwen: bbox=[x,y,x,y] instead of default Ideogram [y,x,y,x]
 };
 
 (function () {
@@ -247,19 +248,19 @@ var JsonComposerSettings = {
                 </select>
 
                 <label class="jpc-fl">Bounding Box
-                    <span class="jpc-hint">optional · 0–1000 · [y_min, x_min, y_max, x_max]</span>
+                    <span id="jpc-bb-hint" class="jpc-hint">optional · 0–1000 · [y_min, x_min, y_max, x_max]</span>
                 </label>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px;">
-                    <div><small style="color:#6c7086;">y_min</small>
+                    <div><small id="jpc-bb-lbl-0" style="color:#6c7086;">y_min</small>
                         <input id="jpc-bb-y0" type="number" min="0" max="1000" style="width:100%;box-sizing:border-box;">
                     </div>
-                    <div><small style="color:#6c7086;">x_min</small>
+                    <div><small id="jpc-bb-lbl-1" style="color:#6c7086;">x_min</small>
                         <input id="jpc-bb-x0" type="number" min="0" max="1000" style="width:100%;box-sizing:border-box;">
                     </div>
-                    <div><small style="color:#6c7086;">y_max</small>
+                    <div><small id="jpc-bb-lbl-2" style="color:#6c7086;">y_max</small>
                         <input id="jpc-bb-y1" type="number" min="0" max="1000" style="width:100%;box-sizing:border-box;">
                     </div>
-                    <div><small style="color:#6c7086;">x_max</small>
+                    <div><small id="jpc-bb-lbl-3" style="color:#6c7086;">x_max</small>
                         <input id="jpc-bb-x1" type="number" min="0" max="1000" style="width:100%;box-sizing:border-box;">
                     </div>
                 </div>
@@ -307,6 +308,7 @@ var JsonComposerSettings = {
         setupCanvas();
         populateFields();
         renderElementList();
+        syncBboxLabels();
     }
 
     // ── Event wiring ──────────────────────────────────────────────────────────
@@ -470,7 +472,7 @@ var JsonComposerSettings = {
         // Elements
         state.elements.forEach((el, idx) => {
             if (!el.bbox) return;
-            const [ly0, lx0, ly1, lx1] = el.bbox;
+            const { x0: lx0, y0: ly0, x1: lx1, y1: ly1 } = bboxToCoords(el.bbox);
             const x = lx0 * cScale, y = ly0 * cScale;
             const w = (lx1 - lx0) * cScale, h = (ly1 - ly0) * cScale;
             const isSel = idx === state.selectedIndex;
@@ -519,7 +521,7 @@ var JsonComposerSettings = {
 
     // Returns handle center positions in LOGICAL coordinates
     function handlePositions(bbox) {
-        const [y0, x0, y1, x1] = bbox;
+        const { x0, y0, x1, y1 } = bboxToCoords(bbox);
         const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
         return {
             tl: [x0, y0], tc: [cx, y0], tr: [x1, y0],
@@ -545,7 +547,7 @@ var JsonComposerSettings = {
         for (let i = state.elements.length - 1; i >= 0; i--) {
             const el = state.elements[i];
             if (!el.bbox) continue;
-            const [y0, x0, y1, x1] = el.bbox;
+            const { x0, y0, x1, y1 } = bboxToCoords(el.bbox);
             if (lx >= x0 && lx <= x1 && ly >= y0 && ly <= y1) return i;
         }
         return -1;
@@ -616,12 +618,12 @@ var JsonComposerSettings = {
         if (ci.isDragging) {
             const el = state.elements[state.selectedIndex];
             if (!el) return;
-            const [oy0, ox0, oy1, ox1] = ci.origBbox;
+            const { x0: ox0, y0: oy0, x1: ox1, y1: oy1 } = bboxToCoords(ci.origBbox);
             const bw = ox1 - ox0, bh = oy1 - oy0;
             const dx = lx - ci.startLX, dy = ly - ci.startLY;
             const nx0 = Math.max(0, Math.min(LOGIC_SIZE - bw, ox0 + dx));
             const ny0 = Math.max(0, Math.min(LOGIC_SIZE - bh, oy0 + dy));
-            el.bbox = [Math.round(ny0), Math.round(nx0), Math.round(ny0 + bh), Math.round(nx0 + bw)];
+            el.bbox = coordsToBbox(Math.round(nx0), Math.round(ny0), Math.round(nx0 + bw), Math.round(ny0 + bh));
             syncBboxFields();
             drawCanvas();
             return;
@@ -651,7 +653,7 @@ var JsonComposerSettings = {
             const by0 = Math.round(Math.min(ci.startLY, ly));
             const by1 = Math.round(Math.max(ci.startLY, ly));
             if ((bx1 - bx0) >= MIN_BOX_LOGICAL && (by1 - by0) >= MIN_BOX_LOGICAL) {
-                state.elements.push({ type: 'obj', desc: '', bbox: [by0, bx0, by1, bx1] });
+                state.elements.push({ type: 'obj', desc: '', bbox: coordsToBbox(bx0, by0, bx1, by1) });
                 selectElement(state.elements.length - 1);
             } else {
                 drawCanvas();
@@ -668,7 +670,7 @@ var JsonComposerSettings = {
     function applyResize(lx, ly) {
         const el = state.elements[state.selectedIndex];
         if (!el || !el.bbox) return;
-        const [oy0, ox0, oy1, ox1] = state.ci.origBbox;
+        const { x0: ox0, y0: oy0, x1: ox1, y1: oy1 } = bboxToCoords(state.ci.origBbox);
         const dx = lx - state.ci.startLX;
         const dy = ly - state.ci.startLY;
         const h  = state.ci.resizeHandle;
@@ -679,7 +681,7 @@ var JsonComposerSettings = {
         if (h.includes('l')) nx0 = Math.max(0,         Math.min(ox1 - MIN_BOX_LOGICAL, ox0 + dx));
         if (h.includes('r')) nx1 = Math.min(LOGIC_SIZE, Math.max(ox0 + MIN_BOX_LOGICAL, ox1 + dx));
 
-        el.bbox = [Math.round(ny0), Math.round(nx0), Math.round(ny1), Math.round(nx1)];
+        el.bbox = coordsToBbox(Math.round(nx0), Math.round(ny0), Math.round(nx1), Math.round(ny1));
     }
 
     // ── Keyboard ──────────────────────────────────────────────────────────────
@@ -702,14 +704,14 @@ var JsonComposerSettings = {
             const el = state.elements[state.selectedIndex];
             if (!el || !el.bbox) return;
             const d = e.shiftKey ? 10 : 1;
-            const [y0, x0, y1, x1] = el.bbox;
+            const { x0, y0, x1, y1 } = bboxToCoords(el.bbox);
             const bw = x1 - x0, bh = y1 - y0;
             let ny0 = y0, nx0 = x0;
             if (e.key === 'ArrowUp')    ny0 = Math.max(0,              y0 - d);
             if (e.key === 'ArrowDown')  ny0 = Math.min(LOGIC_SIZE - bh, y0 + d);
             if (e.key === 'ArrowLeft')  nx0 = Math.max(0,              x0 - d);
             if (e.key === 'ArrowRight') nx0 = Math.min(LOGIC_SIZE - bw, x0 + d);
-            el.bbox = [Math.round(ny0), Math.round(nx0), Math.round(ny0 + bh), Math.round(nx0 + bw)];
+            el.bbox = coordsToBbox(Math.round(nx0), Math.round(ny0), Math.round(nx0 + bw), Math.round(ny0 + bh));
             syncBboxFields();
             drawCanvas();
         }
@@ -1006,7 +1008,7 @@ var JsonComposerSettings = {
             + warns.map(w => '&#8226; ' + escHtml(w)).join('<br>');
     }
 
-    // ── Parse from prompt ─────────────────────────────────────────────────────
+// ── Parse from prompt ─────────────────────────────────────────────────────
     async function parseFromPrompt() {
         const pf  = getPromptField();
         const raw = pf ? pf.value.trim() : '';
@@ -1018,6 +1020,7 @@ var JsonComposerSettings = {
                 const parsed = JSON.parse(unescaped);
                 state = freshState();
                 hydrateStateFromSchema(parsed);
+                swapBboxCoordinatesIfNecessary();
                 populateFields();
                 renderElementList();
                 renderEditor();
@@ -1395,6 +1398,38 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
         return best.label;
     }
 
+    // ── Bbox axis helpers ─────────────────────────────────────────────────────
+    // Interprets a bbox array as canvas {x0,y0,x1,y1} respecting swapBboxAxes.
+    // Normal/Ideogram: bbox = [y_min, x_min, y_max, x_max]
+    // Swapped/Krea-Qwen: bbox = [x_min, y_min, x_max, y_max]
+    function bboxToCoords(bbox) {
+        return JsonComposerSettings.swapBboxAxes
+            ? { x0: bbox[0], y0: bbox[1], x1: bbox[2], y1: bbox[3] }
+            : { x0: bbox[1], y0: bbox[0], x1: bbox[3], y1: bbox[2] };
+    }
+
+    // Packs canvas {x0,y0,x1,y1} back into a bbox array respecting swapBboxAxes.
+    function coordsToBbox(x0, y0, x1, y1) {
+        return JsonComposerSettings.swapBboxAxes
+            ? [x0, y0, x1, y1]
+            : [y0, x0, y1, x1];
+    }
+
+    // Updates the bbox field labels in the open editor to match the current axis mode.
+    function syncBboxLabels() {
+        const swap = JsonComposerSettings.swapBboxAxes;
+        const hint = document.getElementById('jpc-bb-hint');
+        if (hint) hint.textContent = 'optional · 0–1000 · ' +
+            (swap ? '[x_min, y_min, x_max, y_max]' : '[y_min, x_min, y_max, x_max]');
+        const labels = swap
+            ? ['x_min', 'y_min', 'x_max', 'y_max']
+            : ['y_min', 'x_min', 'y_max', 'x_max'];
+        labels.forEach((lbl, i) => {
+            const el = document.getElementById('jpc-bb-lbl-' + i);
+            if (el) el.textContent = lbl;
+        });
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
     function getPromptField() {
         return (typeof promptField !== 'undefined' && promptField)
@@ -1548,6 +1583,15 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
     </div>
 
     <div class="input-group">
+        <label for="jpc_swap_bbox_axes" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input id="jpc_swap_bbox_axes" name="jpc_swap_bbox_axes" type="checkbox"
+                onchange="setJsonComposerSettings()">
+            Swap bbox axes (Krea / Qwen format)
+        </label>
+        <small>When enabled: bbox = [x_min, y_min, x_max, y_max] · Default (Ideogram 4): [y_min, x_min, y_max, x_max]</small>
+    </div>
+
+    <div class="input-group">
         <button class="btn btn-secondary" onclick="jsonComposerResetSettings(event)">
             Reset to Defaults
         </button>
@@ -1606,6 +1650,8 @@ function setJsonComposerSettings() {
         ? timeoutSecondsRaw
         : 120;
     JsonComposerSettings.timeout = Math.round(timeoutSeconds * 1000);
+    const swapEl = document.getElementById('jpc_swap_bbox_axes');
+    JsonComposerSettings.swapBboxAxes = swapEl ? swapEl.checked : false;
 
     localStorage.setItem('JsonComposer_Plugin_Settings', JSON.stringify(JsonComposerSettings));
 }
@@ -1615,13 +1661,15 @@ function jsonComposerResetSettings(resetEvent) {
     try { saved = JSON.parse(localStorage.getItem('JsonComposer_Plugin_Settings')); } catch (_) {}
 
     if (saved == null || resetEvent != null) {
-        JsonComposerSettings.apiUrl     = '';
-        JsonComposerSettings.apiKey     = '';
-        JsonComposerSettings.model      = '';
-        JsonComposerSettings.timeout    = 120000;
-        JsonComposerSettings.maxRetries = 2;
+        JsonComposerSettings.apiUrl       = '';
+        JsonComposerSettings.apiKey       = '';
+        JsonComposerSettings.model        = '';
+        JsonComposerSettings.timeout      = 120000;
+        JsonComposerSettings.maxRetries   = 2;
+        JsonComposerSettings.swapBboxAxes = true;
     } else {
         Object.assign(JsonComposerSettings, saved);
+        if (JsonComposerSettings.swapBboxAxes === undefined) JsonComposerSettings.swapBboxAxes = true;
     }
 
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
@@ -1629,4 +1677,6 @@ function jsonComposerResetSettings(resetEvent) {
     set('jpc_api_key', JsonComposerSettings.apiKey);
     set('jpc_model',   JsonComposerSettings.model);
     set('jpc_timeout_seconds', Math.max(1, Math.round((JsonComposerSettings.timeout || 120000) / 1000)));
+    const swapEl = document.getElementById('jpc_swap_bbox_axes');
+    if (swapEl) swapEl.checked = !!JsonComposerSettings.swapBboxAxes;
 }
