@@ -1,7 +1,7 @@
 /*
  * JSON Prompt Composer
  *
- * v1.1.0, last updated: 6/29/2026
+ * v1.1.1, last updated: 6/29/2026
  * By GitHub Copilot
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -76,7 +76,11 @@ var JsonComposerSettings = {
                 startLX:      0,
                 startLY:      0,
                 origBbox:     null,
-                hoverIndex:   -1
+                hoverIndex:   -1,
+                lastClickLX:  null,  // for overlap cycling
+                lastClickLY:  null,
+                cycleList:    [],
+                cyclePos:     0
             }
         };
     }
@@ -553,6 +557,18 @@ var JsonComposerSettings = {
         return -1;
     }
 
+    // Returns ALL element indices under (lx,ly), top-most first.
+    function hitBoxAll(lx, ly) {
+        const hits = [];
+        for (let i = state.elements.length - 1; i >= 0; i--) {
+            const el = state.elements[i];
+            if (!el.bbox) continue;
+            const { x0, y0, x1, y1 } = bboxToCoords(el.bbox);
+            if (lx >= x0 && lx <= x1 && ly >= y0 && ly <= y1) hits.push(i);
+        }
+        return hits;
+    }
+
     function cursorFor(lx, ly) {
         if (hitHandle(lx, ly)) return 'nwse-resize';
         if (hitBox(lx, ly) >= 0) return 'move';
@@ -576,15 +592,39 @@ var JsonComposerSettings = {
             return;
         }
 
-        const boxIdx = hitBox(lx, ly);
-        if (boxIdx >= 0) {
+        const hits = hitBoxAll(lx, ly);
+        if (hits.length > 0) {
+            const ci = state.ci;
+            const CYCLE_TOLERANCE = 8; // logical pixels — same spot
+            const samePt = ci.lastClickLX !== null &&
+                Math.abs(lx - ci.lastClickLX) <= CYCLE_TOLERANCE &&
+                Math.abs(ly - ci.lastClickLY) <= CYCLE_TOLERANCE;
+
+            if (samePt && ci.cycleList.length > 1) {
+                // Advance to next overlapping box
+                ci.cyclePos = (ci.cyclePos + 1) % ci.cycleList.length;
+            } else {
+                // New location — build fresh cycle list, start at top
+                ci.cycleList = hits;
+                ci.cyclePos  = 0;
+            }
+            ci.lastClickLX = lx;
+            ci.lastClickLY = ly;
+
+            const boxIdx = ci.cycleList[ci.cyclePos];
             selectElement(boxIdx);
-            state.ci.isDragging = true;
-            state.ci.startLX    = lx;
-            state.ci.startLY    = ly;
-            state.ci.origBbox   = [...state.elements[boxIdx].bbox];
+            ci.isDragging = true;
+            ci.startLX    = lx;
+            ci.startLY    = ly;
+            ci.origBbox   = [...state.elements[boxIdx].bbox];
             return;
         }
+
+        // Clicked empty space — reset cycle state
+        state.ci.lastClickLX = null;
+        state.ci.lastClickLY = null;
+        state.ci.cycleList   = [];
+        state.ci.cyclePos    = 0;
 
         // Begin drawing a new box
         state.ci.isDrawing = true;
