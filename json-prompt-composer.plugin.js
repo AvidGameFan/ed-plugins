@@ -1,7 +1,7 @@
 /*
  * JSON Prompt Composer
  *
- * v1.1.1, last updated: 6/29/2026
+ * v1.1.2, last updated: 6/30/2026
  * By GitHub Copilot
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -81,7 +81,8 @@ var JsonComposerSettings = {
                 lastClickLY:  null,
                 cycleList:    [],
                 cyclePos:     0
-            }
+            },
+            bgImage:       null   // optional background Image object for canvas
         };
     }
 
@@ -453,6 +454,16 @@ var JsonComposerSettings = {
         // Background
         ctx.fillStyle = '#11111b';
         ctx.fillRect(0, 0, W, H);
+
+        // Reference image (from "Use in JSON Composer"), dimmed for box visibility
+        if (state.bgImage && state.bgImage.complete) {
+            ctx.globalAlpha = 0.35;
+            ctx.drawImage(state.bgImage, 0, 0, W, H);
+            ctx.globalAlpha = 1.0;
+            // Subtle dark overlay to increase box contrast
+            ctx.fillStyle = 'rgba(0,0,0,0.45)';
+            ctx.fillRect(0, 0, W, H);
+        }
 
         // Grid lines
         ctx.strokeStyle = '#252535';
@@ -1670,6 +1681,44 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
                 console.warn('[JSON Composer] UI anchor not found after 12s – launch button not inserted');
             }
         }, 100);
+    }
+
+    // ── "Use in JSON Composer" image button ──────────────────────────────────
+    function openComposerFromImage(origRequest, image) {
+        const existing = document.getElementById('jpc-modal');
+        if (existing) existing.remove();
+
+        state = freshState();
+
+        // Load prompt: prefer origRequest.prompt, fall back to current prompt field
+        const rawPrompt = (origRequest && origRequest.prompt)
+            ? String(origRequest.prompt).trim()
+            : '';
+        const unescaped = rawPrompt ? unescapeFromPrompt(rawPrompt) : '';
+        if (unescaped.startsWith('{')) {
+            try { hydrateStateFromSchema(JSON.parse(unescaped)); } catch (_) {}
+        } else if (unescaped) {
+            state.highLevelDescription = unescaped;
+        }
+
+        // Load background image
+        if (image && image.src) {
+            const img = new Image();
+            img.onload = () => {
+                state.bgImage = img;
+                drawCanvas();
+            };
+            img.src = image.src;
+        }
+
+        buildModal();
+    }
+
+    if (typeof PLUGINS !== 'undefined' && Array.isArray(PLUGINS['IMAGE_INFO_BUTTONS'])) {
+        PLUGINS['IMAGE_INFO_BUTTONS'].push([
+            { text: '\u{1F4CB} JSON Composer', on_click: openComposerFromImage }
+e            { html: '<i class="fa-solid fa-th-large"></i>', on_click: onScaleUpSplitClick, filter: onScaleUpSplitFilter  },
+        ]);
     }
 
     setup();
