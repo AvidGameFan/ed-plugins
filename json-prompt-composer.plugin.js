@@ -1,7 +1,7 @@
 /*
  * JSON Prompt Composer
  *
- * v1.1.3, last updated: 6/30/2026
+ * v1.1.4, last updated: 6/30/2026
  * By GitHub Copilot
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -97,11 +97,25 @@ var JsonComposerSettings = {
         btn.style.cssText = 'margin-top:4px;font-size:12px;padding:5px 10px;';
         btn.addEventListener('click', openComposer);
 
-        const anchor = document.querySelector('#prompt_history')
-            || (typeof negativePromptField !== 'undefined' && negativePromptField)
-            || document.querySelector('#negative_prompt_handle');//|| document.querySelector('#negative_prompt');
-        if (anchor && anchor.parentNode) {
-            anchor.parentNode.insertBefore(btn, anchor.nextSibling);
+
+        
+        // Preferred: insert after the prompt history dropdown
+        const promptHistory = document.querySelector('#prompt_history');
+        if (promptHistory && promptHistory.parentNode) {
+            promptHistory.parentNode.insertBefore(btn, promptHistory.nextSibling);
+            return;
+        }
+
+        // Fallback: append after the negative prompt section (same approach as llm-image-generator)
+        try {
+            const negField = (typeof negativePromptField !== 'undefined' && negativePromptField)
+                ? negativePromptField
+                : document.querySelector('#negative_prompt');
+            if (negField && negField.parentNode && negField.parentNode.parentNode) {
+                negField.parentNode.parentNode.insertBefore(btn, null);
+            }
+        } catch (e) {
+            // noop
         }
     }
 
