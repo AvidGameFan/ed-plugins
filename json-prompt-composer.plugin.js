@@ -1,7 +1,7 @@
 /*
  * JSON Prompt Composer
  *
- * v1.1.2, last updated: 6/30/2026
+ * v1.1.3, last updated: 6/30/2026
  * By GitHub Copilot
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -1234,13 +1234,16 @@ var JsonComposerSettings = {
     }
 
     async function callMagicPromptApi(userInput) {
+        const bboxFmt = JsonComposerSettings.swapBboxAxes
+            ? '[x_min, y_min, x_max, y_max]'
+            : '[y_min, x_min, y_max, x_max]';
         const system = `You are an expert at creating structured JSON image prompts.
 Given a plain-text description, produce a valid JSON object with EXACTLY these top-level keys in order:
 1. aspect_ratio            – optional, if present this MUST be first and use n:n format (example "16:9")
 2. high_level_description  – one or two sentence scene summary
 3. style_description       – object with keys IN ORDER: aesthetics, lighting, photo (for photos) OR art_style (for illustrations), medium, and optionally color_palette (hex array, MUST be last)
 4. compositional_deconstruction – object with: background (string) and elements (array of objects)
-   Each element object has keys IN ORDER: type ("obj" or "text"), optional bbox ([y_min, x_min, y_max, x_max] integers 0-1000), optional text (only for type "text", between bbox and desc), desc (detailed description).
+   Each element object has keys IN ORDER: type ("obj" or "text"), optional bbox (${bboxFmt} integers 0-1000), optional text (only for type "text", between bbox and desc), desc (detailed description).
 
 Return ONLY the raw JSON object. No markdown fences, no explanation, no other text.`;
 
@@ -1387,7 +1390,10 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
 
         const existingElements = Array.isArray(state.elements) ? state.elements : [];
         if (existingElements.length > 0) {
-            lines.push('Existing elements (preserve intent; improve clarity and consistency):');
+            const bboxFmt = JsonComposerSettings.swapBboxAxes
+                ? '[x_min, y_min, x_max, y_max]'
+                : '[y_min, x_min, y_max, x_max]';
+            lines.push(`Existing elements (bbox format: ${bboxFmt}; preserve intent; improve clarity and consistency):`);
             existingElements.forEach((el, idx) => {
                 const parts = [];
                 parts.push('type=' + (el.type || 'obj'));
@@ -1716,8 +1722,7 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
 
     if (typeof PLUGINS !== 'undefined' && Array.isArray(PLUGINS['IMAGE_INFO_BUTTONS'])) {
         PLUGINS['IMAGE_INFO_BUTTONS'].push([
-            { text: '\u{1F4CB} JSON Composer', on_click: openComposerFromImage }
-e            { html: '<i class="fa-solid fa-th-large"></i>', on_click: onScaleUpSplitClick, filter: onScaleUpSplitFilter  },
+           { html: '<i class="fa-solid fa-diagram-project"></i> JSON Composer', on_click: openComposerFromImage }
         ]);
     }
 
