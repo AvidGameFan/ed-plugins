@@ -225,14 +225,30 @@ Do not include any preamble or explanation - only return the prompt itself.`;
         throw lastError || new Error('All retry attempts failed');
     }
 
+    function stripThinkingBlocks(text) {
+        if (!text) return '';
+
+        return text
+            .replace(/<\|[a-zA-Z0-9_.-]+\|>[\s\S]*?[a-zA-Z0-9_.-]+\|>/g, ' ')
+            .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
+            .replace(/<analysis>[\s\S]*?<\/analysis>/gi, ' ')
+            .trim();
+    }
+
     // Clean up prompt text
     function cleanPromptText(text) {
         if (!text) return '';
-        
-        // Remove any markdown formatting
-        text = text.replace(/```.*?```/gs, '');
+
+        text = stripThinkingBlocks(text);
+
+        // If the model fenced the real prompt, unwrap it instead of deleting it.
+        const fenceMatch = text.match(/```(?:text|markdown)?\s*([\s\S]*?)\s*```/i);
+        if (fenceMatch && fenceMatch[1]) {
+            text = fenceMatch[1].trim();
+        }
+
         text = text.replace(/`/g, '');
-        
+
         // Remove quotes if the entire text is wrapped in them
         text = text.trim();
         if ((text.startsWith('"') && text.endsWith('"')) || 

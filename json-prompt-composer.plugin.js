@@ -1324,6 +1324,12 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
     function sanitizeLlmJsonText(text) {
         let cleaned = String(text || '').trim();
 
+        cleaned = cleaned
+            .replace(/<\|[a-zA-Z0-9_.-]+\|>[\s\S]*?[a-zA-Z0-9_.-]+\|>/g, ' ')
+            .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
+            .replace(/<analysis>[\s\S]*?<\/analysis>/gi, ' ')
+            .trim();
+
         // Unwrap simple outer quotes when the whole payload is quoted.
         if ((cleaned.startsWith('"') && cleaned.endsWith('"'))
             || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
