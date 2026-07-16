@@ -1,7 +1,7 @@
 /* 
  * Image to Prompt Plugin
  *
- * v.1.0.0, last updated: 12/30/2025
+ * v.1.1.0, last updated: 7/15/2026
  * Initial version by GitHub Copilot, modified by Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.

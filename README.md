@@ -84,6 +84,12 @@ Adds buttons to allow easy selection of starting values at the selected ratio.  
 Adds a circular magnifier to the image window, to aid in examining details.
 [Magnifier](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/magnifier.plugin.js)
 
+### JSON Prompt Composer
+
+This dialog allows you to draw boxes to identify different objects in the image and suggest their locations.  If you have an LLM, you can add its URL to enable the Magic Prompt feature, where it will build the JSON prompt for you.
+
+[JSON Prompt Composer](https://raw.githubusercontent.com/AvidGameFan/ed-plugins/refs/heads/master/json-prompt-composer.plugin.js)
+
 ### LLM Prompt Generation
 
 This plugin adds a button that calls a local LLM using an OpenAI API endpoint, requesting a more detailed prompt.  Either make the prompt field blank, in which case the LLM will create its own, or use an existing prompt which the LLM will expand upon.  This may be useful for newer models that seem to work better with more detail in their prompting.

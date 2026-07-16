@@ -1,8 +1,8 @@
 /*
  * JSON Prompt Composer
  *
- * v1.1.4, last updated: 6/30/2026
- * By GitHub Copilot
+ * v1.1.5, last updated: 7/15/2026
+ * By GitHub Copilot and Avidgamefan
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
  *
@@ -41,9 +41,20 @@ var JsonComposerSettings = {
 
     // ── Constants ─────────────────────────────────────────────────────────────
     const LOGIC_SIZE           = 1000;  // normalized coordinate space
+    const DEFAULT_BBOX         = [10, 10, 100, 100];  // fallback when bbox or individual values are missing
     const HANDLE_PX            = 8;     // resize handle square size in canvas pixels
     const HANDLE_HIT_LOGICAL   = 18;    // hit radius in logical units for handles
     const MIN_BOX_LOGICAL      = 20;    // minimum box dimension when drawing
+
+    // Normalize a raw bbox array, substituting DEFAULT_BBOX values for any missing/invalid entries.
+    // Always returns a 4-element array clamped to [0, LOGIC_SIZE].
+    function normalizeBbox(raw) {
+        const src = Array.isArray(raw) && raw.length === 4 ? raw : [];
+        return DEFAULT_BBOX.map((def, i) => {
+            const n = Number(src[i]);
+            return (src[i] == null || src[i] === '' || isNaN(n)) ? def : Math.max(0, Math.min(LOGIC_SIZE, Math.round(n)));
+        });
+    }
 
     // ── State ─────────────────────────────────────────────────────────────────
     let state  = null;
@@ -1045,19 +1056,17 @@ var JsonComposerSettings = {
             // Empty desc warning
             if (!el.desc) warns.push(`Element ${n}: desc is empty`);
 
-            // bbox normalization
-            if (el.bbox) {
-                // Coerce to integers, clamp to [0, 1000]
-                el.bbox = el.bbox.map(v => Math.max(0, Math.min(LOGIC_SIZE, Math.round(Number(v) || 0))));
-                // Swap reversed coordinates
-                if (el.bbox[0] > el.bbox[2]) {
-                    [el.bbox[0], el.bbox[2]] = [el.bbox[2], el.bbox[0]];
-                    warns.push(`Element ${n}: y_min > y_max – swapped automatically`);
-                }
-                if (el.bbox[1] > el.bbox[3]) {
-                    [el.bbox[1], el.bbox[3]] = [el.bbox[3], el.bbox[1]];
-                    warns.push(`Element ${n}: x_min > x_max – swapped automatically`);
-                }
+            // bbox normalization – always ensure a valid 4-element bbox,
+            // filling any missing/invalid values from DEFAULT_BBOX
+            el.bbox = normalizeBbox(el.bbox);
+            // Swap reversed coordinates
+            if (el.bbox[0] > el.bbox[2]) {
+                [el.bbox[0], el.bbox[2]] = [el.bbox[2], el.bbox[0]];
+                warns.push(`Element ${n}: y_min > y_max – swapped automatically`);
+            }
+            if (el.bbox[1] > el.bbox[3]) {
+                [el.bbox[1], el.bbox[3]] = [el.bbox[3], el.bbox[1]];
+                warns.push(`Element ${n}: x_min > x_max – swapped automatically`);
             }
         });
 
@@ -1135,9 +1144,7 @@ var JsonComposerSettings = {
             type: el.type === 'text' ? 'text' : 'obj',
             desc: el.desc || '',
             text: el.type === 'text' ? (el.text || '') : undefined,
-            bbox: Array.isArray(el.bbox) && el.bbox.length === 4
-                ? el.bbox.map(v => Math.max(0, Math.min(LOGIC_SIZE, Math.round(Number(v) || 0))))
-                : null
+            bbox: normalizeBbox(el.bbox)
         }));
     }
 
