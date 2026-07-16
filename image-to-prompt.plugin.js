@@ -230,8 +230,20 @@ Do not include any preamble or explanation - only return the prompt itself.`;
     function stripThinkingBlocks(text) {
         if (!text) return '';
 
-        return text
-            .replace(/<\|[a-zA-Z0-9_.-]+\|>[\s\S]*?[a-zA-Z0-9_.-]+\|>/g, ' ')
+        let cleaned = String(text).trim();
+
+        // Strip common leading reasoning blocks emitted by thinking models.
+        // Handle both <|channel|>...<channel|> and the shorter <|channel>...<channel|> variants.
+        cleaned = cleaned
+            .replace(/^<\|channel\|>[\s\S]*?<channel\|>/i, '')
+            .replace(/^<\|channel>[\s\S]*?<channel\|>/i, '')
+            .replace(/^<think>[\s\S]*?<\/think>/i, '')
+            .replace(/^<analysis>[\s\S]*?<\/analysis>/i, '')
+            .trim();
+
+        return cleaned
+            .replace(/<\|[a-zA-Z0-9_.-]+\|>[\s\S]*?<\/[a-zA-Z0-9_.-]+>/g, ' ')
+            .replace(/<\|[a-zA-Z0-9_.-]+>[\s\S]*?<\/[a-zA-Z0-9_.-]+>/g, ' ')
             .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
             .replace(/<analysis>[\s\S]*?<\/analysis>/gi, ' ')
             .trim();
