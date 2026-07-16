@@ -1339,7 +1339,11 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
         let cleaned = String(text || '').trim();
 
         cleaned = cleaned
-            .replace(/<\|[a-zA-Z0-9_.-]+\|>[\s\S]*?[a-zA-Z0-9_.-]+\|>/g, ' ')
+            .replace(/<\|channel\|>[\s\S]*?<channel\|>/gi, ' ')
+            .replace(/<\|channel>[\s\S]*?<channel\|>/gi, ' ')
+            .replace(/<channel>[\s\S]*?<\/channel>/gi, ' ')
+            .replace(/<\|[a-zA-Z0-9_.-]+\|>[\s\S]*?<\/[a-zA-Z0-9_.-]+>/g, ' ')
+            .replace(/<\|[a-zA-Z0-9_.-]+>[\s\S]*?<\/[a-zA-Z0-9_.-]+>/g, ' ')
             .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
             .replace(/<analysis>[\s\S]*?<\/analysis>/gi, ' ')
             .trim();
