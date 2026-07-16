@@ -164,7 +164,9 @@ Do not include any preamble or explanation - only return the prompt itself.`;
         const requestPayload = {
             model: ImageToPromptSettings.model,
             messages: messages,
-            max_tokens: isFlux ? 500 : 200,
+            // Increased to tolerate reasoning-heavy outputs from thinking models.
+            // cleanPromptText() strips reasoning blocks before inserting into the UI.
+            max_tokens: isFlux ? 2800 : 2500,
             temperature: 0.7
         };
 

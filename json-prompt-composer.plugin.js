@@ -1281,7 +1281,8 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
                 body: JSON.stringify({
                     ...(JsonComposerSettings.model ? { model: JsonComposerSettings.model } : {}),
                     messages:    [{ role: 'system', content: system }, { role: 'user', content: user }],
-                    max_tokens:  2400,
+                    // Allow enough completion budget for thinking-model overhead plus full JSON.
+                    max_tokens:  3600,
                     temperature: 0.8
                 }),
                 signal: controller.signal
@@ -1316,6 +1317,19 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
         const balanced = findBalancedObject(cleaned);
         if (balanced) {
             try { return JSON.parse(balanced); } catch (_) {}
+        }
+
+        // Last-resort repair for truncated/mismatched JSON delimiters.
+        const repairedCleaned = repairJsonStructure(cleaned);
+        if (repairedCleaned && repairedCleaned !== cleaned) {
+            try { return JSON.parse(repairedCleaned); } catch (_) {}
+        }
+
+        if (balanced) {
+            const repairedBalanced = repairJsonStructure(balanced);
+            if (repairedBalanced && repairedBalanced !== balanced) {
+                try { return JSON.parse(repairedBalanced); } catch (_) {}
+            }
         }
 
         throw new Error('Model returned non-JSON content');
@@ -1353,7 +1367,7 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
     }
 
     function findBalancedObject(text) {
-        let start = -1, depth = 0, inStr = false, esc = false;
+        let start = -1, braceDepth = 0, bracketDepth = 0, inStr = false, esc = false;
         for (let i = 0; i < text.length; i++) {
             const ch = text[i];
             if (inStr) {
@@ -1363,13 +1377,88 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
                 continue;
             }
             if (ch === '"') { inStr = true; continue; }
-            if (ch === '{') { if (depth === 0) start = i; depth++; }
+            if (ch === '{') {
+                if (braceDepth === 0) start = i;
+                braceDepth++;
+            }
+            else if (ch === '[' && braceDepth > 0) {
+                bracketDepth++;
+            }
             else if (ch === '}') {
-                if (depth > 0) depth--;
-                if (depth === 0 && start !== -1) return text.slice(start, i + 1);
+                if (braceDepth > 0) braceDepth--;
+                if (braceDepth === 0 && bracketDepth === 0 && start !== -1) return text.slice(start, i + 1);
+            }
+            else if (ch === ']' && bracketDepth > 0) {
+                bracketDepth--;
             }
         }
         return null;
+    }
+
+    function repairJsonStructure(text) {
+        const src = String(text || '').trim();
+        if (!src) return '';
+
+        const openToClose = { '{': '}', '[': ']' };
+        const closeToOpen = { '}': '{', ']': '[' };
+        const stack = [];
+        let out = '';
+        let inStr = false;
+        let esc = false;
+
+        for (let i = 0; i < src.length; i++) {
+            const ch = src[i];
+
+            if (inStr) {
+                out += ch;
+                if (esc) esc = false;
+                else if (ch === '\\') esc = true;
+                else if (ch === '"') inStr = false;
+                continue;
+            }
+
+            if (ch === '"') {
+                inStr = true;
+                out += ch;
+                continue;
+            }
+
+            if (ch === '{' || ch === '[') {
+                stack.push(ch);
+                out += ch;
+                continue;
+            }
+
+            if (ch === '}' || ch === ']') {
+                const expectedOpen = closeToOpen[ch];
+
+                // If stack top is not the matching opener, close whatever is open first.
+                while (stack.length > 0 && stack[stack.length - 1] !== expectedOpen) {
+                    const missingClose = openToClose[stack.pop()];
+                    out += missingClose;
+                }
+
+                if (stack.length > 0 && stack[stack.length - 1] === expectedOpen) {
+                    stack.pop();
+                    out += ch;
+                }
+
+                // If unmatched close token with empty stack, drop it.
+                continue;
+            }
+
+            out += ch;
+        }
+
+        // Close any remaining open containers.
+        while (stack.length > 0) {
+            out += openToClose[stack.pop()];
+        }
+
+        // Remove trailing commas before a closing token.
+        out = out.replace(/,\s*([}\]])/g, '$1');
+
+        return out.trim();
     }
 
     function buildMagicPromptUserInput() {
@@ -1473,6 +1562,13 @@ Return ONLY the raw JSON object. No markdown fences, no explanation, no other te
         }
 
         return best.label;
+    }
+
+    // Backward-compat helper retained for parseFromPrompt().
+    // BBox axis interpretation is now handled centrally by bboxToCoords()/coordsToBbox(),
+    // so this intentionally remains a no-op unless migration logic is needed later.
+    function swapBboxCoordinatesIfNecessary() {
+        return;
     }
 
     // ── Bbox axis helpers ─────────────────────────────────────────────────────
