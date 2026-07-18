@@ -1,6 +1,6 @@
 /**
  * Use as Reference Plugin for Easy Diffusion
- * v1.0.0, last updated: 05/15/2026
+ * v1.0.1, last updated: 07/17/2026
  * By GitHub Copilot / Gary W.
  *
  * Adds a "Use as Reference" button to each generated image.
@@ -14,8 +14,14 @@
     "use strict";
 
     PLUGINS['IMAGE_INFO_BUTTONS'].push([
-        { text: 'Use as Reference', on_click: onUseAsReferenceClick }
+        { text: 'Use as Reference', on_click: onUseAsReferenceClick, filter: onUseAsReferenceFilter }
     ]);
+
+    // Only show the button when the reference-images feature is available (ED v4+).
+    // addRefImage() is defined in main.js only in builds that include reference image support.
+    function onUseAsReferenceFilter(origRequest, image) {
+        return typeof addRefImage === 'function';
+    }
 
     function onUseAsReferenceClick(origRequest, image) {
         if (!image || !image.src) {
