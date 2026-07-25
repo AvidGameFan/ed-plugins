@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.8.9, last updated: 7/21/2025
+ * v.1.8.10, last updated: 7/25/2026
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -191,6 +191,13 @@ function desiredTextEncoderName(origRequest) {
   }
 }
 
+function desiredClipSkip(origRequest) {
+  if (OutpaintItSettings.useChangedModel) {
+    return clipSkipField.checked;
+  }
+  return origRequest.clip_skip;
+}
+
 function calcOutpaintSizeIncrease(image) {
   //For each 2mp, add another block of 64 to the outpaint size.  For larger images, the default value is a bit thin.
   return outpaintSizeIncrease + 64 * Math.floor((image.naturalWidth*image.naturalHeight)/2000000)
@@ -221,6 +228,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
     num_outputs: 1,
     use_vae_model: desiredVaeName(origRequest),
     use_text_encoder_model : desiredTextEncoderName(origRequest),
+    clip_skip: desiredClipSkip(origRequest),
     sampler_name: desiredSamplerName(origRequest),
     seed: Math.floor(Math.random() * 10000000),
   })
