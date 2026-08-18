@@ -1,7 +1,7 @@
 // Reference Images Toggle Plugin for Easy Diffusion
 // Adds a toggle button to enable the reference images panel for non-Flux models
 // (e.g., Qwen image editing). Flux models already show reference images automatically.
-// v1.0.0, last updated: 4/25/2026
+// v1.1.0, last updated: 8/17/2026
 // Initial code by GitHub Copilot, modified by Gary W.
 //
 // Free to use with the CMDR2 Stable Diffusion UI.
@@ -17,6 +17,12 @@
 
   function getRefContainer() {
     return document.getElementById("editor-inputs-ref-images");
+  }
+
+  function isRefContainerVisible() {
+    const container = getRefContainer();
+    if (!container) return false;
+    return !container.classList.contains("displayNone") && container.style.display !== "none";
   }
 
   function getToggleRow() {
@@ -130,6 +136,21 @@
   }
 
   // --- Entry point ---
+  // TEMP SAFEGUARD:
+  // Until a core main.js PR is merged, defensively strip ref_images from requests
+  // whenever the reference-image UI is hidden. This prevents stale hidden selections
+  // from affecting generation for non-Flux flows.
+  if (typeof window.getCurrentUserRequest === "function") {
+    const originalGetCurrentUserRequest = window.getCurrentUserRequest;
+    window.getCurrentUserRequest = function() {
+      const task = originalGetCurrentUserRequest.apply(this, arguments);
+      if (!isRefContainerVisible() && task && task.reqBody && "ref_images" in task.reqBody) {
+        delete task.reqBody.ref_images;
+      }
+      return task;
+    };
+  }
+
   insertToggleButton();
 
 })();

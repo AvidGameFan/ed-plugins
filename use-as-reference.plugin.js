@@ -1,6 +1,6 @@
 /**
  * Use as Reference Plugin for Easy Diffusion
- * v1.0.1, last updated: 07/17/2026
+ * v1.1.0, last updated: 08/16/2026
  * By GitHub Copilot / Gary W.
  *
  * Adds a "Use as Reference" button to each generated image.
@@ -13,14 +13,93 @@
 (function () {
     "use strict";
 
+    const BUTTON_TEXT = 'Use as Reference';
+    const BUTTON_ATTR = 'data-use-as-reference-btn';
+
     PLUGINS['IMAGE_INFO_BUTTONS'].push([
         { text: 'Use as Reference', on_click: onUseAsReferenceClick, filter: onUseAsReferenceFilter }
     ]);
 
-    // Only show the button when the reference-images feature is available (ED v4+).
-    // addRefImage() is defined in main.js only in builds that include reference image support.
+    initDynamicButtonSync();
+
+    // Only show the button when reference images are currently usable/visible:
+    // 1) backend-gated feature is enabled (style.display is not "none")
+    // 2) the panel is not manually/model-hidden via "displayNone"
     function onUseAsReferenceFilter(origRequest, image) {
-        return typeof addRefImage === 'function';
+        if (typeof addRefImage !== 'function') return false;
+
+        const refContainer = document.getElementById('editor-inputs-ref-images');
+        if (!refContainer) return false;
+
+        const backendEnabled = refContainer.style.display !== 'none';
+        const panelVisible = !refContainer.classList.contains('displayNone');
+
+        return backendEnabled && panelVisible;
+    }
+
+    function hasReferencePanelVisible() {
+        const refContainer = document.getElementById('editor-inputs-ref-images');
+        if (!refContainer) return false;
+
+        const backendEnabled = refContainer.style.display !== 'none';
+        const panelVisible = !refContainer.classList.contains('displayNone');
+
+        return backendEnabled && panelVisible;
+    }
+
+    function syncUseAsReferenceButtons() {
+        const shouldShow = hasReferencePanelVisible();
+        const infos = document.querySelectorAll('.imgItemInfo');
+
+        infos.forEach((info) => {
+            // Tag core-created buttons so we can manage them dynamically later.
+            info.querySelectorAll('.tasksBtns').forEach((btn) => {
+                if (!btn.hasAttribute(BUTTON_ATTR) && btn.textContent && btn.textContent.trim() === BUTTON_TEXT) {
+                    btn.setAttribute(BUTTON_ATTR, '1');
+                }
+            });
+
+            const existing = info.querySelector(`.tasksBtns[${BUTTON_ATTR}="1"]`);
+
+            if (shouldShow) {
+                if (existing) return;
+
+                const img = info.closest('.imgItem')?.querySelector('img');
+                if (!img) return;
+
+                const btn = document.createElement('button');
+                btn.classList.add('tasksBtns');
+                btn.setAttribute(BUTTON_ATTR, '1');
+                btn.innerText = BUTTON_TEXT;
+                btn.addEventListener('click', function () {
+                    onUseAsReferenceClick(null, img);
+                });
+                info.appendChild(btn);
+            } else if (existing) {
+                existing.remove();
+            }
+        });
+    }
+
+    function initDynamicButtonSync() {
+        const start = () => {
+            const refContainer = document.getElementById('editor-inputs-ref-images');
+            if (!refContainer) {
+                setTimeout(start, 300);
+                return;
+            }
+
+            const observer = new MutationObserver(syncUseAsReferenceButtons);
+            observer.observe(refContainer, { attributes: true, attributeFilter: ['class', 'style'] });
+
+            // Keep buttons in sync as new images appear.
+            document.addEventListener('on_render_task_success', syncUseAsReferenceButtons);
+
+            // Initial sync for already-rendered images.
+            syncUseAsReferenceButtons();
+        };
+
+        start();
     }
 
     function onUseAsReferenceClick(origRequest, image) {
@@ -37,9 +116,8 @@
 
         addRefImage(image.src);
 
-        // Make the reference images panel visible regardless of model type.
-        // main.js hides it with displayNone for non-Flux models; remove that here
-        // so the user can immediately see the image was added.
+        // Safety fallback: remove displayNone in case another script hid the panel
+        // between filter evaluation and click handling.
         const refContainer = document.getElementById('editor-inputs-ref-images');
         if (refContainer) {
             refContainer.classList.remove('displayNone');
