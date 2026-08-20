@@ -1,6 +1,6 @@
 /**
  * Use as Reference Plugin for Easy Diffusion
- * v1.1.0, last updated: 08/16/2026
+ * v1.1.1, last updated: 08/19/2026
  * By GitHub Copilot / Gary W.
  *
  * Adds a "Use as Reference" button to each generated image.
@@ -75,10 +75,25 @@
                     onUseAsReferenceClick(null, img);
                 });
                 info.appendChild(btn);
-            } else if (existing) {
+            }
+
+            if (!shouldShow && existing) {
                 existing.remove();
             }
         });
+    }
+
+    function bindModelChangeWatcher() {
+        const modelEl = document.querySelector('#stable_diffusion_model');
+        if (!modelEl) return;
+
+        const resync = () => {
+            // Let core model-change handlers run first, then sync button state.
+            //setTimeout(syncUseAsReferenceButtons, 0);
+            setTimeout(syncUseAsReferenceButtons, 75);
+        };
+
+        modelEl.addEventListener('change', resync);
     }
 
     function initDynamicButtonSync() {
@@ -91,6 +106,8 @@
 
             const observer = new MutationObserver(syncUseAsReferenceButtons);
             observer.observe(refContainer, { attributes: true, attributeFilter: ['class', 'style'] });
+
+            bindModelChangeWatcher();
 
             // Keep buttons in sync as new images appear.
             document.addEventListener('on_render_task_success', syncUseAsReferenceButtons);
