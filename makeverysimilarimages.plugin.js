@@ -1,7 +1,7 @@
 /***
  * 
  * Make Very Similar Images Plugin for Easy Diffusion
- * v.1.3.3, last updated: 2/21/2026
+ * v.1.3.4, last updated: 9/12/2026
  * By Gary W.
  * 
  * Similar to the original "Make Similar Images" plugin to make images somewhat similar to the original,
@@ -142,7 +142,7 @@ function isModelFlux(modelName) {
   //if we're unsure from the internal check, use the filename as a fall-back.
   
   // Combined regex for all Flux-related terms (including Klein)
-  return /flux|lyhAnime_kor|chroma|sd3|qwen|z_image|klein/i.test(modelName);
+  return /flux|lyhAnime_kor|chroma|sd3|z-image|z_image|qwen|krea|klein/i.test(modelName);
 }
 
 function isSdxlModel() {
@@ -165,8 +165,8 @@ function isModelXl(modelName) {
   return /xl|playground|disneyrealcartoonmix|mobius|zovya/i.test(modelName) || isModelFlux(modelName); //Zovya models appear to mostly be Pony XL -- need to update if there are SD 1.5 models instead
 }
 
-const reduceFluxPromptStrength = 0.05;
-const reduceKleinPromptStrength = 0.1; //Klein models appear to be more sensitive to prompt strength, so reduce more.
+const reduceFluxPromptStrength = 0.06;
+const reduceKleinPromptStrength = 0.1; //Klein and Krea2 models appear to be more sensitive to prompt strength, so reduce more.
 
 // Helper function to get prompt strength modifier based on model type
 function getPromptStrengthModifier(modelName) {
@@ -176,7 +176,7 @@ function getPromptStrengthModifier(modelName) {
     return 0;
   }
   
-  if (/klein/i.test(modelName)) {
+  if (/klein|krea2|krea-2/i.test(modelName)) {
     return reduceKleinPromptStrength;
   }
   

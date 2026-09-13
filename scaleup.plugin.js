@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.4.5, last updated: 4/26/2026
+ * v.3.4.6, last updated: 9/12/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -466,7 +466,7 @@ function isModelFlux(modelName) {
   //if we're unsure from the internal check, use the filename as a fall-back.
   
   // Combined regex for all Flux-related terms
-  return /flux|lyhAnime_kor|chroma|sd3|z-image|z_image|qwen|krea/i.test(modelName);
+  return /flux|lyhAnime_kor|chroma|sd3|z-image|z_image|qwen|krea|klein/i.test(modelName);
 }
 
 
@@ -710,8 +710,8 @@ document.head.append(style);
 function scaleupRound(value) {
   return Math.round(value * 100) / 100;
 }
-const reduceFluxPromptStrength = 0.05; //was: 0.03;
-const reduceKleinPromptStrength = 0.1; //Klein models appear to be more sensitive to prompt strength, so reduce more.  This is an arbitrary value, but seems to work well in testing.
+const reduceFluxPromptStrength = 0.06;
+const reduceKleinPromptStrength = 0.1; //Klein and Krea2 models appear to be more sensitive to prompt strength, so reduce more.
 
 // Helper function to get prompt strength modifier based on model type
 function getPromptStrengthModifier(origRequest) {
@@ -722,7 +722,7 @@ function getPromptStrengthModifier(origRequest) {
     return 0;
   }
   
-  if (/klein/i.test(modelName)) {
+  if (/klein|krea2|krea-2/i.test(modelName)) {
     return reduceKleinPromptStrength;
   }
   
