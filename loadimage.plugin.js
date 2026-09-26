@@ -137,6 +137,12 @@
 
     // Extract prompt from image EXIF/metadata using exifr
     async function extractPromptFromImage(file) {
+        // Use Easy Diffusion's image metadata extraction if available.
+        //Uses older implementation if the new one is not available.
+        if (window.EasyDiffusionImageMetadata?.extractPromptFromImage) {
+            return window.EasyDiffusionImageMetadata.extractPromptFromImage(file);
+        }
+
         try {
             if (typeof exifr === 'undefined') {
                 console.warn('Load Image Plugin: exifr not available, skipping metadata extraction');
