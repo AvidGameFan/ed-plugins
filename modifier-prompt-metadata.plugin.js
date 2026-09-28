@@ -1,6 +1,6 @@
 // Modifier Prompt Metadata Plugin
 // Uses prompts embedded in selected Easy Diffusion modifier images instead of their names.
-// v1.0.0, last updated 9/25/2026
+// v1.0.1, last updated 9/27/2026
 //
 // Free to use with the CMDR2 Stable Diffusion UI.
 //
@@ -96,7 +96,7 @@
         return promptFromMetadata(await exifr.parse(file))
     }
 
-    window.EasyDiffusionImageMetadata = { extractPromptFromImage }
+    window.EasyDiffusionImageMetadata = { extractPromptFromImage, getPromptForTag }
 
     function insertToggle() {
         const container = document.querySelector("#editor-inputs-tags-container")
@@ -156,6 +156,14 @@
             }))
         }
         return promptCache.get(url)
+    }
+
+    async function getPromptForTag(name) {
+        if (!isEnabled()) return null
+        const tag = typeof activeTags !== "undefined"
+            ? activeTags.find(activeTag => activeTag.name === name)
+            : null
+        return getPromptForPreview(getPreviewUrl(tag))
     }
 
     function getActiveTags(taskBody) {

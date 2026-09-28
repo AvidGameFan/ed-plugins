@@ -4,7 +4,7 @@
 // Uses the PLUGINS["TASK_CREATE"] hook (see /ui/media/js/task-manager.js), which fires once per
 // render batch with the fully-built request body.
 //
-// v1.0.1, last updated 9/27/2026
+// v1.0.2, last updated 9/27/2026
 (function () {
     "use strict"
 
@@ -58,7 +58,7 @@
 
     insertToggle()
 
-    PLUGINS["TASK_CREATE"].push(function (event) {
+    PLUGINS["TASK_CREATE"].push(async function (event) {
         if (!isEnabled()) {
             return
         }
@@ -68,23 +68,47 @@
             return
         }
 
-        const tagsSuffix = getActiveTagsSuffix(taskBody)
-        if (tagsSuffix === "") {
+        const inactive = new Set(taskBody.inactive_tags || [])
+        const activeNames = (taskBody.active_tags || []).filter((name) => !inactive.has(name))
+        if (activeNames.length === 0) {
             return
         }
 
-        if (taskBody.prompt === tagsSuffix) {
-            return // prompt is made up entirely of modifiers already, nothing to reorder
-        }
+        const metadata = window.EasyDiffusionImageMetadata
+        const modifierTexts = await Promise.all(activeNames.map(async (name) =>
+            await metadata?.getPromptForTag?.(name) || name
+        ))
+        const originalSuffix = activeNames.join(", ")
+        const tagsSuffix = modifierTexts.join(", ")
 
         let basePrompt = taskBody.prompt
-        const appendedSuffix = ", " + tagsSuffix
-        if (basePrompt.endsWith(appendedSuffix)) {
-            basePrompt = basePrompt.slice(0, -appendedSuffix.length)
+        const suffixes = [...new Set([originalSuffix, tagsSuffix])]
+        let removedSuffix
+        do {
+            removedSuffix = false
+            for (const suffix of suffixes) {
+                if (basePrompt === suffix) {
+                    basePrompt = ""
+                    removedSuffix = true
+                } else if (basePrompt.endsWith(", " + suffix)) {
+                    basePrompt = basePrompt.slice(0, -(suffix.length + 2))
+                    removedSuffix = true
+                }
+            }
+        } while (removedSuffix)
+
+        const separator = /[\p{L}\p{N}]$/u.test(tagsSuffix) ? ", " : " "
+        const prefixes = [...new Set([originalSuffix, tagsSuffix])]
+        for (const prefix of prefixes) {
+            const prefixSeparator = /[\p{L}\p{N}]$/u.test(prefix) ? ", " : " "
+            const modifierPrefix = `${prefix}${prefixSeparator}`
+            while (basePrompt.startsWith(modifierPrefix)) {
+                basePrompt = basePrompt.slice(modifierPrefix.length).trimStart()
+            }
         }
 
-            const separator = /[\p{L}\p{N}]$/u.test(tagsSuffix) ? ", " : " "
-            taskBody.prompt = basePrompt.trim() === "" ? tagsSuffix : `${tagsSuffix}${separator}${basePrompt}`
+        const modifierPrefix = `${tagsSuffix}${separator}`
+        taskBody.prompt = basePrompt.trim() === "" ? tagsSuffix : `${modifierPrefix}${basePrompt}`
 
         // task-manager.js invokes this hook with `this` bound to the task that's about to render,
         // so update only that task's on-screen prompt label, not every queued task.
