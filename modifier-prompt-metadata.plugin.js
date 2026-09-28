@@ -185,6 +185,7 @@
 
         const originalSuffix = tags.map(tag => tag.name).join(", ")
         const replacementSuffix = replacementNames.join(", ")
+        const mainPromptSeparator = /[\p{L}\p{N}]$/u.test(replacementSuffix) ? ", " : " "
         let prompt = taskBody.prompt
         const appendedSuffix = ", " + originalSuffix
 
@@ -194,7 +195,7 @@
         } else if (prompt === originalSuffix) {
             taskBody.prompt = replacementSuffix
         } else if (prompt.startsWith(originalSuffix + ", ")) {
-            taskBody.prompt = `${replacementSuffix}, ${prompt.slice(originalSuffix.length + 2)}`
+            taskBody.prompt = `${replacementSuffix}${mainPromptSeparator}${prompt.slice(originalSuffix.length + 2)}`
         } else {
             return
         }

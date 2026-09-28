@@ -3,7 +3,8 @@
 // to the front of the prompt instead of leaving it appended at the end.
 // Uses the PLUGINS["TASK_CREATE"] hook (see /ui/media/js/task-manager.js), which fires once per
 // render batch with the fully-built request body.
-
+//
+// v1.0.1, last updated 9/27/2026
 (function () {
     "use strict"
 
@@ -82,7 +83,8 @@
             basePrompt = basePrompt.slice(0, -appendedSuffix.length)
         }
 
-        taskBody.prompt = basePrompt.trim() === "" ? tagsSuffix : `${tagsSuffix}, ${basePrompt}`
+            const separator = /[\p{L}\p{N}]$/u.test(tagsSuffix) ? ", " : " "
+            taskBody.prompt = basePrompt.trim() === "" ? tagsSuffix : `${tagsSuffix}${separator}${basePrompt}`
 
         // task-manager.js invokes this hook with `this` bound to the task that's about to render,
         // so update only that task's on-screen prompt label, not every queued task.
