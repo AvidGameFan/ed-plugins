@@ -298,9 +298,12 @@ Keep prompts concise but detailed. Do not include any other text than the prompt
             name: 'Enhance',
             waitName: 'Enhancing',
             description: 'Improve and expand existing prompt with more details',
-            systemPrompt: `You are an expert at creating detailed, artistic prompts for AI image generation. 
+            systemPrompt: (hasPrompt) => `You are an expert at creating detailed, artistic prompts for AI image generation. 
 Generate creative, descriptive prompts that include artistic terms, lighting, composition, style, and technical details.
-Refine the prompt to keep the overall vision intact while enhancing the descriptions of lighting, mood, color palette, art style, camera settings, and other visual elements.`
+`
+                + (hasPrompt
+                    ? `Refine the prompt to keep the overall vision intact while enhancing the descriptions of lighting, mood, color palette, art style, camera settings, and other visual elements.`
+                    : `Create a new, original prompt with a clear subject and descriptions of lighting, mood, color palette, art style, camera settings, and other visual elements.`)
                 + commonInstructions,
             userPromptTemplate: (currentPrompt) => 
                 currentPrompt 
@@ -343,8 +346,8 @@ Think about: different art styles, alternative lighting, new compositions, diffe
             name: 'Booru',
             waitName: 'Working',
             description: 'Improve and expand existing prompt with more details and booru tags',
-            systemPrompt: `You are an expert at creating creative variations of AI image generation prompts. 
-Your goal is to take an existing prompt and embellish it using a few booru-style tags. This is more commonly used for anime prompts.`
+            systemPrompt: (hasPrompt) => `You are an expert at creating AI image generation prompts. 
+Your goal is to ${hasPrompt ? 'take an existing prompt and embellish it' : 'create a new prompt'} using a few booru-style tags. This is more commonly used for anime prompts.`
                 + commonInstructions +
 `Not all elements of the prompt need to be turned into booru tags.
 Use tags appropriately, taking care not to mix styles and types haphazardly nor randomly. For example, don't mix anime-related tags with painterly or brush stroke.
@@ -377,7 +380,10 @@ mole, fang, closed mouth, scarf, jeans, grin, blonde hair, mug, alcohol, green e
         }
 
         // Create system prompt with model-specific token limit
-        const systemPrompt = typeConfig.systemPrompt + 
+        const baseSystemPrompt = typeof typeConfig.systemPrompt === 'function'
+            ? typeConfig.systemPrompt(!!currentPrompt.trim())
+            : typeConfig.systemPrompt;
+        const systemPrompt = baseSystemPrompt + 
             (!isModelFlux($("#editor-settings #stable_diffusion_model")[0].dataset.path) 
                 ? " Please keep it brief. It's an SDXL model with a 75 token limit." 
                 : "");
