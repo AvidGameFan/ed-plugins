@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.4.6, last updated: 9/12/2026
+ * v.3.4.7, last updated: 9/13/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -712,6 +712,7 @@ function scaleupRound(value) {
 }
 const reduceFluxPromptStrength = 0.06;
 const reduceKleinPromptStrength = 0.1; //Klein and Krea2 models appear to be more sensitive to prompt strength, so reduce more.
+const reduceKleinNormalPromptStrength = 0.16;
 
 // Helper function to get prompt strength modifier based on model type
 function getPromptStrengthModifier(origRequest) {
@@ -723,7 +724,7 @@ function getPromptStrengthModifier(origRequest) {
   }
   
   if (/klein|krea2|krea-2/i.test(modelName)) {
-    return reduceKleinPromptStrength;
+    return scaleUpPreserve ? reduceKleinPromptStrength : reduceKleinNormalPromptStrength;
   }
   
   return reduceFluxPromptStrength;
