@@ -1,7 +1,7 @@
 /* 
  * Image to Prompt Plugin
  *
- * v.1.1.0, last updated: 7/15/2026
+ * v.1.1.1, last updated: 10/6/2026
  * Initial version by GitHub Copilot, modified by Gary W.
  *
  * Free to use with the CMDR2 Stable Diffusion UI.
@@ -103,7 +103,7 @@ var ImageToPromptSettings = {
     // Determine if the current model is Flux-based (for different prompt styles)
     function isModelFlux(modelName) {
         if (!modelName) return false;
-        return /flux|lyhAnime_kor|chroma|sd3|qwen/i.test(modelName);
+        return /flux|lyhAnime_kor|chroma|sd3|qwen|krea|klein|kroma/i.test(modelName);
     }
 
     // Get current Stable Diffusion model name
@@ -126,9 +126,10 @@ var ImageToPromptSettings = {
         
         // Construct system prompt based on model type
         const systemPrompt = isFlux
-            ? `You are an expert at analyzing images and creating detailed prompts for Flux AI image generation models.
+            ? `You are an expert at analyzing images and creating detailed prompts for Flux and Krea 2 AI image generation models.
 Your task is to analyze the provided image and generate a detailed, descriptive prompt that would recreate it.
-Focus on: subject, composition, lighting, colors, mood, artistic style, technical details, and visual elements.
+Focus on: subject, composition, lighting, colors, mood, artistic style, technical details, and visual elements.  For non-photographic
+images, pay extra attention to artistic style, color palette, visual motifs, and actual stylistic details (especially around the face).
 Flux models support longer, more natural language prompts. Be descriptive and specific.  Avoid mixing styles - choose one coherent style.
 Do not include any preamble or explanation - only return the prompt itself.`
             : `You are an expert at analyzing images and creating detailed prompts for SDXL/Stable Diffusion image generation.
