@@ -142,7 +142,7 @@ function isModelFlux(modelName) {
   //if we're unsure from the internal check, use the filename as a fall-back.
   
   // Combined regex for all Flux-related terms (including Klein)
-  return /flux|lyhAnime_kor|chroma|sd3|z-image|z_image|qwen|krea|klein/i.test(modelName);
+  return /flux|lyhAnime_kor|chroma|sd3|z-image|z_image|qwen|krea|klein|kroma/i.test(modelName);
 }
 
 function isSdxlModel() {
