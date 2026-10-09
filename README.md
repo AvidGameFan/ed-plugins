@@ -141,8 +141,8 @@ Adds a toggle below the selected Image Modifiers. When enabled, JPG/PNG modifier
 [Custom Artists.zip](https://app.box.com/s/pv5t50jm3qebsiydsqnxd3pnqpj0roq7) - a collection of artists, with some separated by category  
 [Fooocus Styles.zip](https://app.box.com/s/q8bf32cqinjc920wkd2tjqzk24e89b2k) - art styles originally created for the Fooocus UI, adapted for use in ED.  
 [More Styles.7z](https://app.box.com/s/t06onf4dljv1i9maq2zo5zfx7ievg32w) - various art styles created using Krea2 based on prompts found online plus a couple of personal favorites.  (Due to the long filenames, you may need Windows 11 with the long filename option on.)  
-[Clio Styles A-H.7z](https://app.box.com/s/ptxgntc2yeye8qtdd8e3r3bo7exm1a6y) - styles posted to Reddit and [GitHub](https://github.com/lumenastrum/clio-style-preview), geared towards newer models like Krea 2.  
-[Clio Styles I-Z.7z](https://app.box.com/s/qr6bmsmnhfn0rkdzu6eczesv6suk97bw)  
+[Clio Styles A-H.7z](https://app.box.com/s/ptxgntc2yeye8qtdd8e3r3bo7exm1a6y) - Styles posted to Reddit and [GitHub](https://github.com/lumenastrum/clio-style-preview), geared towards newer models like Krea 2.  
+[Clio Styles I-Z.7z](https://app.box.com/s/qr6bmsmnhfn0rkdzu6eczesv6suk97bw) - Some styles have been modified slightly to improve results.  Also includes several of my own styles.
 >Use these styles with the "Modifiers At Front" and "Modifier Prompts from Image Metadata" plugins (see above).  You don't absolutely need to, but results should be better using both plugins.
 
 Unzip these folders into your "modifiers" folder inside easydiffusion. See the [ED Wiki](https://github.com/easydiffusion/easydiffusion/wiki/Custom-Modifiers) for more information.
