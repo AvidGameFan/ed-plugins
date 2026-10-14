@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.9.0, last updated: 10/13/2026
+ * v.1.8.10, last updated: 7/25/2026
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -137,18 +137,13 @@ function contrastImage(imageData, contrast) {  // contrast as an integer percent
 }
 
 
-//Model needs to have "turbo" (or equivalent) in the filename to be recognized as a turbo model.
-function isModelTurbo(modelName, loraList) {
-  if (/turbo|lightning|hyper|schnell|klein|flash|distill/i.test(modelName)) {
-    return true;
-  }
-  //if any of the Loras contains "lcm" or "hyper", assume turbo lora -- fewer steps needed
-  if (Array.isArray(loraList)) {
-    return loraList.some(element => /lcm|hyper/i.test(element));
-  } else if (typeof loraList === 'string') {
-    return /lcm|hyper/i.test(loraList);
-  }
-  return false;
+//Model needs to have "turbo" in the filename to be recognized as a turbo model.
+function isModelTurbo(modelName) {
+  let result = false;
+  if (modelName.search(/turbo/i)>=0) {
+    result = true;
+  }  
+  return result;
 }
 function desiredModelName(origRequest) {
   //Grab the model name from the user-input area instead of the original image.
@@ -219,7 +214,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   let newTaskRequest = getCurrentUserRequest();
   let initialPromptStrength = (OutpaintItSettings.useExtendImage ? 0.89 : 0.95);
   var desiredModel=desiredModelName(origRequest);  
-  var isTurbo=false; //calculated below, once the LoRAs are known
+  var isTurbo=isModelTurbo(desiredModel);
       
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
@@ -259,6 +254,14 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
     };
   }
 
+  //we don't need to increase the steps so much, as with normal img2img in ScaleUp, as our prompt strength is high, using nearly all specified steps.
+  if(isTurbo) {
+    newTaskRequest.reqBody.num_inference_steps=Math.min(7,newTaskRequest.reqBody.num_inference_steps);
+  }
+  else {
+    newTaskRequest.reqBody.num_inference_steps=Math.min(50,newTaskRequest.reqBody.num_inference_steps);
+  }
+
   // //Use UI's prompt to allow changing to a different model, such as inpainting model, before outpainting.
   // if (OutpaintItSettings.useChangedModel) {
   //   newTaskRequest.reqBody.use_stable_diffusion_model = $("#editor-settings #stable_diffusion_model")[0].dataset.path; 
@@ -294,15 +297,6 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
         console.log('OutpaintIt: unable to parse LoRA selection', e);
       }
     }
-  }
-
-  //we don't need to increase the steps so much, as with normal img2img in ScaleUp, as our prompt strength is high, using nearly all specified steps.
-  isTurbo = isModelTurbo(desiredModel, newTaskRequest.reqBody.use_lora_model);
-  if(isTurbo) {
-    newTaskRequest.reqBody.num_inference_steps=Math.min(7,newTaskRequest.reqBody.num_inference_steps);
-  }
-  else {
-    newTaskRequest.reqBody.num_inference_steps=Math.min(50,newTaskRequest.reqBody.num_inference_steps);
   }
 
   if (newTaskRequest.reqBody.width*newTaskRequest.reqBody.height>maxNoVaeTiling) {
