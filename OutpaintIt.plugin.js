@@ -212,6 +212,10 @@ function calcOutpaintSizeIncrease(image) {
 
 function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   let newTaskRequest = getCurrentUserRequest();
+  const uiLoraSettings = {
+    use_lora_model: newTaskRequest.reqBody?.use_lora_model,
+    lora_alpha: newTaskRequest.reqBody?.lora_alpha,
+  };
   let initialPromptStrength = (OutpaintItSettings.useExtendImage ? 0.89 : 0.95);
   var desiredModel=desiredModelName(origRequest);  
   var isTurbo=isModelTurbo(desiredModel);
@@ -272,29 +276,15 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
 
   //Switch the LoRAs along with the model
   if (OutpaintItSettings.useChangedModel) {
-    const loraData = $('#lora_model')[0]?.dataset.path;
-    if (loraData != undefined && loraData != '') {
-      try {
-        const loras = JSON.parse(loraData);
-        const selectedLoras = loras.modelNames || [];
-        const selectedLoraWeights = loras.modelWeights || [];
-
-        if (selectedLoras.length === 1 && selectedLoras[0] != '') {
-          newTaskRequest.reqBody.use_lora_model = selectedLoras[0];
-        } else if (selectedLoras.length > 1) {
-          newTaskRequest.reqBody.use_lora_model = selectedLoras;
-        } else {
-          delete newTaskRequest.reqBody.use_lora_model;
-        }
-        if (selectedLoraWeights.length === 1 && selectedLoraWeights[0] != '') {
-          newTaskRequest.reqBody.lora_alpha = selectedLoraWeights[0];
-        } else if (selectedLoraWeights.length > 1) {
-          newTaskRequest.reqBody.lora_alpha = selectedLoraWeights;
-        } else {
-          delete newTaskRequest.reqBody.lora_alpha;
-        }
-      } catch (e) {
-        console.log('OutpaintIt: unable to parse LoRA selection', e);
+    //Use the LoRAs from the current UI request (captured before merging with the original request).
+    //If none are selected in the UI, remove the original image's LoRAs.
+    for (const key of ['use_lora_model', 'lora_alpha']) {
+      const uiValue = uiLoraSettings[key];
+      const isEmpty = uiValue == undefined || uiValue === '' || (Array.isArray(uiValue) && uiValue.length === 0);
+      if (isEmpty) {
+        delete newTaskRequest.reqBody[key];
+      } else {
+        newTaskRequest.reqBody[key] = uiValue;
       }
     }
   }
