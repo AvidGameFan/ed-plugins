@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.8.10, last updated: 7/25/2026
+ * v.1.8.11, last updated: 10/18/2026
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -263,7 +263,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   //we don't need to increase the steps so much, as with normal img2img in ScaleUp, as our prompt strength is high, using nearly all specified steps.
   //Start from the original steps (or the UI steps if using the UI model), keeping turbo models at their low step counts.
   const baseSteps = parseInt(OutpaintItSettings.useChangedModel ? numInferenceStepsField.value : origRequest.num_inference_steps);
-  newTaskRequest.reqBody.num_inference_steps = Math.min(isTurbo ? 25 : 50, baseSteps);
+  newTaskRequest.reqBody.num_inference_steps = Math.min(isTurbo ? 15 : 45, baseSteps);  //This cap probably isn't necessary.
 
   // //Use UI's prompt to allow changing to a different model, such as inpainting model, before outpainting.
   // if (OutpaintItSettings.useChangedModel) {
