@@ -138,12 +138,14 @@ function contrastImage(imageData, contrast) {  // contrast as an integer percent
 
 
 //Model needs to have "turbo" in the filename to be recognized as a turbo model.
-function isModelTurbo(modelName) {
-  let result = false;
-  if (modelName.search(/turbo/i)>=0) {
-    result = true;
-  }  
-  return result;
+function isModelTurbo(modelName, loraList) {
+  if (/turbo|lightning|hyper|schnell|klein|flash|distill/i.test(modelName)) {
+    return true;
+  }
+  if (loraList != undefined && loraList !== '') {
+    return [].concat(loraList).some(element => /lcm|hyper/i.test(element));
+  }
+  return false;
 }
 function desiredModelName(origRequest) {
   //Grab the model name from the user-input area instead of the original image.
@@ -218,7 +220,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   };
   let initialPromptStrength = (OutpaintItSettings.useExtendImage ? 0.89 : 0.95);
   var desiredModel=desiredModelName(origRequest);  
-  var isTurbo=isModelTurbo(desiredModel);
+  var isTurbo=isModelTurbo(desiredModel, OutpaintItSettings.useChangedModel ? uiLoraSettings.use_lora_model : origRequest.use_lora_model);
       
   newTaskRequest.reqBody = Object.assign({}, origRequest, {
     init_image: image.src,
@@ -259,12 +261,9 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   }
 
   //we don't need to increase the steps so much, as with normal img2img in ScaleUp, as our prompt strength is high, using nearly all specified steps.
-  if(isTurbo) {
-    newTaskRequest.reqBody.num_inference_steps=Math.min(7,newTaskRequest.reqBody.num_inference_steps);
-  }
-  else {
-    newTaskRequest.reqBody.num_inference_steps=Math.min(50,newTaskRequest.reqBody.num_inference_steps);
-  }
+  //Start from the original steps (or the UI steps if using the UI model), keeping turbo models at their low step counts.
+  const baseSteps = parseInt(OutpaintItSettings.useChangedModel ? numInferenceStepsField.value : origRequest.num_inference_steps);
+  newTaskRequest.reqBody.num_inference_steps = Math.min(isTurbo ? 25 : 50, baseSteps);
 
   // //Use UI's prompt to allow changing to a different model, such as inpainting model, before outpainting.
   // if (OutpaintItSettings.useChangedModel) {
