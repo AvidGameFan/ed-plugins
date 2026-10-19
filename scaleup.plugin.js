@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.4.8, last updated: 10/4/2026
+ * v.3.4.9, last updated: 10/19/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1700,11 +1700,9 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
   newTaskRequest.reqBody.use_stable_diffusion_model = desiredModel;
 
   //Grab the prompt from the user-input area instead of the original image.
-  if (newTaskRequest.reqBody.prompt.substr(0, $("textarea#prompt").val().length) != $("textarea#prompt").val()) {
-    //if requesting new prompt OR if original prompt was just "Loaded Image", from the load-image plugin (which shouldn't happen, but just in case), always use new prompt
-    if (ScaleUpSettings.useChangedPrompt ||  newTaskRequest.reqBody.prompt=="Loaded Image" ) {  
-      newTaskRequest.reqBody.prompt = getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
-    };
+  //if requesting new prompt OR if original prompt was just "Loaded Image", from the load-image plugin (which shouldn't happen, but just in case), always use new prompt
+  if (ScaleUpSettings.useChangedPrompt || newTaskRequest.reqBody.prompt=="Loaded Image") {
+    newTaskRequest.reqBody.prompt = getPrompts()[0];  //getPrompts()[0] includes modifiers
   }
 
   //special case where you use Flux to do an initial generate, but want to use a smaller model for later generates

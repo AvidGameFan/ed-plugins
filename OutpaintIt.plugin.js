@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.8.11, last updated: 10/18/2026
+ * v.1.8.12, last updated: 10/19/2026
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -252,12 +252,9 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   delete newTaskRequest.reqBody.control_filter_to_apply;
   delete newTaskRequest.reqBody.control_image;
   //newTaskRequest.reqBody.preserve_init_image_color_profile=true; //shouldn't be necessary, working from txt2img, and distorts colors
-  //The comparison needs trimming, because the request box includes modifiers.  If the first part of the prompts match, we assume nothing's changed, and move on.
-  //If prompt has changed, ask if we should pick up the new value.  Note that the new prompt will now include modifiers- previously, only the text-box.
-  if (newTaskRequest.reqBody.prompt.substr(0,$("textarea#prompt").val().length)!=$("textarea#prompt").val()) {
-    if (OutpaintItSettings.useChangedPrompt ) {
-      newTaskRequest.reqBody.prompt=getPrompts()[0]; //promptField.value; //  $("textarea#prompt").val();
-    };
+  //getPrompts()[0] includes modifiers
+  if (OutpaintItSettings.useChangedPrompt) {
+    newTaskRequest.reqBody.prompt = getPrompts()[0];
   }
 
   //we don't need to increase the steps so much, as with normal img2img in ScaleUp, as our prompt strength is high, using nearly all specified steps.
