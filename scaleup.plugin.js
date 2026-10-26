@@ -1,6 +1,6 @@
 /**
  * Scale Up
- * v.3.4.9, last updated: 10/19/2026
+ * v.3.4.10, last updated: 10/26/2026
  * By Gary W.
  * 
  * Scaling up, maintaining close ratio, with img2img to increase resolution of output.
@@ -1704,6 +1704,11 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
   if (ScaleUpSettings.useChangedPrompt || newTaskRequest.reqBody.prompt=="Loaded Image") {
     newTaskRequest.reqBody.prompt = getPrompts()[0];  //getPrompts()[0] includes modifiers
     newTaskRequest.reqBody.negative_prompt = negativePromptField.value.trim();
+    //The modifiers-at-front hook strips tags listed in these fields from the prompt; they must match the new prompt, not the original image.
+    const uiBody = getCurrentUserRequest().reqBody;
+    newTaskRequest.reqBody.active_tags = uiBody.active_tags;
+    newTaskRequest.reqBody.inactive_tags = uiBody.inactive_tags;
+    newTaskRequest.reqBody.original_prompt = uiBody.original_prompt;
   }
 
   //special case where you use Flux to do an initial generate, but want to use a smaller model for later generates

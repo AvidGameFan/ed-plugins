@@ -1,6 +1,6 @@
 /**
  * OutpaintIt
- * v.1.8.12, last updated: 10/19/2026
+ * v.1.8.13, last updated: 10/26/2026
  * By Gary W.
  * 
  * A simple outpatining approach.  5 buttons are added with this one file.
@@ -256,6 +256,11 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   if (OutpaintItSettings.useChangedPrompt) {
     newTaskRequest.reqBody.prompt = getPrompts()[0];
     newTaskRequest.reqBody.negative_prompt = negativePromptField.value.trim();
+    //The modifiers-at-front hook strips tags listed in these fields from the prompt; they must match the new prompt, not the original image.
+    const uiBody = getCurrentUserRequest().reqBody;
+    newTaskRequest.reqBody.active_tags = uiBody.active_tags;
+    newTaskRequest.reqBody.inactive_tags = uiBody.inactive_tags;
+    newTaskRequest.reqBody.original_prompt = uiBody.original_prompt;
   }
 
   //we don't need to increase the steps so much, as with normal img2img in ScaleUp, as our prompt strength is high, using nearly all specified steps.
