@@ -1703,6 +1703,7 @@ async function processTaskRequest(newTaskRequest, image, isFlux, isXl, desiredMo
   //if requesting new prompt OR if original prompt was just "Loaded Image", from the load-image plugin (which shouldn't happen, but just in case), always use new prompt
   if (ScaleUpSettings.useChangedPrompt || newTaskRequest.reqBody.prompt=="Loaded Image") {
     newTaskRequest.reqBody.prompt = getPrompts()[0];  //getPrompts()[0] includes modifiers
+    newTaskRequest.reqBody.negative_prompt = negativePromptField.value.trim();
   }
 
   //special case where you use Flux to do an initial generate, but want to use a smaller model for later generates

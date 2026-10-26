@@ -255,6 +255,7 @@ function outpaintGetTaskRequest(origRequest, image, widen, all=false) {
   //getPrompts()[0] includes modifiers
   if (OutpaintItSettings.useChangedPrompt) {
     newTaskRequest.reqBody.prompt = getPrompts()[0];
+    newTaskRequest.reqBody.negative_prompt = negativePromptField.value.trim();
   }
 
   //we don't need to increase the steps so much, as with normal img2img in ScaleUp, as our prompt strength is high, using nearly all specified steps.
