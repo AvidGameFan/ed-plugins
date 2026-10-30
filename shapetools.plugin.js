@@ -1,6 +1,6 @@
 /* Shape Tools Plugin
 
- v. 1.0.0, last updated: 10/26/2026
+ v. 1.0.1, last updated: 10/30/2026
  By Gary W. using CoPilot/Claude Sonnet
 
  Free to use with the CMDR2 Stable Diffusion UI, Easy Diffusion.

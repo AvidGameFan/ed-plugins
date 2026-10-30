@@ -1,7 +1,7 @@
 /* Lasso Copy/Paste Plugin
 
- v. 1.0.0, last updated: 10/30/2026
- By Gary W.
+ v. 1.1.0, last updated: 10/30/2026
+ By Gary W. using CoPilot/Claude Sonnet 5.5
 
  Free to use with the CMDR2 Stable Diffusion UI, Easy Diffusion.
 
@@ -15,8 +15,10 @@ Adds a "Lasso" tool to the image editor.
    - No wheel? Use "[" and "]" to rotate, and "-" and "=" (or "+") to scale.
 3. Left-click to place it. Right-click or Escape cancels.
 
-The copy is taken from the image plus anything drawn on it. Opacity and sharpness use the editor's
-existing settings. Placing is undoable like any other stroke.
+The copy is taken from the image plus anything drawn on it. Opacity uses the editor's existing setting.
+Sharpness is used as edge feathering rather than a blur of the whole selection: 0 gives hard edges,
+higher values fade the edges inward (radius = Sharpness x Brush Size). The feathering updates live
+while the selection is floating. Placing is undoable like any other stroke.
 */
 
 (function() { "use strict"
@@ -48,6 +50,7 @@ existing settings. Placing is undoable like any other stroke.
 
 	function pasteTo(ctx, p) {
 		ctx.save()
+		ctx.filter = 'none'
 		ctx.translate(p.x, p.y)
 		ctx.rotate(p.angle)
 		ctx.scale(p.scale, p.scale)
@@ -76,12 +79,42 @@ existing settings. Placing is undoable like any other stroke.
 		ctx.restore()
 	}
 
+	// Sharpness feathers the edges (same blur radius the brush would use) instead of blurring the whole selection.
+	function getFeatherRadius(editor) {
+		var o = editor.options || {}
+		return parseInt((o.sharpness || 0) * (o.brush_size || 0))
+	}
+
+	function getFeathered(editor, f) {
+		var r = getFeatherRadius(editor)
+		if (r <= 0) return f.canvas
+		if (f._feathered && f._feathered.radius === r) return f._feathered.canvas
+		var pad = r * 2
+		var w = f.canvas.width + pad * 2
+		var h = f.canvas.height + pad * 2
+		var out = document.createElement('canvas')
+		out.width = w
+		out.height = h
+		var octx = out.getContext('2d')
+		octx.drawImage(f.canvas, pad, pad)
+		var mask = document.createElement('canvas')
+		mask.width = w
+		mask.height = h
+		var mctx = mask.getContext('2d')
+		mctx.filter = 'blur(' + r + 'px)'
+		mctx.drawImage(f.canvas, pad, pad)
+		octx.globalCompositeOperation = 'destination-in'
+		octx.drawImage(mask, 0, 0)
+		f._feathered = { radius: r, canvas: out }
+		return out
+	}
+
 	function renderFloating(editor) {
 		var ctx = editor.layers.overlay.ctx
 		ctx.clearRect(0, 0, editor.width, editor.height)
 		var f = editor._lassoFloat
 		if (!f || !editor._lassoPos) return
-		var p = { canvas: f.canvas, x: editor._lassoPos.x, y: editor._lassoPos.y, angle: f.angle, scale: f.scale }
+		var p = { canvas: getFeathered(editor, f), x: editor._lassoPos.x, y: editor._lassoPos.y, angle: f.angle, scale: f.scale }
 
 		ctx.save()
 		ctx.filter = 'none'
@@ -157,7 +190,7 @@ existing settings. Placing is undoable like any other stroke.
 				editor._lassoMode = 'place'
 				var f = editor._lassoFloat
 				// Copied by the history when the stroke starts, so undo/redo can redo the paste.
-				editor.options.lasso_payload = { canvas: f.canvas, x: x, y: y, angle: f.angle, scale: f.scale }
+				editor.options.lasso_payload = { canvas: getFeathered(editor, f), x: x, y: y, angle: f.angle, scale: f.scale }
 			} else {
 				editor._lassoMode = 'select'
 				editor._lassoPath = [{ x: x, y: y }]
