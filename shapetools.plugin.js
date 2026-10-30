@@ -219,6 +219,27 @@ when a shape tool is selected: "Line Width" (used instead of Brush Size) and "Sh
 			originalSelectOption.call(this, section_name, option_index)
 			if (section_name === 'tool') updateSectionVisibility(this)
 		}
+
+		// The editor ends a stroke on mouseout and starts a new one on re-entry; keep one shape stroke going past the edge.
+		function shapeStrokeActive() {
+			return editor.drawing && SHAPE_TOOL_IDS.includes(editor.getOptionValue('tool'))
+		}
+		;['mouseout', 'mouseenter'].forEach(function(type) {
+			editor.container.addEventListener(type, function(e) {
+				if (shapeStrokeActive()) e.stopImmediatePropagation()
+			}, true)
+		})
+		;['mousemove', 'mouseup'].forEach(function(type) {
+			document.addEventListener(type, function(e) {
+				if (!shapeStrokeActive() || editor.container.contains(e.target)) return
+				var bbox = editor.layers.overlay.canvas.getBoundingClientRect()
+				editor.container.dispatchEvent(new MouseEvent(type, {
+					bubbles: true,
+					clientX: Math.min(Math.max(e.clientX, bbox.left + 1), bbox.right - 1),
+					clientY: Math.min(Math.max(e.clientY, bbox.top + 1), bbox.bottom - 1),
+				}))
+			})
+		})
 	}
 
 	function waitForEditorsAndWire() {
